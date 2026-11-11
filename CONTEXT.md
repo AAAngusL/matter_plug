@@ -9,7 +9,7 @@ A Matter Wi-Fi on/off smart plug that has been commissioned onto the app's **Fab
 _Avoid_: device, node, accessory
 
 **Device**:
-The Android phone that runs the app.
+The Android phone that runs the app. Anything the user reads calls it the "phone".
 _Avoid_: using "device" for the plug
 
 **Pairing**:
@@ -38,3 +38,47 @@ _Avoid_: multi-admin (in user-facing text)
 
 **Reset route**:
 Commissioning a factory-reset plug over Bluetooth using its printed code. This is the product's **Pairing** flow.
+
+**Battery Guard**:
+The feature that keeps the **Device**'s battery inside a **Band** by switching the **Charger plug**.
+_Avoid_: battery manager, charge controller
+
+**Charger plug**:
+The **Plug** that the **Device**'s charger is plugged into and that **Battery Guard** switches.
+_Avoid_: power plug, smart charger
+
+**Plugged in**:
+The **Device** is connected to a power source. This is what "charging" means to **Battery Guard**, whatever the battery is doing.
+_Avoid_: charging (in anything the rule depends on)
+
+**Low threshold**:
+The battery percentage at or below which the **Charger plug** is turned on.
+_Avoid_: minimum, floor
+
+**High threshold**:
+The battery percentage at or above which the **Charger plug** is turned off.
+_Avoid_: maximum, ceiling
+
+**Band**:
+The range between the **Low threshold** and the **High threshold**, where **Battery Guard** does nothing.
+_Avoid_: window, range
+
+**Check**:
+One scheduled look at the battery level, followed by a switch if the rule asks for one.
+_Avoid_: poll, scan
+
+**Check interval**:
+The time between **Checks**. There are two: one while the **Device** is **Plugged in**, one while it is on battery.
+_Avoid_: frequency, polling rate
+
+**Alert**:
+A message sent when **Battery Guard** cannot keep the battery in the **Band**: the phone is not charging after the plug was turned on, or the plug cannot be reached.
+_Avoid_: warning, notification (a notification is only how an alert shows on the phone)
+
+**Alert address**:
+The web address that receives **Alerts**.
+_Avoid_: webhook, endpoint, server
+
+**Receiver**:
+The program on a computer that listens at the **Alert address**.
+_Avoid_: server, listener
