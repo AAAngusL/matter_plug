@@ -72,7 +72,7 @@ The time between **Checks**. There are two: one while the **Device** is **Plugge
 _Avoid_: frequency, polling rate
 
 **Alert**:
-A message sent when **Battery Guard** cannot keep the battery in the **Band**: the phone is not charging after the plug was turned on, or the plug cannot be reached.
+A message sent when **Battery Guard** cannot keep the battery in the **Band** or cannot do its job: the phone is not charging after the plug was turned on, the plug cannot be reached, or Battery Guard itself is faulty.
 _Avoid_: warning, notification (a notification is only how an alert shows on the phone)
 
 **Alert address**:
@@ -82,3 +82,11 @@ _Avoid_: webhook, endpoint, server
 **Receiver**:
 The program on a computer that listens at the **Alert address**.
 _Avoid_: server, listener
+
+**Status report**:
+A short message the **Device** sends after every **Check**, when switched on, to show that **Battery Guard** is alive.
+_Avoid_: heartbeat, ping
+
+**Silence alarm**:
+The **Receiver**'s own alarm, raised when it hears nothing from the **Device** for longer than expected.
+_Avoid_: watchdog, timeout

@@ -1,6 +1,15 @@
 # Battery Guard: Design
 
-Status: draft 6, 2026-11-11. Replaces draft 5. Adds to `DESIGN.md` and `IMPLEMENTATION.md`. Nothing here is built yet.
+Status: draft 7, 2026-11-11. Replaces draft 6. Adds to `DESIGN.md` and `IMPLEMENTATION.md`. Nothing here is built yet.
+
+Changes in draft 7, from the second grill session:
+
+- The gateway phone is the Galaxy S20 FE (SM-G780F, Android 13). Tests T14 and T16 run on it.
+- **Status report.** An optional small request after every check, so the receiver can tell when the phone has gone silent. The receiver raises its own **silence alarm** (section 7).
+- A third alert, **Battery Guard not working**, for the cases where Battery Guard itself cannot do its job: exact alarms not allowed, battery unreadable, or the service cannot start (sections 6, 7).
+- Reminders stay fixed at 60 minutes with no quiet hours. A home-network alert address is accepted as it is; the silence alarm is the cover for a dead router. No plain-text body in version 1.
+- A high threshold of 100 means "never turn off" (section 4).
+- The receiver is a Go program.
 
 Changes in draft 6, from the design review:
 
@@ -62,6 +71,8 @@ It must work unattended, with the app closed and the screen off, and use very li
 | **Alert** | A message sent when Battery Guard cannot keep the battery in the band |
 | **Alert address** | The web address (URL) that receives alerts as HTTP requests |
 | **Receiver** | The program on the computer that listens at the alert address |
+| **Status report** | A short request the phone sends after every check, when switched on, to show that Battery Guard is alive |
+| **Silence alarm** | The receiver's own alarm, raised when it hears nothing from the phone for too long |
 
 "Phone" is the word used in anything the user reads; the glossary calls the same thing the **Device**.
 
@@ -70,7 +81,7 @@ It must work unattended, with the app closed and the screen off, and use very li
 | Decision | Choice | Reason |
 |---|---|---|
 | How the battery is watched | A scheduled check at the check interval; no always-running service | The app is not running between checks, so it uses almost no battery, and there is no service for the phone to kill |
-| What a check costs | Wake, read the battery level, schedule the next check, exit | Most checks find the battery inside the band and do nothing else |
+| What a check costs | Wake, read the battery level, schedule the next check, exit; plus one small request if status reports are on | Most checks find the battery inside the band and do nothing else |
 | When the Matter library is loaded | Only in a check that needs a switch | Loading it starts network discovery, which is the expensive part |
 | What "charging" means | The phone is plugged in to power | Independent of any charge limit the phone applies to itself |
 | What triggers a switch | Battery level and plugged-in state together (section 4) | Makes every check safe to repeat and avoids pointless commands |
@@ -84,6 +95,9 @@ It must work unattended, with the app closed and the screen off, and use very li
 | Screen lock on the gateway phone | None | A locked phone does not run the app after a reboot until someone unlocks it |
 | Failure direction | Towards on (section 6) | A plug stuck off stops the gateway |
 | Which plug | The one plug paired in the app | Multi-plug support is out of scope |
+| Silence detection | An optional status report after every check; the receiver raises the silence alarm | The worst failures (dead phone, killed app, dead router) send no alert at all, so silence is the only signal |
+| Alerts for Battery Guard's own faults | A third alert, raised at the second faulty check in a row | A phone nobody looks at needs to say when the guard is not working |
+| Reminders | Fixed at 60 minutes, no quiet hours | Silence at 3 a.m. is the dangerous case for a gateway |
 
 ## 4. The rule
 
@@ -105,7 +119,7 @@ Properties of this rule:
 - **No command when it would change nothing.** At a low level with the phone already plugged in, or a high level with it not plugged in, nothing is sent.
 - **Independent of the phone's charge limit.** A phone that holds its charge at a limit is still plugged in, so the plug is turned off when the level reaches the high threshold. A limit set below the high threshold keeps the plug on, which is harmless.
 
-Threshold limits: low 5 to 50, high 50 to 100, and high at least 10 above low. A high threshold of 100 means "never turn off".
+Threshold limits: low 5 to 50, high 50 to 100, and high at least 10 above low. A high threshold of 100 means "never turn off": the second row of the table then never applies, and the plug stays on, as it does today without Battery Guard.
 
 ### Manual use of the plug
 
@@ -176,14 +190,14 @@ These figures are estimates; the real numbers come from test T6. To hold the top
 | `ActionService` | A short foreground service that lives only for the seconds a switch or an alert send takes, including the 30-second wait for power after a switch on | New |
 | `PlugCommander` | One switch: connect to the plug, send On or Off, read the state back, release the session | New, in the `matter` package; reuses the calls in `PlugClient` |
 | `AlertPolicy` | Decides when an alert starts, repeats and ends (section 7), as a pure function | New; unit-tested without a phone |
-| `HttpAlerter` | Sends one alert as an HTTP POST, and keeps alerts that failed to send until they are delivered | New |
+| `HttpAlerter` | Sends one alert or status report as an HTTP POST, and keeps alerts that failed to send until they are delivered | New |
 | `GuardNotifier` | The on-phone notification that mirrors each alert, and the brief "switching" notification | New |
 | `BootReceiver` | Schedules the checks again after a restart or an app update, and runs one check at once | New |
 | `ChipController` | Unchanged. Created only when `PlugCommander` or the plug screen needs it | Existing |
 
 Two rules keep battery use low:
 
-1. `CheckReceiver` must not touch `ChipController`, the network or anything else in the `matter` package unless a switch is needed or an alert is waiting to be sent.
+1. `CheckReceiver` must not touch `ChipController` or anything else in the `matter` package unless a switch is needed, and must not use the network unless an alert, a waiting request or a status report is to be sent.
 2. No wake lock is held except while `ActionService` runs.
 
 The plug screen keeps its own subscription while it is visible, so a switch made by Battery Guard appears there like a press of the plug's button.
@@ -198,6 +212,8 @@ Every case is re-evaluated at the next check, because the rule is safe to repeat
 | A command was sent but not confirmed | Treated as "the plug cannot be reached" | As above |
 | Battery low, plug turned on and confirmed, phone still not plugged in 30 seconds later | Sends On again at each later check while the phone is not plugged in | **Not charging**, at once |
 | A check that needs no switch, or a successful switch | Resets the count of failed checks | None |
+| Exact alarms not allowed, battery unreadable, or the service cannot start | The check does what it can; the fault is counted | **Battery Guard not working**, at the second faulty check in a row |
+| A check with none of those faults | Resets the count of faulty checks | None |
 | Phone restarted, or app updated | Checks are scheduled again and one runs at once | None |
 | Battery Guard disabled by the user | Checks stop. If the plug is off, the app asks: "The plug is off. Turn it on before disabling?" | None |
 
@@ -207,9 +223,9 @@ The "plug unreachable" alert therefore arrives about one check interval after th
 
 | Limit | Consequence | What reduces it |
 |---|---|---|
-| Home Wi-Fi or the router is down while the plug is off | The phone cannot reach the plug and drains until it shuts down. **An alert to an address on the home network cannot be sent either**, because the same network is down. It is kept and delivered when the network returns | Set the alert address to a public address (for example a hosted push service), which the phone reaches over mobile data. A higher low threshold gives more time to act |
+| Home Wi-Fi or the router is down while the plug is off | The phone cannot reach the plug and drains until it shuts down. **An alert to an address on the home network cannot be sent either**, because the same network is down. It is kept and delivered when the network returns | Set the alert address to a public address (for example a hosted push service), which the phone reaches over mobile data. A higher low threshold gives more time to act. With status reports on, the receiver's silence alarm also tells you |
 | The alert server is off or unreachable | Alerts are not delivered | The failure is shown in the settings status line, and alerts are kept and delivered when the server returns (section 7) |
-| The phone shuts down or the app is force-stopped while the plug is off | Nothing turns the plug on until someone presses its button, and no alert can be sent | Exempt the app from battery optimisation; do not force-stop it |
+| The phone shuts down or the app is force-stopped while the plug is off | Nothing turns the plug on until someone presses its button, and no alert can be sent | Exempt the app from battery optimisation; do not force-stop it. With status reports on, the silence alarm tells you |
 | The phone reboots while a screen lock is set | Android keeps the app's data unreadable until someone unlocks the phone, so no check runs and no alert is sent | The gateway phone has no screen lock (section 9) |
 | A mains power cut | The plug returns in whatever state it decides | Harmless; see section 8 |
 
@@ -221,6 +237,7 @@ The "plug unreachable" alert therefore arrives about one check interval after th
 |---|---|---|
 | **Not charging** | The battery is at or below the low threshold, the plug was turned on and confirmed, and the phone is still not plugged in 30 seconds later | The phone is plugged in |
 | **Plug unreachable** | A switch is needed (either direction) and the plug could not be reached at two checks in a row | A switch succeeds, or the rule no longer asks for one |
+| **Battery Guard not working** | A check finds a fault of Battery Guard itself (exact alarms not allowed, battery unreadable, service could not start) at two checks in a row | A check finds none of those faults |
 
 The first condition is not "battery low and not plugged in" at the moment the threshold is reached: that is true for a few seconds in every normal cycle, just before the plug is turned on. The alert is for when turning the plug on did not power the phone.
 
@@ -232,7 +249,7 @@ The first condition is not "battery low and not plugged in" at the moment the th
 | The alert is still active | One reminder every 60 minutes, with the current battery level |
 | The alert ends | One "recovered" request |
 
-Each alert type is tracked separately. The alert state is stored, so a restart does not send duplicates.
+Each alert type is tracked separately. There is no quiet period: a reminder is sent every 60 minutes at any hour. The alert state is stored, so a restart does not send duplicates.
 
 ### The request
 
@@ -252,12 +269,13 @@ Each alert type is tracked separately. The alert state is stored, so a restart d
 
 | Field | Values |
 |---|---|
-| `alert` | `not_charging`, `plug_unreachable`, or `test` |
-| `state` | `started`, `reminder`, `recovered`, or `test` |
+| `alert` | `not_charging`, `plug_unreachable`, `guard_degraded`, `status`, or `test` |
+| `state` | `started`, `reminder`, `recovered`, `status`, or `test` |
 | `message` | A ready-to-display sentence (the texts below) |
 | `battery` | Battery percentage when the alert was raised |
 | `charging` | Whether the phone was plugged in |
 | `time` | When the event happened, with the UTC offset. This matters when a request is delivered late |
+| `next_check_in_min` | Only in a status report: minutes until the next check, so the receiver knows when to expect the next one |
 
 - A response with a status from **200 to 299** means delivered. Anything else, a timeout or no connection means not delivered.
 - Redirects are not followed.
@@ -270,8 +288,17 @@ Each alert type is tracked separately. The alert state is stored, so a restart d
 | Not charging | `Matter Plug: battery 18%, not charging. The plug is on. Check the charger and cable.` |
 | Plug unreachable, low | `Matter Plug: battery 18%, not charging. The charger plug cannot be reached.` |
 | Plug unreachable, high | `Matter Plug: battery 87%. The charger plug cannot be reached to turn it off.` |
+| Battery Guard not working | `Matter Plug: Battery Guard is not working: exact alarms not allowed. Battery 18%.` (the reason is one of `exact alarms not allowed`, `battery unreadable`, `service could not start`) |
 | Reminder | The same text, starting `Matter Plug (reminder):` |
 | Recovered | `Matter Plug: recovered. Battery 24%, charging.` |
+| Status report | `Matter Plug: status. Battery 64%, plugged in.` or `... on battery.` |
+
+### Status reports
+
+- A switch, **Send status after every check**, off by default. It needs a valid alert address and works whether or not **Send alerts** is on.
+- When on, every check ends with one status request (`alert` and `state` both `status`, plus `next_check_in_min`).
+- A status report is not kept if it fails: a late one is worthless. A failure is shown in the status line, and does not raise an alert, because the receiver's silence alarm is the cover for it.
+- A status report makes one small network request per check; this is the cost of knowing the phone is alive.
 
 ### When a request fails
 
@@ -282,11 +309,13 @@ Each alert type is tracked separately. The alert state is stored, so a restart d
 
 ### The receiver
 
-A small program for the computer, written as part of this project (build step G6). It listens at the alert address, prints each request it receives, and shows a desktop notification for `started` and `reminder` requests. It is also the tool for testing: pointing the app at it proves the whole path.
+A small Go program for the computer, written as part of this project (build step G6). It listens at the alert address, prints each request it receives, and runs a notification command for `started` and `reminder` requests. It is also the tool for testing: pointing the app at it proves the whole path.
+
+**Silence alarm.** Once a status report has told the receiver when the next check is due, it expects some request from the phone within three intervals (at least three times 10 minutes, because an idle phone spaces alarms at least about 9 minutes apart), plus one minute. If nothing arrives it logs `SILENT`, runs the notification command, and repeats every 60 minutes until a request arrives; it then logs `BACK` and notifies once more. Any valid request counts as a sign of life. A limit in minutes can be set by hand instead.
 
 ### Settings and behaviour
 
-- **Send alerts** switch and an **Alert address** field. The address must start with `http://` or `https://`. The switch cannot be turned on without an address.
+- **Send alerts** switch, **Send status after every check** switch and an **Alert address** field. The address must start with `http://` or `https://`. The switch cannot be turned on without an address.
 - A **Send test alert** button posts a request with `alert` and `state` both `test` and shows the response status, so the address and the receiver are proven before they are needed.
 - Every alert is also posted as a notification on the phone.
 - The address can be the receiver on the home network, for example `http://192.168.1.20:8080/battery`, or a public address. A public address sends the alert text outside the home network; it contains only the battery level and the plug's state.
@@ -300,7 +329,8 @@ A small program for the computer, written as part of this project (build step G6
 | **Alert address** changed | Waiting alerts are sent to the new address. Alerts that were already delivered are not sent again |
 | **Send test alert** pressed | Works whether or not **Send alerts** is on, as long as the address is valid. It posts a `test` request, shows the response status or the failure, and does not change the alert state or the waiting list |
 | Phone restarted | The alert state, the count of failed checks, the time of the last reminder and the waiting list are restored from storage, so no duplicate alert is sent and reminders keep their hourly spacing |
-| **Keep battery between** switched off | There are no checks, so no new alerts. An alert that is active at that moment is cleared: no "recovered" request is sent, reminders stop, and the list of waiting alerts is emptied |
+| **Send status after every check** switched on or off | Takes effect at the next check. Nothing waiting is cleared. Turning it off stops the reports, and the receiver's silence alarm will then fire; tell the receiver by stopping it, or expect the alarm |
+| **Keep battery between** switched off | There are no checks, so no new alerts or status reports. An alert that is active at that moment is cleared: no "recovered" request is sent, reminders stop, and the list of waiting alerts is emptied |
 
 ### Network rules on Android
 
@@ -353,6 +383,7 @@ A "Battery Guard" section on the plug screen:
 | **Check while charging every** | Drop-down list | 5, 10, 15, 30, 60 minutes | 15 minutes |
 | **Check on battery every** | Drop-down list | 5, 10, 15, 30, 60 minutes | 15 minutes |
 | **Send alerts** | Switch | On, off | Off |
+| **Send status after every check** | Switch | On, off | Off |
 | **Alert address** | Text field | An `http://` or `https://` address | Empty |
 | **Send test alert** | Button | | |
 | **Check now** | Button | | |
@@ -372,12 +403,12 @@ Below the controls:
 
 | # | Risk | Mitigation |
 |---|---|---|
-| 1 | **The plug is stuck off and the gateway phone dies** (section 6 limits) | Fail towards on; alerts; no screen lock; the receiver watching for silence is open item 2 |
+| 1 | **The plug is stuck off and the gateway phone dies** (section 6 limits) | Fail towards on; alerts; no screen lock; status reports and the receiver's silence alarm |
 | 2 | **The phone maker blocks the alarms or kills the app** | Battery-optimisation exemption and "Never sleeping apps". Alarms restart the app even after it is killed, which a service cannot do |
 | 3 | **Overshoot above the high threshold** with a long while-charging interval | Stated in the settings screen; measured in T6; a separate interval for plugged in |
 | 4 | **Checks drift or stop** after an Android update, a force-stop, or a permission change | The status line shows the last and next check, so a stopped schedule is visible; a check also runs whenever the app is opened |
 | 5 | **An alert is not delivered** (home network down, receiver off, wrong address) | The test button; undelivered alerts are kept and sent later; the failure is shown in the status line; a public alert address avoids the home-network dependency |
-| 6 | **A home-network alert address fails exactly when it is needed** (the router that is down is also the route to the receiver) | State in the settings screen; use a public address for the alert that matters most; open item 2 |
+| 6 | **A home-network alert address fails exactly when it is needed** (the router that is down is also the route to the receiver) | State in the settings screen; the silence alarm catches a dead router when status reports are on |
 | 7 | **Plain `http` is allowed for any host** | Use `https` outside the home network; the alert contains only the battery level and plug state |
 | 8 | **Each switch starts the Matter library from cold** and takes several seconds | Acceptable: a switch happens about twice per charge cycle |
 | 9 | **Deep discharge cycles wear the battery** more than holding a narrow band | The thresholds are the user's choice; the defaults are as requested |
@@ -394,7 +425,7 @@ Below the controls:
 | G3 | `BatteryReader`, `CheckScheduler`, `CheckReceiver`, logging decisions only | With the app closed, the log shows checks at the right interval for each state, with the right decision; no plug commands yet |
 | G4 | `PlugCommander` and `ActionService` wired in | The plug switches at both thresholds with the app closed and the screen off |
 | G5 | Failed-check counting, the 30-second power wait, on-phone notifications | Section 6 behaves as written |
-| G6 | `HttpAlerter` wired to `AlertPolicy`, the test button, the undelivered-alert list, and the receiver program for the computer | Each alert in section 7 arrives once, repeats hourly, is followed by a recovered request, and is delivered late after a failure |
+| G6 | `HttpAlerter` wired to `AlertPolicy`, status reports, the test button, the undelivered-alert list, and the Go receiver program for the computer with its silence alarm | Each alert in section 7 arrives once, repeats hourly, is followed by a recovered request, is delivered late after a failure, and the silence alarm fires and clears |
 | G7 | `BootReceiver`, exemption prompt, "Check now", status line | Works after a restart without opening the app |
 
 To test without waiting for the battery, set the thresholds close to the current level (for example low 60, high 70) and both intervals to 5 minutes. Run the receiver on the computer and point the alert address at it.
@@ -421,10 +452,17 @@ To test without waiting for the battery, set the thresholds close to the current
 | T16 | On the real phone, with its own charge limit on and off, read what the battery state reports while plugged in at and below the limit | The reading is recorded; the plug is turned off at the high threshold; a limit below the high threshold leaves the plug on |
 | T17 | Alert settings rules (section 7): switch **Send alerts** off during an active alert; change the address while alerts are waiting; press the test button with alerts off; restart the phone during an active alert; switch **Keep battery between** off during an active alert | Reminders stop, no "recovered" request is sent and the waiting list is empty (in both the alerts-off and the Battery Guard-off cases); the waiting alerts arrive at the new address; a `test` request arrives and nothing else changes; no duplicate alert is sent and the hourly reminders continue |
 | T18 | Restart the phone with a screen lock set | Documented behaviour: nothing runs until the phone is unlocked |
+| T19 | Status reports on; let checks run, then switch the phone off (or switch Battery Guard off) | Status requests arrive every interval; after about three intervals plus a minute the receiver logs `SILENT` and notifies, repeats hourly, and logs `BACK` when reports resume |
+| T20 | Revoke exact alarms (where Android allows it), or block the service, for two checks in a row | A `guard_degraded` request arrives with the reason; a `recovered` request follows when the fault is gone |
 
 ## 14. Open items
 
-1. **Which phone is the gateway?** The logs so far come from a Samsung Galaxy S20 FE (SM-G780F, Android 13). If that is the gateway, the tests above run on it; if it is another phone, its model and Android version decide which Doze and charge-limit behaviour applies.
-2. **Silence detection by the receiver.** If the phone dies, the app is killed or the network is lost, no alert can arrive. The app could post a short status to the same address after every check, so the receiver can raise its own alarm when the posts stop. It adds one small request per check. Not in this design unless you want it.
-3. **Reminder frequency.** Fixed at 60 minutes. It can become a setting if that is too often or too rare.
-4. **Things to verify on the real phone:** whether the battery-optimisation exemption relaxes the 9-minute alarm limit (T14), what the battery state reports at a charge limit (T16), whether Android accepts an IP address as the host in the plain-`http` configuration (not needed while `http` is allowed for every host), and the default grant of the exact-alarm permission on Android 12 and 13.
+Settled in draft 7: the gateway phone (Galaxy S20 FE, Android 13), silence detection, the third alert, fixed hourly reminders with no quiet hours, the home-network address limit, and the receiver language (Go).
+
+Things to verify on the real phone:
+
+1. Whether the battery-optimisation exemption relaxes the 9-minute alarm limit (T14).
+2. What the battery state reports at the phone's charge limit (T16).
+3. Whether Android accepts an IP address as the host with plain `http` allowed for every host (not needed while `http` is allowed everywhere).
+4. The default grant of the exact-alarm permission on Android 12 and 13. The gateway phone is on Android 13, so this one is tested directly.
+5. Whether a status request made from the alarm's receiver, without the service, finishes inside the receiver's time limit on this phone (G6).
