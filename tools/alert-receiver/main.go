@@ -3,8 +3,10 @@
 // Usage: alert-receiver [-port 8080] [-bind 0.0.0.0] [-log alerts.log]
 //
 //	[-notify-cmd "notify-send 'Matter Plug' {message}"] [-silence-min 0]
+//	[-token SECRET]   (or the environment variable ALERT_TOKEN)
 //
 // Accepts a POST with a JSON object on any path, prints and logs it, and answers 200.
+// With -token set, a request must carry "Authorization: Bearer SECRET"; otherwise it gets 401.
 // Runs -notify-cmd for "started" and "reminder" alerts, and for its own silence alarm.
 // {message} in -notify-cmd is replaced by the text (quoted for the shell on Linux and macOS);
 // the text is also in the environment variable ALERT_MESSAGE, which is the safe way on Windows.
@@ -16,6 +18,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -44,6 +47,7 @@ var (
 	notifyCmd  = flag.String("notify-cmd", "", "command to run for alerts; {message} is replaced")
 	logPath    = flag.String("log", "", "append log lines to this file")
 	silenceMin = flag.Int("silence-min", 0, "fixed silence limit in minutes (0 = from the status requests)")
+	token      = flag.String("token", "", "require this bearer token (default: environment variable ALERT_TOKEN)")
 
 	mu          sync.Mutex
 	lastSeen    time.Time
@@ -102,6 +106,15 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, `{"ok":false,"error":"POST only"}`, http.StatusMethodNotAllowed)
 		return
+	}
+	if *token != "" {
+		auth := r.Header.Get("Authorization")
+		got := strings.TrimPrefix(auth, "Bearer ")
+		if !strings.HasPrefix(auth, "Bearer ") || subtle.ConstantTimeCompare([]byte(got), []byte(*token)) != 1 {
+			logLine("REJECTED (bad or missing token) from %s", r.RemoteAddr)
+			http.Error(w, `{"ok":false}`, http.StatusUnauthorized)
+			return
+		}
 	}
 	body, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
 	var a alert
@@ -164,6 +177,9 @@ func main() {
 	port := flag.Int("port", 8080, "port to listen on")
 	bind := flag.String("bind", "0.0.0.0", "address to listen on")
 	flag.Parse()
+	if *token == "" {
+		*token = os.Getenv("ALERT_TOKEN")
+	}
 	addr := fmt.Sprintf("%s:%d", *bind, *port)
 	logLine("listening on %s", addr)
 	go watchSilence()

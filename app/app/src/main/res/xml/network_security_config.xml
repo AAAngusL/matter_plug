@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- The alert address is typed by the user at run time, so the host cannot be listed here.
+         Plain http is allowed for every host; use https outside the home network. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

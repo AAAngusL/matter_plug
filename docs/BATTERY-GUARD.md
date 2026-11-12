@@ -367,7 +367,8 @@ No SMS permission is needed.
 
 - **No screen lock** (no PIN, pattern or password). With a lock, Android keeps the app's data unreadable after a reboot until someone unlocks the phone, so after a power cut nothing would run.
 - Exempt the app from battery optimisation, and on Samsung add it to "Never sleeping apps".
-- The phone's own charge limit (Samsung "Protect battery") no longer stops the plug being turned off, but a limit below the high threshold keeps the plug on. What the battery state reports at the limit is not documented, so it is recorded on the real phone (T16).
+- The phone's own charge limit (Samsung "Protect battery") no longer stops the plug being turned off, but a limit below the high threshold keeps the plug on. What the battery state reports at the limit is not documented, so it is recorded on the real phone (T16). First observation on the Galaxy S20 FE (2026-11-11, USB powered at 85%): `status` was 4 (not charging) while a power source was connected, and `level` stayed at 85. The rule uses only "plugged in", so it works at the limit.
+- **Nothing else may power the phone.** Android counts any power source as "plugged in", including the USB cable to a computer. With another power source connected, the phone stays plugged in after the charger plug is switched off, so Battery Guard keeps sending Off at every check and the battery never drains. Only the charger on the charger plug stays connected. For testing, use wireless debugging instead of the USB cable.
 - Keep Wi-Fi on while the screen is off.
 - Open the app once after installing it, so that it receives the restart signal.
 

@@ -1,0 +1,24 @@
+2026-11-11 16:20:52  listening on 0.0.0.0:8083
+2026-11-11 16:33:59  listening on 0.0.0.0:8083
+2026-11-11 16:38:56  test/test  battery=85 plugged_in=true event_time=2026-11-11T15:38:56-06:00 from=192.168.1.244:56290  "Matter Plug: test alert."
+2026-11-11 16:40:42  status/status  battery=85 plugged_in=true event_time=2026-11-11T15:40:42-06:00 from=192.168.1.244:56290  "Matter Plug: status. Battery 85%, plugged in."
+2026-11-11 16:45:52  plug_unreachable/started  battery=85 plugged_in=true event_time=2026-11-11T15:45:52-06:00 from=192.168.1.244:56302  "Matter Plug: battery 85%. The charger plug cannot be reached to turn it off."
+2026-11-11 16:45:52  status/status  battery=85 plugged_in=true event_time=2026-11-11T15:45:52-06:00 from=192.168.1.244:56302  "Matter Plug: status. Battery 85%, plugged in."
+2026-11-11 16:50:53  plug_unreachable/recovered  battery=85 plugged_in=true event_time=2026-11-11T15:50:53-06:00 from=192.168.1.244:56310  "Matter Plug: recovered. Battery 85%, charging."
+2026-11-11 16:50:53  status/status  battery=85 plugged_in=true event_time=2026-11-11T15:50:53-06:00 from=192.168.1.244:56310  "Matter Plug: status. Battery 85%, plugged in."
+2026-11-11 16:55:54  status/status  battery=85 plugged_in=true event_time=2026-11-11T15:55:53-06:00 from=192.168.1.244:56318  "Matter Plug: status. Battery 85%, plugged in."
+2026-11-11 17:00:54  status/status  battery=85 plugged_in=true event_time=2026-11-11T16:00:54-06:00 from=192.168.1.244:56324  "Matter Plug: status. Battery 85%, plugged in."
+2026-11-11 17:11:00  listening on 0.0.0.0:8083
+2026-11-11 17:12:02  test/test  battery=84 plugged_in=false event_time=2026-11-11T16:12:02-06:00 from=192.168.1.244:56536  "Matter Plug: test alert."
+2026-11-11 17:12:19  status/status  battery=84 plugged_in=false event_time=2026-11-11T16:12:19-06:00 from=192.168.1.244:56536  "Matter Plug: status. Battery 84%, on battery."
+2026-11-11 17:20:45  listening on 0.0.0.0:8083
+2026-11-11 17:27:19  status/status  battery=83 plugged_in=false event_time=2026-11-11T16:27:19-06:00 from=192.168.1.244:56684  "Matter Plug: status. Battery 83%, on battery."
+2026-11-11 17:42:19  status/status  battery=82 plugged_in=false event_time=2026-11-11T16:42:19-06:00 from=192.168.1.244:56688  "Matter Plug: status. Battery 82%, on battery."
+2026-11-11 17:44:02  status/status  battery=82 plugged_in=false event_time=2026-11-11T16:44:02-06:00 from=192.168.1.244:56688  "Matter Plug: status. Battery 82%, on battery."
+2026-11-11 17:44:14  status/status  battery=82 plugged_in=false event_time=2026-11-11T16:44:14-06:00 from=192.168.1.244:56688  "Matter Plug: status. Battery 82%, on battery."
+2026-11-11 17:59:14  status/status  battery=81 plugged_in=false event_time=2026-11-11T16:59:14-06:00 from=192.168.1.244:56702  "Matter Plug: status. Battery 81%, on battery."
+2026-11-11 18:14:14  status/status  battery=80 plugged_in=false event_time=2026-11-11T17:14:14-06:00 from=192.168.1.244:56764  "Matter Plug: status. Battery 80%, on battery."
+2026-11-11 18:29:14  status/status  battery=78 plugged_in=false event_time=2026-11-11T17:29:14-06:00 from=192.168.1.244:56782  "Matter Plug: status. Battery 78%, on battery."
+2026-11-11 18:44:14  status/status  battery=77 plugged_in=false event_time=2026-11-11T17:44:14-06:00 from=192.168.1.244:56790  "Matter Plug: status. Battery 77%, on battery."
+2026-11-11 18:59:14  status/status  battery=76 plugged_in=false event_time=2026-11-11T17:59:14-06:00 from=192.168.1.244:56798  "Matter Plug: status. Battery 76%, on battery."
+2026-11-11 19:14:15  status/status  battery=75 plugged_in=false event_time=2026-11-11T18:14:14-06:00 from=192.168.1.244:56806  "Matter Plug: status. Battery 75%, on battery."

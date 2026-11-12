@@ -1,0 +1,36 @@
+--- a/app/src/main/java/app/matterplug/plug/PlugScreen.kt
++++ b/app/src/main/java/app/matterplug/plug/PlugScreen.kt
+@@ -9,6 +9,8 @@
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material3.AlertDialog
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.DropdownMenu
+@@ -38,6 +40,7 @@
+ import androidx.lifecycle.viewmodel.compose.viewModel
+ import app.matterplug.R
+ import app.matterplug.data.Plug
++import app.matterplug.guard.ui.GuardSection
+ import app.matterplug.matter.PlugState
+ 
+ /**
+@@ -92,7 +95,7 @@
+         }
+ 
+         Column(
+-            Modifier.fillMaxSize(),
++            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),   // G2: scrolls so the Battery Guard section fits
+             verticalArrangement = Arrangement.Center,
+             horizontalAlignment = Alignment.CenterHorizontally
+         ) {
+@@ -128,6 +131,7 @@
+                     modifier = Modifier.padding(top = 16.dp)
+                 )
+             }
++            GuardSection(Modifier.padding(top = 24.dp))
+         }
+     }
+ 
