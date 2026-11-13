@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -29,6 +30,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.matterplug.data.Plug
 import app.matterplug.data.PlugRepository
+import app.matterplug.data.resolve
+import kotlinx.coroutines.launch
 import app.matterplug.matter.ChipController
 import app.matterplug.pairing.PairingScreen
 import app.matterplug.plug.PlugScreen
@@ -58,19 +61,35 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** One plug on screen, stored as a list of one: empty list shows pairing, otherwise the plug screen. */
+/** Empty list shows pairing; otherwise the selected plug, with a switcher to change plug or add another. */
 @Composable
 private fun AppRoot() {
     val context = LocalContext.current.applicationContext
     val repository = remember { PlugRepository(context) }
+    val scope = rememberCoroutineScope()
     val plugs: List<Plug>? by repository.plugs.collectAsStateWithLifecycle(initialValue = null)
+    val selectedId: Long? by repository.selectedNodeId.collectAsStateWithLifecycle(initialValue = null)
+    val chargerId: Long? by repository.chargerNodeId.collectAsStateWithLifecycle(initialValue = null)
     var showUnreachableNotice by rememberSaveable { mutableStateOf(false) }
+    var adding by rememberSaveable { mutableStateOf(false) }
 
     val list = plugs
     when {
         list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         list.isEmpty() -> PairingScreen()
-        else -> PlugScreen(plug = list.first(), onRemoved = { unreachable -> showUnreachableNotice = unreachable })
+        adding -> PairingScreen(onExit = { adding = false })
+        else -> {
+            val plug = list.resolve(selectedId)!!
+            PlugScreen(
+                plug = plug,
+                plugs = list,
+                isCharger = plug.nodeId == list.resolve(chargerId)!!.nodeId,
+                onSelect = { scope.launch { repository.select(it.nodeId) } },
+                onAdd = { adding = true },
+                onUseAsCharger = { scope.launch { repository.setCharger(plug.nodeId) } },
+                onRemoved = { unreachable -> showUnreachableNotice = unreachable }
+            )
+        }
     }
 
     if (showUnreachableNotice) {

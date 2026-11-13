@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Matter Plug</string>
+    <string name="app_name">matterplug</string>
 
     <!-- Common -->
     <string name="ok">OK</string>
@@ -35,6 +35,10 @@
     <string name="menu_rename">Rename</string>
     <string name="menu_remove">Remove plug</string>
     <string name="rename_title">Rename plug</string>
+
+    <!-- Plug switcher -->
+    <string name="switcher_add">Add plug</string>
+    <string name="guard_use_this_plug">Use this plug for Battery Guard</string>
 
     <!-- Pairing screens -->
     <string name="pair_title">Add plug</string>

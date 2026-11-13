@@ -48,10 +48,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
 import app.matterplug.matter.PairingStage
 
-/** Pairing flow of spec section 7.1. Shown whenever the plug list is empty. */
+/**
+ * Pairing flow of spec section 7.1. Shown when the plug list is empty, and from "Add plug" in the plug switcher.
+ * [onExit] is null for the first plug (nowhere to go back to); otherwise it leaves the screen, on Cancel or after saving.
+ */
 @Composable
-fun PairingScreen(viewModel: PairingViewModel = viewModel()) {
+fun PairingScreen(onExit: (() -> Unit)? = null, viewModel: PairingViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Cancel is offered before pairing starts and after it failed; never while it runs or once the plug is paired.
+    val canLeave = onExit != null && (state is PairingState.EnterCode || state is PairingState.EnterWifi || state is PairingState.Failed)
+    val leave = { viewModel.abandon(); onExit?.invoke(); Unit }
+    BackHandler(enabled = canLeave, onBack = leave)
 
     Column(
         modifier = Modifier
@@ -65,8 +72,9 @@ fun PairingScreen(viewModel: PairingViewModel = viewModel()) {
             is PairingState.EnterWifi -> EnterWifiStep(viewModel, s)
             is PairingState.Running -> RunningStep(viewModel, s)
             is PairingState.Failed -> FailedStep(viewModel, s)
-            is PairingState.NamePlug -> NamePlugStep(viewModel)
+            is PairingState.NamePlug -> NamePlugStep(viewModel, onSaved = { onExit?.invoke() })
         }
+        if (canLeave) TextButton(onClick = leave) { Text(stringResource(R.string.cancel)) }
     }
 }
 
@@ -274,7 +282,7 @@ private fun failureMessage(reason: FailureReason): String = when (reason) {
 // ---- NamePlug ----
 
 @Composable
-private fun NamePlugStep(viewModel: PairingViewModel) {
+private fun NamePlugStep(viewModel: PairingViewModel, onSaved: () -> Unit) {
     val name by viewModel.plugName.collectAsStateWithLifecycle()
     Text(stringResource(R.string.pair_name_title), style = MaterialTheme.typography.headlineMedium)
     OutlinedTextField(
@@ -284,5 +292,5 @@ private fun NamePlugStep(viewModel: PairingViewModel) {
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
-    Button(onClick = viewModel::savePlug) { Text(stringResource(R.string.save)) }
+    Button(onClick = { viewModel.savePlug(onSaved) }) { Text(stringResource(R.string.save)) }
 }

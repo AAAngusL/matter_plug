@@ -15,8 +15,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -32,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -45,10 +48,20 @@ import app.matterplug.matter.PlugState
 
 /**
  * The plug screen (spec 7.2). Talks to the plug only between ON_START and ON_STOP.
+ * The title is the plug switcher: it lists every plug and ends with "Add plug".
+ * Battery Guard belongs to the Charger plug, so its settings show only on that plug; other plugs offer to take it over.
  * [onRemoved] gets true when the plug could not be reached while removing it.
  */
 @Composable
-fun PlugScreen(plug: Plug, onRemoved: (unreachable: Boolean) -> Unit) {
+fun PlugScreen(
+    plug: Plug,
+    plugs: List<Plug>,
+    isCharger: Boolean,
+    onSelect: (Plug) -> Unit,
+    onAdd: () -> Unit,
+    onUseAsCharger: () -> Unit,
+    onRemoved: (unreachable: Boolean) -> Unit
+) {
     val application = LocalContext.current.applicationContext as Application
     val viewModel: PlugViewModel = viewModel(
         key = "plug-${plug.nodeId}",
@@ -74,11 +87,35 @@ fun PlugScreen(plug: Plug, onRemoved: (unreachable: Boolean) -> Unit) {
     }
 
     var menuOpen by remember { mutableStateOf(false) }
+    var switcherOpen by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(plug.name, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            Box(Modifier.weight(1f)) {
+                TextButton(onClick = { switcherOpen = true }) {
+                    Text(
+                        plug.name + " ▾",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                DropdownMenu(expanded = switcherOpen, onDismissRequest = { switcherOpen = false }) {
+                    plugs.forEach { p ->
+                        DropdownMenuItem(
+                            text = { Text(if (p.nodeId == plug.nodeId) "✓  ${p.name}" else "     ${p.name}") },
+                            onClick = { switcherOpen = false; if (p.nodeId != plug.nodeId) onSelect(p) }
+                        )
+                    }
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("＋  " + stringResource(R.string.switcher_add)) },
+                        onClick = { switcherOpen = false; onAdd() }
+                    )
+                }
+            }
             Box {
                 IconButton(onClick = { menuOpen = true }) { Text("⋮", style = MaterialTheme.typography.titleLarge) }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -131,7 +168,13 @@ fun PlugScreen(plug: Plug, onRemoved: (unreachable: Boolean) -> Unit) {
                     modifier = Modifier.padding(top = 16.dp)
                 )
             }
-            GuardSection(Modifier.padding(top = 24.dp))
+            if (isCharger) {
+                GuardSection(Modifier.padding(top = 24.dp))
+            } else {
+                OutlinedButton(onClick = onUseAsCharger, modifier = Modifier.padding(top = 24.dp)) {
+                    Text(stringResource(R.string.guard_use_this_plug))
+                }
+            }
         }
     }
 

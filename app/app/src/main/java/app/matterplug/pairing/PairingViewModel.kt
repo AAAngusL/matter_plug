@@ -25,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 
@@ -152,12 +153,13 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /** NamePlug: saves the plug. The password is already cleared. */
-    fun savePlug() {
+    fun savePlug(onSaved: () -> Unit = {}) {
         val current = _state.value as? PairingState.NamePlug ?: return
-        val name = _plugName.value.trim().ifEmpty { app.getString(R.string.default_plug_name) }
         viewModelScope.launch {
+            val name = _plugName.value.trim().ifEmpty { nextDefaultName() }
             repository.add(Plug(current.nodeId, current.endpoint, name))
-            resetAll()   // the plug list now has an entry, so the app switches to the plug screen
+            resetAll()
+            onSaved()    // the new plug is selected by the repository; the caller leaves the pairing screen
         }
     }
 
@@ -186,7 +188,7 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
             fail(FailureReason.NoOnOff)
             return
         }
-        _plugName.value = app.getString(R.string.default_plug_name)
+        _plugName.value = nextDefaultName()
         _state.value = PairingState.NamePlug(nodeId, endpoint)
     }
 
@@ -201,6 +203,20 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
         _password.value = ""
         _plugName.value = app.getString(R.string.default_plug_name)
         _state.value = PairingState.EnterCode()
+    }
+
+    /** "Plug" for the first plug, "Plug 2", "Plug 3"... after that, so the switcher never lists two identical names. */
+    private suspend fun nextDefaultName(): String {
+        val base = app.getString(R.string.default_plug_name)
+        val count = repository.plugs.first().size
+        return if (count == 0) base else "$base ${count + 1}"
+    }
+
+    /** Leaves pairing from the "add another plug" entry: drops whatever was entered. */
+    fun abandon() {
+        pairJob?.cancel()
+        pairJob = null
+        resetAll()
     }
 
     private fun lastStageOrDefault(): PairingStage =

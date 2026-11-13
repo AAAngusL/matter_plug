@@ -233,7 +233,7 @@ object GuardRunner {
 
     /** Returns the outcome text for the log line. Throws only on cancellation or an unexpected error (the caller logs it). */
     private suspend fun doSwitch(ctx: Context, store: GuardStore, on: Boolean, level: Int, events: MutableList<CheckEvent>): String {
-        val plug = PlugRepository(ctx).plugs.first().firstOrNull()      // B10
+        val plug = PlugRepository(ctx).charger()      // B10
         val result: SwitchResult = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(ctx).switchTo(plug, on)
         val what = if (on) "on" else "off"
         return when (result) {

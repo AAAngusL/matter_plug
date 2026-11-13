@@ -69,7 +69,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     val status: StateFlow<GuardStatus> = store.status
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GuardStatus())
 
-    /** B10: Battery Guard acts on the first plug. Null until the repository has answered. */
+    /** B10: Battery Guard acts on the Charger plug (the first plug until another is chosen). Null until the repository has answered. */
     val hasPlug: StateFlow<Boolean?> = PlugRepository(application).plugs
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -181,7 +181,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
         _disableState.value = DisableState.Reading
         viewModelScope.launch {
             try {
-                val plug = PlugRepository(getApplication<Application>()).plugs.first().firstOrNull()
+                val plug = PlugRepository(getApplication<Application>()).charger()
                 val isOn: Boolean? = if (plug == null) null else PlugCommander(getApplication<Application>()).readOnOff(plug)
                 Log.i("Guard", "disable: plug state ${isOn ?: "unknown"}")
                 if (PermissionPrompts.needsTurnOnDialog(isOn)) {
@@ -205,7 +205,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val app = getApplication<Application>()
-                val plug = PlugRepository(app).plugs.first().firstOrNull()
+                val plug = PlugRepository(app).charger()
                 val result = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(app).switchTo(plug, true)
                 Log.i("Guard", "disable: turn on -> $result")
                 if (result is SwitchResult.Confirmed) {
