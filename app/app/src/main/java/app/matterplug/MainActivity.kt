@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import app.matterplug.cellular.CellularDebugRun
 import app.matterplug.data.Plug
 import app.matterplug.data.PlugRepository
 import app.matterplug.data.resolve
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 Surface(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().safeDrawingPadding()) { AppRoot() }
+                    CellularDebugRun()     // C1: logs one passive cellular run in debug builds
                 }
             }
         }
