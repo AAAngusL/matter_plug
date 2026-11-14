@@ -76,7 +76,7 @@ object GuardRunner {
                 null
             }
             val plugged = reading?.pluggedIn
-            val intervalMin = settings.intervalFor(plugged == true)          // unknown state: on-battery interval
+            val intervalMin = settings.intervalMin
 
             // B4: the next alarm first, so nothing below can end the chain.
             nextAt = try {
@@ -226,7 +226,7 @@ object GuardRunner {
         // B12: the status report is built here and sent once by deliver (never queued). It needs statusEnabled, not alertsEnabled.
         val status: AlertEvent? = if (settings.statusEnabled) {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, plugged, null, System.currentTimeMillis(),
-                nextCheckInMin = settings.intervalFor(plugged))
+                nextCheckInMin = settings.intervalMin)
         } else null
         HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
     }
@@ -268,7 +268,7 @@ object GuardRunner {
     ) {
         // The final reading of the run when there is one (taken after the power wait), else read again.
         val after: BatteryReading? = finalReading ?: safeRead(ctx) ?: before
-        val intervalMin = settings.intervalFor(after?.pluggedIn == true)
+        val intervalMin = settings.intervalMin
         val nextAt: Long? = try {
             CheckScheduler.scheduleIn(ctx, intervalMin * 60_000L)
         } catch (e: Exception) {

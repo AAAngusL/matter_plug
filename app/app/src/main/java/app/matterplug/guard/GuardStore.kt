@@ -140,8 +140,7 @@ class GuardStore(context: Context) {
             enabled = p[ENABLED] ?: d.enabled,
             low = p[LOW] ?: d.low,
             high = p[HIGH] ?: d.high,
-            chargingIntervalMin = p[CHARGING_INTERVAL] ?: d.chargingIntervalMin,
-            batteryIntervalMin = p[BATTERY_INTERVAL] ?: d.batteryIntervalMin,
+            intervalMin = p[CHECK_INTERVAL] ?: d.intervalMin,      // the two old per-state intervals are not carried over
             alertsEnabled = p[ALERTS_ENABLED] ?: d.alertsEnabled,
             statusEnabled = p[STATUS_ENABLED] ?: d.statusEnabled,
             alertAddress = p[ALERT_ADDRESS] ?: d.alertAddress,
@@ -153,8 +152,7 @@ class GuardStore(context: Context) {
         p[ENABLED] = s.enabled
         p[LOW] = s.low
         p[HIGH] = s.high
-        p[CHARGING_INTERVAL] = s.chargingIntervalMin
-        p[BATTERY_INTERVAL] = s.batteryIntervalMin
+        p[CHECK_INTERVAL] = s.intervalMin
         p[ALERTS_ENABLED] = s.alertsEnabled
         p[STATUS_ENABLED] = s.statusEnabled
         p[ALERT_ADDRESS] = s.alertAddress
@@ -169,8 +167,7 @@ class GuardStore(context: Context) {
         val ENABLED = booleanPreferencesKey("enabled")
         val LOW = intPreferencesKey("low")
         val HIGH = intPreferencesKey("high")
-        val CHARGING_INTERVAL = intPreferencesKey("charging_interval")
-        val BATTERY_INTERVAL = intPreferencesKey("battery_interval")
+        val CHECK_INTERVAL = intPreferencesKey("check_interval")
         val ALERTS_ENABLED = booleanPreferencesKey("alerts_enabled")
         val STATUS_ENABLED = booleanPreferencesKey("status_enabled")
         val ALERT_ADDRESS = stringPreferencesKey("alert_address")

@@ -245,8 +245,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLow(value: Int) { updateAndRearm { it.copy(low = value) } }
     fun setHigh(value: Int) { updateAndRearm { it.copy(high = value) } }
-    fun setChargingInterval(min: Int) { updateAndRearm { it.copy(chargingIntervalMin = min) } }
-    fun setBatteryInterval(min: Int) { updateAndRearm { it.copy(batteryIntervalMin = min) } }
+    fun setInterval(min: Int) { updateAndRearm { it.copy(intervalMin = min) } }
 
     /** Writes the setting; when Battery Guard is on, moves the next check to one second from now. */
     private fun updateAndRearm(transform: (GuardSettings) -> GuardSettings) {

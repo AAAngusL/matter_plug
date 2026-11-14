@@ -12,7 +12,6 @@ fun GuardSettings.coerced(): GuardSettings {
     return copy(
         low = l,
         high = h,
-        chargingIntervalMin = if (chargingIntervalMin in GuardSettings.INTERVALS) chargingIntervalMin else d.chargingIntervalMin,
-        batteryIntervalMin = if (batteryIntervalMin in GuardSettings.INTERVALS) batteryIntervalMin else d.batteryIntervalMin,
+        intervalMin = if (intervalMin in GuardSettings.INTERVALS) intervalMin else d.intervalMin,
     )
 }

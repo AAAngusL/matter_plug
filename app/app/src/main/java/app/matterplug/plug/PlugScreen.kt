@@ -138,25 +138,20 @@ fun PlugScreen(
         ) {
             val pending = ui.pending
             when (val s = ui.plug) {
-                PlugState.Connecting -> {
-                    Switch(checked = false, onCheckedChange = null, enabled = false)
-                    StatusText(stringResource(R.string.plug_connecting))
-                }
+                PlugState.Connecting -> SwitchRow(
+                    checked = false, enabled = false, onChange = null,
+                    status = stringResource(R.string.plug_connecting), busy = false
+                )
                 is PlugState.Online -> {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Switch(
-                            checked = s.isOn,
-                            onCheckedChange = { viewModel.toggle() },
-                            enabled = pending == null
-                        )
-                        if (pending != null) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                    }
                     val text = when (pending) {
                         null -> if (s.isOn) R.string.plug_on else R.string.plug_off
                         true -> R.string.plug_turning_on
                         false -> R.string.plug_turning_off
                     }
-                    StatusText(stringResource(text))
+                    SwitchRow(
+                        checked = s.isOn, enabled = pending == null, onChange = { viewModel.toggle() },
+                        status = stringResource(text), busy = pending != null
+                    )
                 }
                 PlugState.Offline -> StatusText(stringResource(R.string.plug_offline))   // no toggle, no position
             }
@@ -181,6 +176,20 @@ fun PlugScreen(
     if (renaming) RenameDialog(plug.name, onDismiss = { renaming = false }) {
         viewModel.rename(it)
         renaming = false
+    }
+}
+
+/** The switch with its status word ("On", "Off", "Turning on…") on the right, in one row. */
+@Composable
+private fun SwitchRow(checked: Boolean, enabled: Boolean, onChange: (() -> Unit)?, status: String, busy: Boolean) {
+    Row(
+        Modifier.padding(top = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Switch(checked = checked, onCheckedChange = onChange?.let { f -> { _: Boolean -> f() } }, enabled = enabled)
+        Text(status, style = MaterialTheme.typography.titleLarge)
+        if (busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
     }
 }
 

@@ -4,15 +4,12 @@ data class GuardSettings(
     val enabled: Boolean = false,
     val low: Int = 20,
     val high: Int = 85,
-    val chargingIntervalMin: Int = 15,
-    val batteryIntervalMin: Int = 15,
+    val intervalMin: Int = 15,                 // one interval for every check, plugged in or not
     val alertsEnabled: Boolean = false,
     val statusEnabled: Boolean = false,        // status report after every check
     val alertAddress: String = "",
     val alertToken: String = "",               // optional; sent as Authorization: Bearer <token> (B13). Never log it.
 ) {
-    fun intervalFor(pluggedIn: Boolean): Int = if (pluggedIn) chargingIntervalMin else batteryIntervalMin
-
     companion object {
         val INTERVALS = listOf(5, 10, 15, 30, 60)
         const val MIN_GAP = 10

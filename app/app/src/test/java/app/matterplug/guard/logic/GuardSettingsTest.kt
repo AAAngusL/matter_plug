@@ -10,8 +10,7 @@ class GuardSettingsTest {
         assertFalse(s.enabled)
         assertEquals(20, s.low)
         assertEquals(85, s.high)
-        assertEquals(15, s.chargingIntervalMin)
-        assertEquals(15, s.batteryIntervalMin)
+        assertEquals(15, s.intervalMin)
         assertFalse(s.alertsEnabled)
         assertFalse(s.statusEnabled)
         assertEquals("", s.alertAddress)
@@ -29,10 +28,4 @@ class GuardSettingsTest {
     }
 
     @Test fun intervalsAreExact() = assertEquals(listOf(5, 10, 15, 30, 60), GuardSettings.INTERVALS)
-
-    @Test fun intervalFor() {
-        val s = GuardSettings(chargingIntervalMin = 30, batteryIntervalMin = 5)
-        assertEquals(30, s.intervalFor(true))
-        assertEquals(5, s.intervalFor(false))
-    }
 }

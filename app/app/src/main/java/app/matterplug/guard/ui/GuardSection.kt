@@ -11,6 +11,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -20,14 +31,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -134,22 +143,14 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
         }
 
         // The ranges depend on the other value, so a pair that breaks the 10-point gap cannot be produced.
-        IntSlider(
-            label = stringResource(R.string.guard_turn_on_at, s.low),
-            value = s.low,
-            range = GuardSettings.lowRange(s.high),
-            onFinished = viewModel::setLow,
-        )
-        IntSlider(
-            label = stringResource(R.string.guard_turn_off_at, s.high),
-            value = s.high,
-            range = GuardSettings.highRange(s.low),
-            onFinished = viewModel::setHigh,
-        )
+        // Turn on at the far left, Turn off at the far right. The ranges depend on the other value, so a pair that
+        // breaks the 10-point gap cannot be saved.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+            PercentField(stringResource(R.string.guard_turn_on_at), s.low, GuardSettings.lowRange(s.high), viewModel::setLow)
+            PercentField(stringResource(R.string.guard_turn_off_at), s.high, GuardSettings.highRange(s.low), viewModel::setHigh)
+        }
 
-        IntervalPicker(stringResource(R.string.guard_charging_interval), s.chargingIntervalMin, viewModel::setChargingInterval)
-        IntervalPicker(stringResource(R.string.guard_battery_interval), s.batteryIntervalMin, viewModel::setBatteryInterval)
-        Note(stringResource(R.string.guard_interval_note))
+        IntervalPicker(stringResource(R.string.guard_check_every), s.intervalMin, viewModel::setInterval)
 
         SwitchRow(stringResource(R.string.guard_send_alerts), s.alertsEnabled, true, viewModel::setAlertsEnabled)
         SwitchRow(stringResource(R.string.guard_send_status), s.statusEnabled, true, viewModel::setStatusEnabled)
@@ -165,7 +166,6 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
                 { Text(stringResource(R.string.guard_address_error)) }
             } else null,
         )
-        Note(stringResource(R.string.guard_address_note))
 
         var tokenShown by remember { mutableStateOf(false) }      // hidden by default; not kept across a restart
         OutlinedTextField(
@@ -182,7 +182,6 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
                 }
             },
         )
-        Note(stringResource(R.string.guard_token_note))
         if (tokenOverPlainHttp(tokenText, address)) {
             Text(
                 stringResource(R.string.guard_token_http_warning),
@@ -258,19 +257,47 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, onChang
     }
 }
 
-/** Writes only when the finger is lifted; the position follows the finger meanwhile. */
+/**
+ * "<label> [ 20 ]%". Digits only. The value is saved when the user presses Done or leaves the field, and only when it is
+ * inside [range]; otherwise the box turns red with the allowed range and nothing is saved.
+ */
 @Composable
-private fun IntSlider(label: String, value: Int, range: IntRange, onFinished: (Int) -> Unit) {
-    var position by remember(value) { mutableFloatStateOf(value.toFloat()) }
+private fun PercentField(label: String, value: Int, range: IntRange, onCommit: (Int) -> Unit) {
+    var text by remember(value) { mutableStateOf(value.toString()) }
+    val typed = text.toIntOrNull()
+    val valid = typed != null && typed in range
+    val commit = { if (valid) onCommit(typed!!) }
     Column {
-        Text(label)
-        Slider(
-            value = position,
-            onValueChange = { position = it },
-            onValueChangeFinished = { onFinished(position.roundToInt().coerceIn(range)) },
-            valueRange = range.first.toFloat()..range.last.toFloat(),
-            steps = (range.last - range.first - 1).coerceAtLeast(0),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label)
+            val borderColor = if (valid) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.error
+            BasicTextField(
+                value = text,
+                onValueChange = { new -> if (new.length <= 3 && new.all { it.isDigit() }) text = new },
+                modifier = Modifier
+                    .width(52.dp)
+                    .height(36.dp)
+                    .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+                    .onFocusChanged { if (!it.isFocused) commit() },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit() }),
+                decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { inner() } },
+            )
+            Text("%")
+        }
+        if (!valid) {
+            Text(
+                stringResource(R.string.guard_percent_error, range.first, range.last),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 

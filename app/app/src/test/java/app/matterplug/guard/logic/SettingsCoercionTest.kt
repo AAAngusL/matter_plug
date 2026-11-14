@@ -7,7 +7,7 @@ class SettingsCoercionTest {
     private val d = GuardSettings()
 
     @Test fun validValuesAreKept() {
-        val s = GuardSettings(low = 5, high = 100, chargingIntervalMin = 60, batteryIntervalMin = 5, alertAddress = "x", alertToken = "t")
+        val s = GuardSettings(low = 5, high = 100, intervalMin = 60, alertAddress = "x", alertToken = "t")
         assertEquals(s, s.coerced())
     }
     @Test fun lowOutOfRangeFallsBackToDefault() {
@@ -24,9 +24,9 @@ class SettingsCoercionTest {
         val ok = d.copy(low = 45, high = 55).coerced()
         assertEquals(45, ok.low); assertEquals(55, ok.high)
     }
-    @Test fun badIntervalsFallBackTo15() {
-        val c = d.copy(chargingIntervalMin = 7, batteryIntervalMin = 0).coerced()
-        assertEquals(15, c.chargingIntervalMin); assertEquals(15, c.batteryIntervalMin)
+    @Test fun badIntervalFallsBackTo15() {
+        val c = d.copy(intervalMin = 7).coerced()
+        assertEquals(15, c.intervalMin)
     }
     @Test fun otherFieldsUntouched() {
         val s = d.copy(enabled = true, alertsEnabled = true, statusEnabled = true, alertAddress = "http://a.b")
