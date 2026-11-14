@@ -37,6 +37,10 @@ class PlugClient(context: Context, private val plug: Plug) {
     @Volatile
     private var devicePointer = 0L
 
+    /** Bumped by every start() and stop(); a start() that finds it changed was stopped while connecting. */
+    @Volatile
+    private var generation = 0
+
     // Callbacks arrive on the library's own thread; they only write to the StateFlow.
     private val reportCallback = object : ReportCallback {
         override fun onError(attributePath: ChipAttributePath?, eventPath: ChipEventPath?, e: Exception) {
@@ -63,6 +67,7 @@ class PlugClient(context: Context, private val plug: Plug) {
     /** Connects and subscribes. The first report moves the state out of Connecting. */
     suspend fun start() {
         _state.value = PlugState.Connecting
+        val myGeneration = ++generation
         val pointer = try {
             ChipController.connect(context, plug.nodeId)
         } catch (e: CancellationException) {
@@ -70,6 +75,10 @@ class PlugClient(context: Context, private val plug: Plug) {
         } catch (e: Exception) {
             Log.w(TAG, "connect failed", e)
             _state.value = PlugState.Offline
+            return
+        }
+        if (myGeneration != generation) {      // stop() ran while connecting: do not keep the session or subscribe
+            ChipController.release(pointer)
             return
         }
         devicePointer = pointer
@@ -110,6 +119,7 @@ class PlugClient(context: Context, private val plug: Plug) {
 
     /** Drops the subscription and releases the session. Called when the screen stops. */
     fun stop() {
+        generation++
         val pointer = devicePointer
         devicePointer = 0L
         if (pointer == 0L) return

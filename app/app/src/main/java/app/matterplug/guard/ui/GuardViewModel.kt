@@ -11,6 +11,7 @@ import app.matterplug.guard.BatteryReader
 import app.matterplug.guard.CheckScheduler
 import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardPermissions
+import app.matterplug.guard.GuardControl
 import app.matterplug.guard.GuardStore
 import app.matterplug.guard.HttpAlerter
 import app.matterplug.guard.logic.AlertAddress
@@ -235,13 +236,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
         if (_disableState.value == DisableState.AskTurnOn || _disableState.value == DisableState.TurnOnFailed) _disableState.value = DisableState.Idle
     }
 
-    /** The store clears the waiting list, the alert state and the next time (5.2); the alarm and the flush job are cancelled here. */
-    private suspend fun disableNow() {
-        store.update { it.copy(enabled = false) }
-        guarded("cancel") { CheckScheduler.cancel(getApplication<Application>()) }
-        // The store has cleared the waiting list (5.2): the flush job would find nothing to do.
-        guarded("cancel flush job") { FlushJobService.cancel(getApplication<Application>()) }
-    }
+    private suspend fun disableNow() = GuardControl.disable(getApplication<Application>())
 
     fun setLow(value: Int) { updateAndRearm { it.copy(low = value) } }
     fun setHigh(value: Int) { updateAndRearm { it.copy(high = value) } }
