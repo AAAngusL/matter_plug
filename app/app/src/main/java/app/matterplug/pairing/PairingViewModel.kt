@@ -152,12 +152,12 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
         fail(FailureReason.Cancelled)
     }
 
-    /** NamePlug: saves the plug. The password is already cleared. */
+    /** NamePlug: renames the plug, which was saved under its default name when pairing succeeded. Blank keeps the default. */
     fun savePlug(onSaved: () -> Unit = {}) {
         val current = _state.value as? PairingState.NamePlug ?: return
         viewModelScope.launch {
-            val name = _plugName.value.trim().ifEmpty { nextDefaultName() }
-            repository.add(Plug(current.nodeId, current.endpoint, name))
+            val name = _plugName.value.trim()
+            if (name.isNotEmpty()) repository.rename(current.nodeId, name)
             resetAll()
             onSaved()    // the new plug is selected by the repository; the caller leaves the pairing screen
         }
@@ -188,7 +188,11 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
             fail(FailureReason.NoOnOff)
             return
         }
-        _plugName.value = nextDefaultName()
+        // Saved now, under its default name: the plug already holds this app's credentials, so a kill before the
+        // naming step must not lose it. The naming step only renames it.
+        val name = nextDefaultName()
+        repository.add(Plug(nodeId, endpoint, name))
+        _plugName.value = name
         _state.value = PairingState.NamePlug(nodeId, endpoint)
     }
 

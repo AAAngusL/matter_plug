@@ -28,12 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.data.Plug
 import app.matterplug.data.PlugRepository
 import app.matterplug.data.resolve
 import kotlinx.coroutines.launch
 import app.matterplug.matter.ChipController
 import app.matterplug.pairing.PairingScreen
+import app.matterplug.pairing.PairingState
+import app.matterplug.pairing.PairingViewModel
 import app.matterplug.plug.PlugScreen
 
 class MainActivity : ComponentActivity() {
@@ -72,12 +75,15 @@ private fun AppRoot() {
     val chargerId: Long? by repository.chargerNodeId.collectAsStateWithLifecycle(initialValue = null)
     var showUnreachableNotice by rememberSaveable { mutableStateOf(false) }
     var adding by rememberSaveable { mutableStateOf(false) }
+    // A new plug is saved as soon as pairing succeeds; keep the pairing screen up until it has been named.
+    val pairing: PairingViewModel = viewModel()
+    val naming = pairing.state.collectAsStateWithLifecycle().value is PairingState.NamePlug
 
     val list = plugs
     when {
         list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         list.isEmpty() -> PairingScreen()
-        adding -> PairingScreen(onExit = { adding = false })
+        adding || naming -> PairingScreen(onExit = { adding = false })
         else -> {
             val plug = list.resolve(selectedId)!!
             PlugScreen(
