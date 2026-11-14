@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
 import android.telephony.CellInfo
 import android.telephony.CellSignalStrengthLte
 import android.telephony.CellSignalStrengthNr
@@ -28,10 +29,12 @@ object CellularReader {
 
     fun read(ctx: Context): PassiveReading {
         if (!hasPermission(ctx)) return unavailable("no phone permission")
-        val subId = SubscriptionManager.getDefaultSmsSubscriptionId()
-        if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return unavailable("no SMS subscription")
         val base = ctx.getSystemService(TelephonyManager::class.java) ?: return unavailable("no telephony")
-        val tm = base.createForSubscriptionId(subId)
+        // In airplane mode the phone reports no active subscription (seen on the SM-G780F): read the default slot then,
+        // so radio-off shows as a registration failure, not as a SIM fault.
+        val subId = SubscriptionManager.getDefaultSmsSubscriptionId()
+        val tm = if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) base else base.createForSubscriptionId(subId)
+        val airplane = Settings.Global.getInt(ctx.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) == 1
 
         val simState = try { tm.simState } catch (e: SecurityException) { TelephonyManager.SIM_STATE_UNKNOWN }
         if (simState != TelephonyManager.SIM_STATE_READY) return unavailable(simText(simState))
@@ -49,7 +52,11 @@ object CellularReader {
         return PassiveReading(
             simReady = true, simDetail = "ready",
             registered = registered, roaming = roaming,
-            registrationDetail = if (registered) rat else serviceText(service),
+            registrationDetail = when {
+                registered -> rat
+                airplane -> "airplane mode"
+                else -> serviceText(service)
+            },
             signalLevel = level, signalDetail = detail,
         )
     }
