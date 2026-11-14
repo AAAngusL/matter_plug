@@ -37,6 +37,30 @@
     <string name="menu_remove">Remove plug</string>
     <string name="rename_title">Rename plug</string>
 
+    <!-- Cellular Check (docs/CELLULAR-CHECK.md section 10) -->
+    <string name="menu_cellular">Cellular Check</string>
+    <string name="cellular_title">Cellular Check</string>
+    <string name="cellular_switch">Check cellular service</string>
+    <string name="cellular_permission_denied">Allow the phone permission so the app can read the SIM and the signal.</string>
+    <string name="cellular_own_number">Own number</string>
+    <string name="cellular_own_number_note">This phone\'s number. The daily SMS test sends to it.</string>
+    <string name="cellular_sms_test_at">Daily SMS test at</string>
+    <string name="cellular_check_every">Check every</string>
+    <string name="cellular_check_every_value">%1$d minutes, set in Battery Guard</string>
+    <string name="cellular_run_now">Run cellular check now</string>
+    <string name="cellular_layer_sim">SIM</string>
+    <string name="cellular_layer_registration">Registered</string>
+    <string name="cellular_layer_signal">Signal</string>
+    <string name="cellular_layer_sms">SMS</string>
+    <string name="cellular_pass">Pass</string>
+    <string name="cellular_fail">Fail</string>
+    <string name="cellular_skipped">Skipped</string>
+    <string name="cellular_skipped_because">%1$s failed</string>
+    <string name="cellular_not_tested">Not tested yet</string>
+    <string name="cellular_no_run">No check yet.</string>
+    <string name="cellular_last">Last check %1$s.</string>
+    <string name="cellular_last_next">Last check %1$s. Next check %2$s.</string>
+
     <!-- Plug switcher -->
     <string name="switcher_add">Add plug</string>
     <string name="guard_use_this_plug">Use this plug for Battery Guard</string>

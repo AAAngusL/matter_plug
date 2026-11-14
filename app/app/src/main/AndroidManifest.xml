@@ -61,6 +61,8 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+        <!-- Cellular Check: its own alarm (C2) -->
+        <receiver android:name=".cellular.CellularReceiver" android:exported="false" />
         <service
             android:name=".guard.ActionService"
             android:exported="false"

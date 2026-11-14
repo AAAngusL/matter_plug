@@ -60,6 +60,7 @@ fun PlugScreen(
     onSelect: (Plug) -> Unit,
     onAdd: () -> Unit,
     onUseAsCharger: () -> Unit,
+    onOpenCellular: () -> Unit,
     onRemoved: (unreachable: Boolean) -> Unit
 ) {
     val application = LocalContext.current.applicationContext as Application
@@ -122,6 +123,10 @@ fun PlugScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_rename)) },
                         onClick = { menuOpen = false; renaming = true }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.menu_cellular)) },
+                        onClick = { menuOpen = false; onOpenCellular() }
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_remove)) },

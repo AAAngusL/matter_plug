@@ -4,9 +4,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import app.matterplug.alarm.runAsync
+import app.matterplug.cellular.CellularScheduler
+import app.matterplug.cellular.CellularStore
 
 /**
  * After a restart, an app update or a change of the exact-alarm permission (5.8): if Battery Guard is on, schedule the
@@ -21,21 +21,17 @@ class BootReceiver : BroadcastReceiver() {
             action != ACTION_EXACT_ALARM_STATE
         ) return
 
-        val pending = goAsync()
-        val app = context.applicationContext
-        CoroutineScope(Dispatchers.Default).launch {
-            try {
-                val store = GuardStore(app)
-                val enabled = store.readSettings().enabled
-                val waiting = store.readQueue().isNotEmpty()
-                Log.i(TAG, "boot: action=$action enabled=$enabled waiting=$waiting")
-                if (enabled) CheckScheduler.scheduleIn(app, FIRST_CHECK_MS)
-                if (waiting) FlushJobService.schedule(app)
-            } catch (e: Throwable) {      // never let the receiver crash
-                Log.e(TAG, "boot handling failed", e)
-            } finally {
-                pending.finish()
-            }
+        runAsync(context, TAG, "boot handling") { app ->
+            val store = GuardStore(app)
+            val enabled = store.readSettings().enabled
+            val waiting = store.readQueue().isNotEmpty()
+            Log.i(TAG, "boot: action=$action enabled=$enabled waiting=$waiting")
+            if (enabled) CheckScheduler.scheduleIn(app, FIRST_CHECK_MS)
+            if (waiting) FlushJobService.schedule(app)
+            // Cellular Check has its own alarm chain; restart it the same way.
+            val cellular = CellularStore(app).readSettings().enabled
+            Log.i(TAG, "boot: cellular=$cellular")
+            if (cellular) CellularScheduler.alarm.scheduleIn(app, FIRST_CHECK_MS)
         }
     }
 

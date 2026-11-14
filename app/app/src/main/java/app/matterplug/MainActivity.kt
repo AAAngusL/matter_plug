@@ -29,7 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import app.matterplug.cellular.CellularDebugRun
+import app.matterplug.cellular.ui.CellularScreen
 import app.matterplug.data.Plug
 import app.matterplug.data.PlugRepository
 import app.matterplug.data.resolve
@@ -55,7 +55,6 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 Surface(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().safeDrawingPadding()) { AppRoot() }
-                    CellularDebugRun()     // C1: logs one passive cellular run in debug builds
                 }
             }
         }
@@ -77,6 +76,7 @@ private fun AppRoot() {
     val chargerId: Long? by repository.chargerNodeId.collectAsStateWithLifecycle(initialValue = null)
     var showUnreachableNotice by rememberSaveable { mutableStateOf(false) }
     var adding by rememberSaveable { mutableStateOf(false) }
+    var showCellular by rememberSaveable { mutableStateOf(false) }      // Cellular Check screen, from the ⋮ menu
     // A new plug is saved as soon as pairing succeeds; keep the pairing screen up until it has been named.
     val pairing: PairingViewModel = viewModel()
     val naming = pairing.state.collectAsStateWithLifecycle().value is PairingState.NamePlug
@@ -86,6 +86,7 @@ private fun AppRoot() {
         list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         list.isEmpty() -> PairingScreen()
         adding || naming -> PairingScreen(onExit = { adding = false })
+        showCellular -> CellularScreen(onBack = { showCellular = false })
         else -> {
             val plug = list.resolve(selectedId)!!
             PlugScreen(
@@ -94,6 +95,7 @@ private fun AppRoot() {
                 isCharger = plug.nodeId == list.resolve(chargerId)!!.nodeId,
                 onSelect = { scope.launch { repository.select(it.nodeId) } },
                 onAdd = { adding = true },
+                onOpenCellular = { showCellular = true },
                 onUseAsCharger = { scope.launch { repository.setCharger(plug.nodeId) } },
                 onRemoved = { unreachable -> showUnreachableNotice = unreachable }
             )
