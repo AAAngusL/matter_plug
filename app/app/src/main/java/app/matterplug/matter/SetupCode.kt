@@ -21,7 +21,7 @@ fun parseSetupCode(text: String): SetupCodeResult {
             parser.parseManualPairingCode(trimmed.filterNot { it == ' ' || it == '-' })
         }
         // Settled: OnboardingPayload has setupPinCode: Long, discriminator: Int, hasShortDiscriminator: Boolean.
-        // VERIFY: for a manual code, `discriminator` holds the 4-bit short value (and hasShortDiscriminator is true), which is what BleTransport.getBluetoothDevice(.., isShortDiscriminator = true) expects. Otherwise use payload.getShortDiscriminatorValue().
+        // Settled (BleFilterTest): for a manual code, `discriminator` is the 4-bit short value, unshifted; BleFilter moves it into place.
         SetupCodeResult.Ok(SetupCode(payload.setupPinCode, payload.discriminator, payload.hasShortDiscriminator))
     } catch (e: Exception) {
         // Includes UnrecognizedQrCodeException and any other parser failure.

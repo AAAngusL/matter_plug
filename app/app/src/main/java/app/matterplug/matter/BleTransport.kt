@@ -33,24 +33,6 @@ class BleTransport : BleCallback {
   var connectionId = 0
     private set
 
-  private fun getServiceData(discriminator: Int): ByteArray {
-    val opcode = 0
-    val version = 0
-    val versionDiscriminator = ((version and 0xf) shl 12) or (discriminator and 0xfff)
-    return intArrayOf(opcode, versionDiscriminator, versionDiscriminator shr 8)
-      .map { it.toByte() }
-      .toByteArray()
-  }
-
-  private fun getServiceDataMask(isShortDiscriminator: Boolean): ByteArray {
-    val shortDiscriminatorMask =
-      when (isShortDiscriminator) {
-        true -> 0x00
-        false -> 0xff
-      }
-    return intArrayOf(0xff, shortDiscriminatorMask, 0xff).map { it.toByte() }.toByteArray()
-  }
-
   suspend fun getBluetoothDevice(context: Context, discriminator: Int): BluetoothDevice? {
     return getBluetoothDevice(context, discriminator, false)
   }
@@ -92,8 +74,8 @@ class BleTransport : BleCallback {
               }
             }
 
-          val serviceData = getServiceData(discriminator)
-          val serviceDataMask = getServiceDataMask(isShortDiscriminator)
+          val serviceData = BleFilter.serviceData(discriminator, isShortDiscriminator)
+          val serviceDataMask = BleFilter.serviceDataMask(isShortDiscriminator)
 
           val scanFilter =
             ScanFilter.Builder()
@@ -103,7 +85,7 @@ class BleTransport : BleCallback {
           val scanSettings =
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
 
-          Log.i(TAG, "Starting Bluetooth scan")
+          Log.i(TAG, "Starting Bluetooth scan: discriminator=$discriminator short=$isShortDiscriminator")
           scanner.startScan(listOf(scanFilter), scanSettings, scanCallback)
           awaitClose { scanner.stopScan(scanCallback) }
         }
