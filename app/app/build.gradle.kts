@@ -17,6 +17,17 @@ android {
         ndk { abiFilters += "arm64-v8a" }
     }
 
+    // One fixed debug key for every machine, so a debug build always installs over the previous one.
+    // It is the standard debug key (store password "android", alias androiddebugkey): it protects nothing and is meant to be public.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

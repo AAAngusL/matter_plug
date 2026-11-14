@@ -19,7 +19,7 @@ Changes in draft 6, from the design review:
 - The gateway phone must have no screen lock (section 6, section 9).
 - The plug's on-screen toggle stays usable, and Battery Guard overrides it at the thresholds (section 4).
 - Alerts go to a small receiver program on the computer; there is no access token and no plain-text body option (section 7).
-- Battery Guard is for the one plug in the app; multi-plug support is out of scope.
+- Battery Guard switches one plug, the **Charger plug**: the first plug until another is chosen. The app itself can hold several plugs; removing the Charger plug switches Battery Guard off.
 - Platform details from research on alarms, foreground services, reboot, battery state and plain `http` (section 9).
 
 Earlier drafts: 4 changed the alerts from SMS to an HTTP request; 5 added the rules for the alert settings.
@@ -52,7 +52,7 @@ It must work unattended, with the app closed and the screen off, and use very li
 
 ### Out of scope
 
-- Several plugs. Battery Guard switches the one plug in the app.
+- Switching more than one plug. Battery Guard switches only the Charger plug.
 - Sharing the plug with other apps or ecosystems.
 - Any automation other than the battery band.
 
@@ -67,7 +67,7 @@ It must work unattended, with the app closed and the screen off, and use very li
 | **High threshold** | Battery percentage at or above which the charger plug is turned off |
 | **Band** | The range between the two thresholds, where Battery Guard does nothing |
 | **Check** | One scheduled look at the battery level, followed by a switch if the rule asks for one |
-| **Check interval** | The time between checks. There are two: one used while plugged in, one used on battery |
+| **Check interval** | The time between checks. One value, used whether the phone is plugged in or on battery |
 | **Alert** | A message sent when Battery Guard cannot keep the battery in the band |
 | **Alert address** | The web address (URL) that receives alerts as HTTP requests |
 | **Receiver** | The program on the computer that listens at the alert address |
@@ -86,7 +86,7 @@ It must work unattended, with the app closed and the screen off, and use very li
 | What "charging" means | The phone is plugged in to power | Independent of any charge limit the phone applies to itself |
 | What triggers a switch | Battery level and plugged-in state together (section 4) | Makes every check safe to repeat and avoids pointless commands |
 | Manual use of the plug | The on-screen toggle always works; Battery Guard overrides it at the thresholds | The gateway's uptime comes first. To keep the plug off, switch Battery Guard off |
-| Check intervals | Two drop-down lists, 5/10/15/30/60 minutes, default 15: one for plugged in, one for on battery | Charging is fast and draining is slow, so they can be tuned separately |
+| Check interval | One drop-down list, 5/10/15/30/60 minutes, default 15, for every check | One setting is easier to understand; the overshoot above the high threshold (section 4) is set by it |
 | Retries | None between checks. A failure is retried at the next check | Android runs alarms on an idle phone at least about 9 minutes apart, so shorter retry times cannot be met |
 | How the user is told | An HTTP POST with a JSON body to the alert address, plus a notification on the phone | The server's response tells the app whether the alert arrived, so it can retry |
 | What receives alerts | A small receiver program on the computer | No access token or body-format setting is needed |
@@ -94,7 +94,7 @@ It must work unattended, with the app closed and the screen off, and use very li
 | Power cuts | The app does nothing special (section 8) | The checks already turn the plug on at the low threshold |
 | Screen lock on the gateway phone | None | A locked phone does not run the app after a reboot until someone unlocks it |
 | Failure direction | Towards on (section 6) | A plug stuck off stops the gateway |
-| Which plug | The one plug paired in the app | Multi-plug support is out of scope |
+| Which plug | The Charger plug: the first plug until the user taps "Use this plug for Battery Guard" on another. Removing the Charger plug switches Battery Guard off | Guard must never move to another plug (a lamp, say) by itself |
 | Silence detection | An optional status report after every check; the receiver raises the silence alarm | The worst failures (dead phone, killed app, dead router) send no alert at all, so silence is the only signal |
 | Alerts for Battery Guard's own faults | A third alert, raised at the second faulty check in a row | A phone nobody looks at needs to say when the guard is not working |
 | Reminders | Fixed at 60 minutes, no quiet hours | Silence at 3 a.m. is the dangerous case for a gateway |
@@ -133,10 +133,7 @@ There is no pause setting.
 
 ### When checks run
 
-| Phone state at the end of a check | Time to the next check |
-|---|---|
-| Plugged in | The **while charging** interval |
-| On battery | The **on battery** interval |
+The time to the next check is the **check interval**, whether the phone is plugged in or on battery.
 
 A check also runs at once when Battery Guard is enabled, when a setting changes, when **Check now** is pressed, and after the phone restarts.
 
@@ -148,10 +145,10 @@ The plug is only switched at a check, so the battery passes the threshold first.
 
 | Side | Set by | Effect |
 |---|---|---|
-| High threshold | Charging speed × the while-charging interval | Can be large. A fast charger adds very roughly 1% per minute in the middle of the range, so 15 minutes can end several percent to well over 10% above the threshold, and 60 minutes can reach 100% |
-| Low threshold | Drain rate × the on-battery interval | Small. An idle gateway phone drains slowly, so even 60 minutes costs a few percent. On an idle phone Android spaces alarms at least about 9 minutes apart, so a 5-minute interval behaves as roughly 10 |
+| High threshold | Charging speed × the check interval | Can be large. A fast charger adds very roughly 1% per minute in the middle of the range, so 15 minutes can end several percent to well over 10% above the threshold, and 60 minutes can reach 100% |
+| Low threshold | Drain rate × the check interval | Small. An idle gateway phone drains slowly, so even 60 minutes costs a few percent. On an idle phone Android spaces alarms at least about 9 minutes apart, so a 5-minute interval behaves as roughly 10 |
 
-These figures are estimates; the real numbers come from test T6. To hold the top of the band tightly, choose a short while-charging interval or lower the high threshold by the overshoot you measure. The on-battery interval can be long.
+These figures are estimates; the real numbers come from test T6. To hold the top of the band tightly, choose a short check interval or lower the high threshold by the overshoot you measure.
 
 ## 5. Architecture
 
@@ -182,7 +179,7 @@ These figures are estimates; the real numbers come from test T6. To hold the top
 
 | Component | Responsibility | New or existing |
 |---|---|---|
-| `GuardSettingsStore` | Enabled flag, thresholds, both check intervals, alert address, the last check result, the count of failed checks in a row, the current alert state and the list of alerts not yet delivered | New; DataStore |
+| `GuardSettingsStore` | Enabled flag, thresholds, the check interval, alert address, the last check result, the count of failed checks in a row, the current alert state and the list of alerts not yet delivered | New; DataStore |
 | `CheckScheduler` | Sets the next alarm (section 4, "When checks run"); cancels it when Battery Guard is disabled | New |
 | `CheckReceiver` | Runs when the alarm fires: read, decide, schedule the next check, and start `ActionService` only if a switch is needed or an alert must be sent | New |
 | `BatteryReader` | Reads the current level and plugged-in state from Android's battery state in one call. If the state cannot be read, the check does nothing and is retried at the next one | New |
@@ -352,7 +349,7 @@ The Matter start-up setting, which can make a plug come back on, is not used. It
 | Requirement | Detail |
 |---|---|
 | Alarms at the check interval | Exact alarms that are allowed while the phone is idle, each one scheduling the next. Declare `USE_EXACT_ALARM`: Android grants it automatically, and the Play Store rule that restricts it does not apply to a sideloaded app. If it is revoked, exact alarms are cancelled, so the app checks at start-up and shows a warning in the status line. (Verify the default grant on Android 12 and 13.) |
-| Idle limit | On an idle phone running on battery, Android allows one such alarm per app about every 9 minutes, so an on-battery interval of 5 minutes behaves as roughly 10. A phone that is plugged in is not in this state, so the while-charging interval is kept. Whether the battery-optimisation exemption relaxes the limit is not documented and is tested in T14 |
+| Idle limit | On an idle phone running on battery, Android allows one such alarm per app about every 9 minutes, so an on-battery interval of 5 minutes behaves as roughly 10. A phone that is plugged in is not in this state, so the chosen interval is kept. Whether the battery-optimisation exemption relaxes the limit is not documented and is tested in T14 |
 | Alarms and restarts | Alarms are cancelled when the phone shuts down, so `BootReceiver` sets them again. It needs `RECEIVE_BOOT_COMPLETED`, and the app must have been opened once since it was installed |
 | Short foreground service | For a switch or an alert send only. Type `connectedDevice`, with the `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_CONNECTED_DEVICE` permissions; the app's existing `CHANGE_WIFI_MULTICAST_STATE` permission satisfies the type's prerequisite. A service started by an exact alarm, or by an app on the battery-optimisation allowlist, is allowed to start from the background on Android 12 and above. `shortService` is not used: it is cut off after about 3 minutes and the app crashes if the service does not stop in time. Below Android 14 no type is needed |
 | Reading the battery | The sticky battery-changed intent, read with `registerReceiver(null, filter)` in the receiver. Level is `EXTRA_LEVEL` × 100 / `EXTRA_SCALE`. Plugged in means `EXTRA_PLUGGED` is not 0 (tested as a bit mask). The intent can be null, which `BatteryReader` treats as "cannot read" |
@@ -374,15 +371,14 @@ No SMS permission is needed.
 
 ## 10. Settings screen
 
-A "Battery Guard" section on the plug screen:
+A "Battery Guard" section on the Charger plug's screen. On any other plug the section is replaced by one button, **Use this plug for Battery Guard**:
 
 | Control | Type | Values | Default |
 |---|---|---|---|
 | **Keep battery between** | Switch | On, off | Off |
-| **Turn on at** | Slider | 5% to 50% | 20% |
-| **Turn off at** | Slider | 50% to 100% | 85% |
-| **Check while charging every** | Drop-down list | 5, 10, 15, 30, 60 minutes | 15 minutes |
-| **Check on battery every** | Drop-down list | 5, 10, 15, 30, 60 minutes | 15 minutes |
+| **Turn on** | Number box, shown as "Turn on [20]%" at the left of one row | 5% to 50% | 20% |
+| **Turn off** | Number box, shown as "Turn off [85]%" at the right of the same row | 50% to 100% | 85% |
+| **Check every** | Drop-down list | 5, 10, 15, 30, 60 minutes | 15 minutes |
 | **Send alerts** | Switch | On, off | Off |
 | **Send status after every check** | Switch | On, off | Off |
 | **Alert address** | Text field | An `http://` or `https://` address | Empty |
@@ -396,8 +392,7 @@ Below the controls:
 - Delivery: "Last alert delivered 21:15" or "Last alert failed 21:15 (no connection). 2 waiting."
 - Test result: shown next to the test button, for example "200 OK" or "no connection". The button works with **Send alerts** off.
 - Warning, when it applies: "Exact alarms are not allowed. Checks may be late."
-- Note under the intervals: "A longer interval lets the battery go further past the threshold before the plug is switched."
-- Note under the alert address: "An address on your home network cannot be reached while the home Wi-Fi is down."
+- The number boxes take digits only. A value is saved when the user presses Done or leaves the box, and only when it is in range and keeps the 10-point gap between the thresholds; otherwise the box turns red with the allowed range ("Enter 5 to 50.") and nothing is saved.
 - Note at the bottom: "The phone's charger must stay plugged into this plug. If the phone switches off while the plug is off, press the plug's button to charge it."
 
 ## 11. Risks
@@ -406,7 +401,7 @@ Below the controls:
 |---|---|---|
 | 1 | **The plug is stuck off and the gateway phone dies** (section 6 limits) | Fail towards on; alerts; no screen lock; status reports and the receiver's silence alarm |
 | 2 | **The phone maker blocks the alarms or kills the app** | Battery-optimisation exemption and "Never sleeping apps". Alarms restart the app even after it is killed, which a service cannot do |
-| 3 | **Overshoot above the high threshold** with a long while-charging interval | Stated in the settings screen; measured in T6; a separate interval for plugged in |
+| 3 | **Overshoot above the high threshold** with a long check interval | Measured in T6; choose a short interval or a lower high threshold |
 | 4 | **Checks drift or stop** after an Android update, a force-stop, or a permission change | The status line shows the last and next check, so a stopped schedule is visible; a check also runs whenever the app is opened |
 | 5 | **An alert is not delivered** (home network down, receiver off, wrong address) | The test button; undelivered alerts are kept and sent later; the failure is shown in the status line; a public alert address avoids the home-network dependency |
 | 6 | **A home-network alert address fails exactly when it is needed** (the router that is down is also the route to the receiver) | State in the settings screen; the silence alarm catches a dead router when status reports are on |
@@ -429,7 +424,7 @@ Below the controls:
 | G6 | `HttpAlerter` wired to `AlertPolicy`, status reports, the test button, the undelivered-alert list, and the Go receiver program for the computer with its silence alarm | Each alert in section 7 arrives once, repeats hourly, is followed by a recovered request, is delivered late after a failure, and the silence alarm fires and clears |
 | G7 | `BootReceiver`, exemption prompt, "Check now", status line | Works after a restart without opening the app |
 
-To test without waiting for the battery, set the thresholds close to the current level (for example low 60, high 70) and both intervals to 5 minutes. Run the receiver on the computer and point the alert address at it.
+To test without waiting for the battery, set the thresholds close to the current level (for example low 60, high 70) and the check interval to 5 minutes. Run the receiver on the computer and point the alert address at it.
 
 ## 13. Test plan
 
@@ -440,7 +435,7 @@ To test without waiting for the battery, set the thresholds close to the current
 | T3 | App closed, screen off, plugged in past the high threshold | Plug turns off at the first check after the threshold |
 | T4 | App closed, screen off, draining to the low threshold | Plug turns on at the first check after the threshold; the phone is plugged in within 30 seconds; no alert |
 | T5 | Switch the plug by hand inside the band; then switch it off by hand at or below the low threshold | Inside the band Battery Guard does not undo it; at or below the threshold it turns the plug on again at the next check |
-| T6 | Each while-charging interval (5, 15, 60 minutes) over a full cycle | The levels at which the plug actually switched are recorded, giving the real overshoot |
+| T6 | Each check interval (5, 15, 60 minutes) over a full cycle | The levels at which the plug actually switched are recorded, giving the real overshoot |
 | T7 | Plug unpowered at the low threshold | A `plug_unreachable` request at the second check in a row; a reminder an hour later; a `recovered` request once the plug is powered and the phone is plugged in |
 | T8 | Charger cable pulled out at the low threshold | A `not_charging` request about 30 seconds after the plug is turned on; a `recovered` request after the cable is back |
 | T9 | Router off while the plug is off and the battery reaches the low threshold, with a home-network alert address | No alert can be sent; the status line shows the failure; the plug turns on at the first check after Wi-Fi returns, and the waiting alerts are delivered with their original times |

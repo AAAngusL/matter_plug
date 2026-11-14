@@ -44,7 +44,7 @@ The feature that keeps the **Device**'s battery inside a **Band** by switching t
 _Avoid_: battery manager, charge controller
 
 **Charger plug**:
-The **Plug** that the **Device**'s charger is plugged into and that **Battery Guard** switches.
+The **Plug** that the **Device**'s charger is plugged into and that **Battery Guard** switches. The first **Plug** until the user chooses another; removing it switches **Battery Guard** off.
 _Avoid_: power plug, smart charger
 
 **Plugged in**:
@@ -68,7 +68,7 @@ One scheduled look at the battery level, followed by a switch if the rule asks f
 _Avoid_: poll, scan
 
 **Check interval**:
-The time between **Checks**. There are two: one while the **Device** is **Plugged in**, one while it is on battery.
+The time between **Checks**. One value, whether or not the **Device** is **Plugged in**.
 _Avoid_: frequency, polling rate
 
 **Alert**:
