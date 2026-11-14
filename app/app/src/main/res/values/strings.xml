@@ -12,6 +12,7 @@
     <string name="err_bluetooth_off">Turn on Bluetooth to pair the plug.</string>
     <string name="err_location_off">Android needs Location turned on to find the plug over Bluetooth.</string>
     <string name="err_ble_permission_denied">Allow the Nearby devices permission to pair the plug.</string>
+    <string name="err_code_mismatch">A plug in pairing mode is nearby, but its code is different. Check that the code is the one on this plug. If the plug is still in another app, use the pairing code that app shows.</string>
     <string name="err_no_plug_found">No plug found. Check that it is powered, close by, and in pairing mode.</string>
     <string name="err_ble_connect_failed">Could not connect to the plug over Bluetooth.</string>
     <string name="err_code_rejected">The plug rejected the code. Check the code, and reset the plug if it was paired before.</string>

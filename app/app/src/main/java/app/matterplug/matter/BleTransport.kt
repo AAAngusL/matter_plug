@@ -7,6 +7,8 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.annotation.SuppressLint
+import kotlinx.coroutines.delay
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -91,6 +93,34 @@ class BleTransport : BleCallback {
         }
         .first()
     }
+  }
+
+  /**
+   * Scans for [timeoutMs] for ANY Matter device in pairing mode and returns the discriminators they advertise.
+   * Used after the matching scan found nothing, to tell "no plug in pairing mode" from "a plug, but another code".
+   */
+  @SuppressLint("MissingPermission")
+  suspend fun matterDiscriminatorsNearby(timeoutMs: Long = 5_000): Set<Int> {
+    val scanner = bluetoothAdapter.bluetoothLeScanner ?: return emptySet()
+    val uuid = ParcelUuid(UUID.fromString(CHIP_UUID))
+    val found = java.util.Collections.synchronizedSet(mutableSetOf<Int>())
+    val callback = object : ScanCallback() {
+      override fun onScanResult(callbackType: Int, result: ScanResult) {
+        BleFilter.advertisedDiscriminator(result.scanRecord?.getServiceData(uuid))?.let { found += it }
+      }
+    }
+    // A one-byte mask of 0 accepts any Matter service data.
+    val filter = ScanFilter.Builder().setServiceData(uuid, byteArrayOf(0), byteArrayOf(0)).build()
+    val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+    Log.i(TAG, "Scanning for any Matter device")
+    scanner.startScan(listOf(filter), settings, callback)
+    try {
+      delay(timeoutMs)
+    } finally {
+      scanner.stopScan(callback)
+    }
+    Log.i(TAG, "Matter devices nearby: discriminators=$found")
+    return found.toSet()
   }
 
   /**

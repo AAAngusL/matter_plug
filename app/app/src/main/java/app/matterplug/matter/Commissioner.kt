@@ -21,6 +21,8 @@ sealed interface PairingEvent {
     data class Progress(val stage: PairingStage) : PairingEvent
     data class Success(val nodeId: Long) : PairingEvent
     data class Failure(val stage: PairingStage, val errorCode: Long?) : PairingEvent
+    /** No plug matched the code, but a Matter device in pairing mode was nearby: the code is for another plug or window. */
+    data object CodeMismatch : PairingEvent
 }
 
 /** Runs one pairing attempt (Matter commissioning over Bluetooth, then Wi-Fi) and reports stages. */
@@ -107,7 +109,12 @@ class Commissioner(context: Context) {
                 val ble = BleTransport()
                 val device = ble.getBluetoothDevice(context, setupCode.discriminator, setupCode.isShortDiscriminator)
                 if (device == null) {
-                    fail(PairingStage.FindingPlug, null)
+                    val nearby = try { ble.matterDiscriminatorsNearby() } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.w(TAG, "second scan failed", e)
+                        emptySet()
+                    }
+                    if (nearby.isNotEmpty()) terminal.complete(PairingEvent.CodeMismatch) else fail(PairingStage.FindingPlug, null)
                     return@withTimeoutOrNull terminal.await()
                 }
 

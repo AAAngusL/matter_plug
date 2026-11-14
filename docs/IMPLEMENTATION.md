@@ -476,6 +476,7 @@ The screen menu has Rename and Remove plug.
 | Before scan | Bluetooth off | "Turn on Bluetooth to pair the plug." |
 | Before scan, Android 9 to 11 | Location off or permission refused | "Android needs Location turned on to find the plug over Bluetooth." |
 | `FindingPlug` | No plug found in 10 seconds | "No plug found. Check that it is powered, close by, and in pairing mode." |
+| `FindingPlug` | No plug matched, but a 5-second second scan saw a Matter device in pairing mode with another discriminator | "A plug in pairing mode is nearby, but its code is different. Check that the code is the one on this plug. If the plug is still in another app, use the pairing code that app shows." |
 | `Connecting` | Bluetooth connection failed | "Could not connect to the plug over Bluetooth." |
 | `SecuringSession` | Wrong code, or plug already paired elsewhere | "The plug rejected the code. Check the code, and reset the plug if it was paired before." |
 | `JoiningWifi` | Wrong password, wrong name, 5 GHz only | "The plug could not join Wi-Fi. Check the name and password, and that the network offers 2.4 GHz." |

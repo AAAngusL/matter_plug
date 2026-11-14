@@ -14,6 +14,15 @@ object BleFilter {
         return intArrayOf(opcode, versionDiscriminator, versionDiscriminator shr 8).map { it.toByte() }.toByteArray()
     }
 
+    /**
+     * The discriminator in a plug's Matter advertisement (service data of UUID FFF6: opcode 0, then version and the
+     * 12-bit discriminator, low byte first), or null when the data is not a commissioning advertisement.
+     */
+    fun advertisedDiscriminator(serviceData: ByteArray?): Int? {
+        if (serviceData == null || serviceData.size < 3 || serviceData[0].toInt() != 0) return null
+        return ((serviceData[2].toInt() and 0x0f) shl 8) or (serviceData[1].toInt() and 0xff)
+    }
+
     /** A short discriminator is the top 4 bits of the 12: byte 1 (the low 8 bits) is not compared. */
     fun serviceDataMask(isShortDiscriminator: Boolean): ByteArray {
         val shortDiscriminatorMask = if (isShortDiscriminator) 0x00 else 0xff

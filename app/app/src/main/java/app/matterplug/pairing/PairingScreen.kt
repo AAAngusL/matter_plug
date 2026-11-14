@@ -264,6 +264,7 @@ private fun FailedStep(viewModel: PairingViewModel, state: PairingState.Failed) 
 @Composable
 private fun failureMessage(reason: FailureReason): String = when (reason) {
     FailureReason.NoOnOff -> stringResource(R.string.err_no_onoff)
+    FailureReason.CodeMismatch -> stringResource(R.string.err_code_mismatch)
     FailureReason.Cancelled -> stringResource(R.string.pairing_cancelled)
     is FailureReason.AtStage -> when (reason.stage) {
         PairingStage.FindingPlug -> stringResource(R.string.err_no_plug_found)

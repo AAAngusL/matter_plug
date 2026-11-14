@@ -35,6 +35,8 @@ enum class StartProblem { BluetoothOff, LocationOff, BlePermissionDenied }
 sealed interface FailureReason {
     data class AtStage(val stage: PairingStage, val errorCode: Long?) : FailureReason
     data object NoOnOff : FailureReason
+    /** A plug in pairing mode was found, but not with this code's discriminator. */
+    data object CodeMismatch : FailureReason
     data object Cancelled : FailureReason
 }
 
@@ -140,6 +142,7 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
             when (val event = terminal) {
                 is PairingEvent.Success -> afterSuccess(event.nodeId)
                 is PairingEvent.Failure -> fail(FailureReason.AtStage(event.stage, event.errorCode))
+                PairingEvent.CodeMismatch -> fail(FailureReason.CodeMismatch)
                 else -> fail(FailureReason.AtStage(lastStageOrDefault(), null))
             }
         }
