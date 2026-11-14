@@ -60,6 +60,7 @@ import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.DeliveryError
 import app.matterplug.guard.logic.TestOutcome
 import app.matterplug.guard.logic.GuardSettings
+import app.matterplug.guard.logic.PercentInput
 import app.matterplug.guard.logic.PermissionPrompt
 import app.matterplug.guard.logic.tokenOverPlainHttp
 import java.util.Date
@@ -264,9 +265,8 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, onChang
 @Composable
 private fun PercentField(label: String, value: Int, range: IntRange, onCommit: (Int) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
-    val typed = text.toIntOrNull()
-    val valid = typed != null && typed in range
-    val commit = { if (valid) onCommit(typed!!) }
+    val valid = PercentInput.isValid(text, range)
+    val commit = { PercentInput.toCommit(text, range, value)?.let(onCommit); Unit }
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(label)
