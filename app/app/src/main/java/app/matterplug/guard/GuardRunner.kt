@@ -51,22 +51,30 @@ object GuardRunner {
         mutex.withLock { runWork(ctx) }
     }
 
-    private suspend fun runCheck(ctx: Context) {
-        val store = GuardStore(ctx)
-
-        val settings: GuardSettings = try {
+    /**
+     * The settings when Battery Guard is on, else null. When they cannot be read it is unknown whether it is on, so the
+     * chain of alarms is kept alive with a retry; a later run that reads "off" ends it.
+     */
+    private suspend fun enabledSettingsOrNull(ctx: Context, store: GuardStore, what: String): GuardSettings? {
+        val settings = try {
             store.readSettings()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            // Unknown whether Battery Guard is on. Keep the chain alive; a later run that reads "off" ends it.
-            Log.e(TAG, "settings unreadable, retrying in 5 min", e)
+            Log.e(TAG, "$what: settings unreadable, retrying in 5 min", e)
             try { CheckScheduler.scheduleIn(ctx, RETRY_MS) } catch (e2: Exception) { Log.e(TAG, "retry not scheduled", e2) }
-            return
+            return null
         }
         if (!settings.enabled) {
-            Log.i(TAG, "check skipped: Battery Guard is off")
-            return
+            Log.i(TAG, "$what skipped: Battery Guard is off")
+            return null
         }
+        return settings
+    }
+
+    private suspend fun runCheck(ctx: Context) {
+        val store = GuardStore(ctx)
+
+        val settings = enabledSettingsOrNull(ctx, store, "check") ?: return
 
         var nextAt: Long? = null
         try {
@@ -133,18 +141,7 @@ object GuardRunner {
     private suspend fun runWork(ctx: Context) {
         val store = GuardStore(ctx)
 
-        val settings: GuardSettings = try {
-            store.readSettings()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e(TAG, "work: settings unreadable, retrying in 5 min", e)
-            try { CheckScheduler.scheduleIn(ctx, RETRY_MS) } catch (e2: Exception) { Log.e(TAG, "retry not scheduled", e2) }
-            return
-        }
-        if (!settings.enabled) {
-            Log.i(TAG, "work skipped: Battery Guard is off")
-            return
-        }
+        val settings = enabledSettingsOrNull(ctx, store, "work") ?: return
 
         var reading: BatteryReading? = null
         var finalReading: BatteryReading? = null

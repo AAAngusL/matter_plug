@@ -29,6 +29,7 @@ android {
     }
 
     buildTypes {
+        debug { enableUnitTestCoverage = true }   // JaCoCo: feeds tools/crapper.py
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

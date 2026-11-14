@@ -3,19 +3,10 @@ package app.matterplug.matter
 import android.content.Context
 import android.util.Log
 import app.matterplug.data.Plug
-import chip.devicecontroller.InvokeCallback
-import chip.devicecontroller.ReportCallback
-import chip.devicecontroller.model.ChipAttributePath
-import chip.devicecontroller.model.ChipEventPath
-import chip.devicecontroller.model.InvokeElement
-import chip.devicecontroller.model.NodeState
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import matter.tlv.AnonymousTag
 import matter.tlv.TlvReader
-import matter.tlv.TlvWriter
-import kotlin.coroutines.resume
 
 sealed interface SwitchResult {
     data object Confirmed : SwitchResult
@@ -105,66 +96,11 @@ class PlugCommander(context: Context) {
         }
     }
 
-    private fun emptyStructure(): ByteArray {
-        val writer = TlvWriter()
-        writer.startStructure(AnonymousTag)
-        writer.endStructure()
-        return writer.getEncoded()
-    }
+    private suspend fun sendOnOff(plug: Plug, pointer: Long, on: Boolean): Result<Unit> =
+        invokeCommand(context, pointer, plug.endpoint, ON_OFF_CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure())
 
-    /** Same calls as PlugClient.sendCommand, for the On/Off cluster only. Result.failure on a command error. */
-    private suspend fun sendOnOff(plug: Plug, pointer: Long, on: Boolean): Result<Unit> {
-        val element = InvokeElement.newInstance(plug.endpoint, ON_OFF_CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure(), null)
-        val controller = ChipController.get(context)
-        return suspendCancellableCoroutine { cont ->
-            controller.invoke(
-                object : InvokeCallback {
-                    override fun onError(e: Exception) {
-                        if (cont.isActive) cont.resume(Result.failure(e))
-                    }
-
-                    override fun onResponse(invokeElement: InvokeElement?, successCode: Long) {
-                        if (cont.isActive) cont.resume(Result.success(Unit))
-                    }
-                },
-                pointer, element, 0, 0
-            )
-        }
-    }
-
-    /** Reads OnOff (0x0006 / 0x0000) like PlugClient.readFabricIndex reads its attribute; null on any failure. */
-    private suspend fun readOnOff(plug: Plug, pointer: Long): Boolean? {
-        val controller = ChipController.get(context)
-        val path = ChipAttributePath.newInstance(plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE)
-        return suspendCancellableCoroutine { cont ->
-            controller.readPath(
-                object : ReportCallback {
-                    override fun onError(attributePath: ChipAttributePath?, eventPath: ChipEventPath?, e: Exception) {
-                        if (cont.isActive) cont.resume(null)
-                    }
-
-                    override fun onReport(nodeState: NodeState) {
-                        val tlv = nodeState.getEndpointState(plug.endpoint)
-                            ?.getClusterState(ON_OFF_CLUSTER)
-                            ?.getAttributeState(ON_OFF_ATTRIBUTE)
-                            ?.tlv
-                        val value = try {
-                            if (tlv == null) null else TlvReader(tlv).getBool(AnonymousTag)
-                        } catch (e: Exception) {
-                            Log.w(TAG, "could not decode OnOff", e)
-                            null
-                        }
-                        if (cont.isActive) cont.resume(value)
-                    }
-
-                    override fun onDone() {
-                        if (cont.isActive) cont.resume(null)
-                    }
-                },
-                pointer, listOf(path), null, false, 0
-            )
-        }
-    }
+    private suspend fun readOnOff(plug: Plug, pointer: Long): Boolean? =
+        readAttribute(context, pointer, plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE) { TlvReader(it).getBool(AnonymousTag) }
 
     private companion object {
         const val TAG = "PlugCommander"

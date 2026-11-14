@@ -3,23 +3,19 @@ package app.matterplug.matter
 import android.content.Context
 import android.util.Log
 import app.matterplug.data.Plug
-import chip.devicecontroller.InvokeCallback
 import chip.devicecontroller.ReportCallback
 import chip.devicecontroller.model.ChipAttributePath
 import chip.devicecontroller.model.ChipEventPath
-import chip.devicecontroller.model.InvokeElement
 import chip.devicecontroller.model.NodeState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import matter.tlv.AnonymousTag
 import matter.tlv.ContextSpecificTag
 import matter.tlv.TlvReader
 import matter.tlv.TlvWriter
-import kotlin.coroutines.resume
 
 sealed interface PlugState {
     data object Connecting : PlugState
@@ -50,10 +46,7 @@ class PlugClient(context: Context, private val plug: Plug) {
 
         override fun onReport(nodeState: NodeState) {
             // VERIFY: accessor chain NodeState.getEndpointState(int) -> EndpointState.getClusterState(long) -> ClusterState.getAttributeState(long) -> AttributeState.getTlv() (settled for NodeState only).
-            val tlv = nodeState.getEndpointState(plug.endpoint)
-                ?.getClusterState(ON_OFF_CLUSTER)
-                ?.getAttributeState(ON_OFF_ATTRIBUTE)
-                ?.tlv ?: return
+            val tlv = nodeState.attributeTlv(plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE) ?: return
             try {
                 // VERIFY: matter.tlv.TlvReader(ByteArray).getBool(Tag) and AnonymousTag names in libMatterTlv.jar.
                 val isOn = TlvReader(tlv).getBool(AnonymousTag)
@@ -172,69 +165,15 @@ class PlugClient(context: Context, private val plug: Plug) {
         }
     }
 
-    private fun emptyStructure(): ByteArray {
-        // VERIFY: matter.tlv.TlvWriter has startStructure(Tag), endStructure() and getEncoded(): ByteArray with these names in libMatterTlv.jar.
-        val writer = TlvWriter()
-        writer.startStructure(AnonymousTag)
-        writer.endStructure()
-        return writer.getEncoded()
-    }
-
     private suspend fun sendCommand(pointer: Long, clusterId: Long, commandId: Long, tlv: ByteArray): Result<Unit> {
-        // Settled: InvokeElement.newInstance(int endpointId, long clusterId, long commandId, byte[] tlv, String json).
         val endpoint = if (clusterId == OPERATIONAL_CREDENTIALS_CLUSTER) 0 else plug.endpoint
-        val element = InvokeElement.newInstance(endpoint, clusterId, commandId, tlv, null)
-        val controller = ChipController.get(context)
-        return suspendCancellableCoroutine { cont ->
-            controller.invoke(
-                object : InvokeCallback {
-                    override fun onError(e: Exception) {
-                        if (cont.isActive) cont.resume(Result.failure(e))
-                    }
-
-                    override fun onResponse(invokeElement: InvokeElement?, successCode: Long) {
-                        if (cont.isActive) cont.resume(Result.success(Unit))
-                    }
-                },
-                pointer, element, 0, 0
-            )
-        }
+        return invokeCommand(context, pointer, endpoint, clusterId, commandId, tlv)
     }
 
-    /** Reads CurrentFabricIndex (OperationalCredentials 0x0005 on endpoint 0), or null on failure. */
-    private suspend fun readFabricIndex(pointer: Long): Int? {
-        val controller = ChipController.get(context)
-        val path = ChipAttributePath.newInstance(0, OPERATIONAL_CREDENTIALS_CLUSTER, ATTR_CURRENT_FABRIC_INDEX)
-        return withTimeoutOrNull(READ_TIMEOUT_MS) {
-            suspendCancellableCoroutine<Int?> { cont ->
-                controller.readPath(
-                    object : ReportCallback {
-                        override fun onError(attributePath: ChipAttributePath?, eventPath: ChipEventPath?, e: Exception) {
-                            if (cont.isActive) cont.resume(null)
-                        }
-
-                        override fun onReport(nodeState: NodeState) {
-                            val tlv = nodeState.getEndpointState(0)
-                                ?.getClusterState(OPERATIONAL_CREDENTIALS_CLUSTER)
-                                ?.getAttributeState(ATTR_CURRENT_FABRIC_INDEX)
-                                ?.tlv
-                            val index = try {
-                                // VERIFY: TlvReader.getULong(Tag) reads a uint8 value (else use getUByte / getUInt).
-                                if (tlv == null) null else TlvReader(tlv).getULong(AnonymousTag).toInt()
-                            } catch (e: Exception) {
-                                Log.w(TAG, "could not decode CurrentFabricIndex", e)
-                                null
-                            }
-                            if (cont.isActive) cont.resume(index)
-                        }
-
-                        override fun onDone() {
-                            if (cont.isActive) cont.resume(null)
-                        }
-                    },
-                    pointer, listOf(path), null, false, 0
-                )
-            }
+    private suspend fun readFabricIndex(pointer: Long): Int? = withTimeoutOrNull(READ_TIMEOUT_MS) {
+        // VERIFY: TlvReader.getULong(Tag) reads a uint8 value (else use getUByte / getUInt).
+        readAttribute(context, pointer, 0, OPERATIONAL_CREDENTIALS_CLUSTER, ATTR_CURRENT_FABRIC_INDEX) {
+            TlvReader(it).getULong(AnonymousTag).toInt()
         }
     }
 
