@@ -11,6 +11,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.matterplug.cellular.logic.CellularCodec
 import app.matterplug.cellular.logic.CellularSettings
+import app.matterplug.cellular.logic.CellularState
+import app.matterplug.cellular.logic.CellularStateCodec
+import app.matterplug.cellular.logic.SentLog
 import app.matterplug.cellular.logic.Layer
 import app.matterplug.cellular.logic.LayerResult
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +27,7 @@ data class CellularStatus(
     val lastRunAt: Long? = null,
     val nextRunAt: Long? = null,
     val results: Map<Layer, LayerResult> = emptyMap(),
+    val sentTimes: List<Long> = emptyList(),
 )
 
 /** Cellular Check's own DataStore file ("cellular"). Nothing of it is kept in "guard" or "plugs". */
@@ -33,7 +37,7 @@ class CellularStore(context: Context) {
     val settings: Flow<CellularSettings> = store.data.map { readSettings(it) }
 
     val status: Flow<CellularStatus> = store.data.map { p ->
-        CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]))
+        CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]), SentLog.decode(p[SENT_LOG]))
     }
 
     suspend fun readSettings(): CellularSettings = readSettings(store.data.first())
@@ -50,13 +54,30 @@ class CellularStore(context: Context) {
         }
     }
 
-    /** Keeps the results of layers that did not run this time (the SMS layer, until C3). A null next time removes it. */
+    /** Keeps the results of layers that did not run this time (the SMS layer, when no loopback was due). A null next time removes it. */
     suspend fun recordRun(atMs: Long, results: Map<Layer, LayerResult>, nextAtMs: Long?) {
         store.edit { p ->
             p[LAST_RUN_AT] = atMs
             p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + results)
             if (nextAtMs == null) p.remove(NEXT_RUN_AT) else p[NEXT_RUN_AT] = nextAtMs
         }
+    }
+
+    suspend fun readState(): CellularState = CellularStateCodec.decode(store.data.first()[STATE])
+    suspend fun writeState(s: CellularState) { store.edit { it[STATE] = CellularStateCodec.encode(s) } }
+
+    /** "Run cellular check now" asks for a loopback whatever the state; it stays asked until a manual loopback starts. */
+    suspend fun requestManual() { store.edit { it[MANUAL] = true } }
+    suspend fun manualRequested(): Boolean = store.data.first()[MANUAL] ?: false
+    suspend fun clearManual() { store.edit { it.remove(MANUAL) } }
+
+    /** Records one layer's result without touching the run time (used when a loopback finishes). */
+    suspend fun recordLayer(layer: Layer, result: LayerResult) {
+        store.edit { p -> p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + (layer to result)) }
+    }
+
+    suspend fun recordSent(at: Long) {
+        store.edit { p -> p[SENT_LOG] = SentLog.encode(SentLog.add(SentLog.decode(p[SENT_LOG]), at)) }
     }
 
     private fun readSettings(p: Preferences): CellularSettings = CellularSettings(
@@ -72,5 +93,8 @@ class CellularStore(context: Context) {
         val LAST_RUN_AT = longPreferencesKey("last_run_at")
         val NEXT_RUN_AT = longPreferencesKey("next_run_at")
         val RESULTS = stringPreferencesKey("results")
+        val STATE = stringPreferencesKey("loopback_state")
+        val MANUAL = booleanPreferencesKey("manual_requested")
+        val SENT_LOG = stringPreferencesKey("sent_log")
     }
 }

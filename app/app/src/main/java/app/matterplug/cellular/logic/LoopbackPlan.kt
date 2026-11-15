@@ -15,6 +15,7 @@ data class CellularState(
     val lastLoopbackAt: Long? = null,
     val lastPassAt: Long? = null,
     val inProgress: Boolean = false,
+    val startedAt: Long? = null,
 ) {
     val down: Boolean get() = failedInARow >= 2
 }
@@ -25,9 +26,16 @@ object LoopbackPlan {
     fun afterPassive(s: CellularState, failedLayer: Layer?): CellularState =
         if (failedLayer == null && !s.down) s.copy(confirmedFault = null) else s
 
-    /** The loopback this run must send, or null. [failedLayer] is the first failed passive layer of this run. */
-    fun next(s: CellularState, failedLayer: Layer?, now: Long, zone: ZoneId, testTime: LocalTime): LoopbackTrigger? {
+    /**
+     * The loopback this run must send, or null. [failedLayer] is the first failed passive layer of this run.
+     * [manualRequested] (Run cellular check now) sends one whatever the state, but never while one is still waiting:
+     * the caller keeps the request until this returns Manual.
+     */
+    fun next(
+        s: CellularState, failedLayer: Layer?, now: Long, zone: ZoneId, testTime: LocalTime, manualRequested: Boolean = false,
+    ): LoopbackTrigger? {
         if (s.inProgress) return null
+        if (manualRequested) return LoopbackTrigger.Manual
         if (failedLayer != null) {
             if (s.down) return null                                            // nothing can have recovered yet
             if (s.confirmedFault != failedLayer) return LoopbackTrigger.Confirmation   // a new fault: first of the pair
@@ -38,13 +46,15 @@ object LoopbackPlan {
         return if (dailyDue(s, now, zone, testTime)) LoopbackTrigger.Daily else null
     }
 
-    fun started(s: CellularState, trigger: LoopbackTrigger, failedLayer: Layer?): CellularState = s.copy(
+    fun started(s: CellularState, trigger: LoopbackTrigger, failedLayer: Layer?, at: Long): CellularState = s.copy(
         inProgress = true,
+        startedAt = at,
         confirmedFault = if (trigger == LoopbackTrigger.Confirmation) failedLayer else s.confirmedFault,
     )
 
     fun finished(s: CellularState, trigger: LoopbackTrigger, passed: Boolean, at: Long): CellularState = s.copy(
         inProgress = false,
+        startedAt = null,
         failedInARow = if (passed) 0 else s.failedInARow + 1,
         lastTrigger = trigger,
         lastLoopbackAt = at,
@@ -52,6 +62,15 @@ object LoopbackPlan {
         // A recovery check closes the passive fault either way: if it failed, the fault is now one only SMS shows.
         confirmedFault = if (trigger == LoopbackTrigger.Recovery) null else s.confirmedFault,
     )
+
+    /**
+     * A loopback takes at most 5 minutes. One still marked as running after [STALE_MS] was cut off (the process was
+     * killed): it is released without counting, so a killed process can neither block the plan nor raise the alert.
+     */
+    fun clearStale(s: CellularState, now: Long): CellularState =
+        if (s.inProgress && now - (s.startedAt ?: Long.MIN_VALUE / 2) > STALE_MS) s.copy(inProgress = false, startedAt = null) else s
+
+    private const val STALE_MS = 10 * 60_000L
 
     /**
      * After today's test time: while healthy, when no loopback has passed today; during a fault only SMS shows, when

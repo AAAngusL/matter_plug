@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Cellular Check: SIM, service state and signal (docs/CELLULAR-CHECK.md section 9) -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -61,8 +64,12 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
-        <!-- Cellular Check: its own alarm (C2) -->
+        <!-- Cellular Check: its own alarm (C2) and the loopback SMS service (C3) -->
         <receiver android:name=".cellular.CellularReceiver" android:exported="false" />
+        <service
+            android:name=".cellular.LoopbackService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <service
             android:name=".guard.ActionService"
             android:exported="false"

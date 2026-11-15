@@ -38,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
 import app.matterplug.cellular.CellularReader
+import app.matterplug.cellular.LoopbackSender
+import app.matterplug.cellular.logic.SentLog
 import app.matterplug.cellular.logic.Layer
 import app.matterplug.cellular.logic.LayerResult
 import java.util.Date
@@ -53,7 +55,10 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
     val context = LocalContext.current
     val timeFormat = remember(context) { DateFormat.getTimeFormat(context) }
     var permissionDenied by remember { mutableStateOf(false) }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    var needNumber by remember { mutableStateOf(false) }
+    val permissions = arrayOf(Manifest.permission.READ_PHONE_STATE) + LoopbackSender.permissions
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        val granted = result.isNotEmpty() && result.values.all { it }
         permissionDenied = !granted
         if (granted) viewModel.enable()
     }
@@ -71,12 +76,17 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.cellular_switch), modifier = Modifier.weight(1f))
             Switch(checked = s.enabled, onCheckedChange = { on ->
+                needNumber = on && s.ownNumber.isEmpty()
                 when {
                     !on -> viewModel.disable()
-                    CellularReader.hasPermission(context) -> viewModel.enable()
-                    else -> permissionLauncher.launch(Manifest.permission.READ_PHONE_STATE)
+                    needNumber -> {}                                     // the check cannot confirm anything without it
+                    CellularReader.hasPermission(context) && LoopbackSender.canSend(context) -> viewModel.enable()
+                    else -> permissionLauncher.launch(permissions)
                 }
             })
+        }
+        if (needNumber && s.ownNumber.isEmpty()) {
+            Text(stringResource(R.string.cellular_need_number), color = MaterialTheme.colorScheme.error)
         }
         if (permissionDenied) {
             Text(stringResource(R.string.cellular_permission_denied), color = MaterialTheme.colorScheme.error)
@@ -110,6 +120,9 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         for (layer in Layer.entries) LayerLine(layer, status.results[layer], status.lastRunAt?.let { timeFormat.format(Date(it)) })
 
+        val (today, week) = SentLog.counts(status.sentTimes, System.currentTimeMillis(), java.time.ZoneId.systemDefault())
+        Text(stringResource(R.string.cellular_sent_count, today, week), style = MaterialTheme.typography.bodyMedium)
+
         val last = status.lastRunAt
         val next = status.nextRunAt
         Text(
@@ -123,7 +136,7 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
     }
 }
 
-/** "SIM   Pass   10:15", with the detail or reason below. The SMS layer says "not tested yet" until C3 runs it. */
+/** "SIM   Pass   10:15", with the detail or reason below. The SMS line says "Not tested yet" before the first loopback. */
 @Composable
 private fun LayerLine(layer: Layer, result: LayerResult?, time: String?) {
     val (word, detail, problem) = when (result) {

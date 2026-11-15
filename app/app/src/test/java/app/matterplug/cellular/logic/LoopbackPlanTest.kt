@@ -34,7 +34,7 @@ class LoopbackPlanTest {
             if (trigger != null) {
                 d.sms++
                 d.triggers += trigger
-                d.state = LoopbackPlan.started(d.state, trigger, failed)
+                d.state = LoopbackPlan.started(d.state, trigger, failed, now)
                 d.state = LoopbackPlan.finished(d.state, trigger, loopbackPasses(t), now)
             }
             t = t.plusMinutes(15)
@@ -99,15 +99,28 @@ class LoopbackPlanTest {
     }
 
     @Test fun noSecondLoopbackWhileOneIsWaiting() {
-        val waiting = LoopbackPlan.started(CellularState(), LoopbackTrigger.Daily, null)
+        val waiting = LoopbackPlan.started(CellularState(), LoopbackTrigger.Daily, null, at = 0L)
         assertEquals(null, LoopbackPlan.next(waiting, Layer.Sim, 0L, zone, testTime))        // a new fault would ask for one
         val done = LoopbackPlan.finished(waiting, LoopbackTrigger.Daily, passed = true, at = 0L)
         assertEquals(LoopbackTrigger.Confirmation, LoopbackPlan.next(done, Layer.Sim, 0L, zone, testTime))
     }
 
+    @Test fun runNowSendsWhateverThePlanSays() {
+        val down = CellularState(confirmedFault = Layer.Registration, failedInARow = 2)      // the plan alone would wait
+        assertEquals(null, LoopbackPlan.next(down, Layer.Registration, 0L, zone, testTime))
+        assertEquals(LoopbackTrigger.Manual, LoopbackPlan.next(down, Layer.Registration, 0L, zone, testTime, manualRequested = true))
+    }
+
+    @Test fun runNowWhileATestSmsIsWaitingIsKeptForLater() {
+        val waiting = LoopbackPlan.started(CellularState(), LoopbackTrigger.Daily, null, at = 0L)
+        assertEquals(null, LoopbackPlan.next(waiting, null, 0L, zone, testTime, manualRequested = true))   // not now…
+        val done = LoopbackPlan.finished(waiting, LoopbackTrigger.Daily, passed = true, at = 0L)
+        assertEquals(LoopbackTrigger.Manual, LoopbackPlan.next(done, null, 0L, zone, testTime, manualRequested = true))  // …next run
+    }
+
     @Test fun aManualRunCountsLikeAnyOtherLoopback() {
         var s = CellularState(failedInARow = 2, lastTrigger = LoopbackTrigger.Daily)
-        s = LoopbackPlan.finished(LoopbackPlan.started(s, LoopbackTrigger.Manual, null), LoopbackTrigger.Manual, passed = true, at = 0L)
+        s = LoopbackPlan.finished(LoopbackPlan.started(s, LoopbackTrigger.Manual, null, at = 0L), LoopbackTrigger.Manual, passed = true, at = 0L)
         assertFalse(s.down)
     }
 }

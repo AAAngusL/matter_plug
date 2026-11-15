@@ -62,7 +62,9 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { store.update { it.copy(smsTestMinutes = hour * 60 + minute) } }
     }
 
+    /** Run cellular check now: the passive layers and a loopback SMS, whatever the state (section 6). */
     fun runNow() {
-        if (settings.value?.enabled == true) CellularRunner.startSoon(getApplication())
+        if (settings.value?.enabled != true) return
+        viewModelScope.launch { CellularRunner.runNowWithLoopback(getApplication()) }
     }
 }

@@ -10,7 +10,8 @@ ROOT = pathlib.Path("app/src/main/java/app/matterplug")
 TARGETS = ["guard/logic/GuardPolicy.kt", "guard/logic/CheckDecision.kt", "guard/logic/AlertPolicy.kt",
            "guard/logic/DeliveryPlan.kt", "guard/logic/SettingsCoercion.kt", "guard/logic/GuardSettings.kt",
            "guard/logic/PercentInput.kt", "guard/logic/AlertToken.kt", "guard/logic/AlertAddress.kt", "data/Plug.kt",
-           "cellular/logic/CellularVerdict.kt", "cellular/logic/LoopbackPlan.kt", "matter/BleFilter.kt"]
+           "cellular/logic/CellularVerdict.kt", "cellular/logic/LoopbackPlan.kt", "matter/BleFilter.kt",
+           "cellular/logic/LoopbackJudge.kt", "cellular/logic/CellularCodec.kt", "cellular/logic/CellularSettings.kt"]
 SWAPS = [(r"<=", ">"), (r">=", "<"), (r"(?<![<>=!-])<(?![=<])", ">="), (r"(?<![<>=!-])>(?![=>])", "<="),
          (r"==", "!="), (r"!=", "=="), (r"&&", "||"), (r"\|\|", "&&"), (r"\btrue\b", "false"), (r"\bfalse\b", "true"),
          (r"(?<=\w) \+ (?=\w)", " - ")]

@@ -18,6 +18,9 @@ class CellularCodecTest {
         assertEquals(emptyMap<Layer, LayerResult>(), CellularCodec.decode(""))
     }
 
+    @Test fun aLineWithAnotherTagIsIgnored() =
+        assertEquals(emptyMap<Layer, LayerResult>(), CellularCodec.decode("X,sim,p,cmVhZHk"))
+
     @Test fun aDamagedLineIsDroppedAndTheRestKept() {
         val text = CellularCodec.encode(mapOf(Layer.Sim to LayerResult.Pass("ready"))) + "\nL,nonsense\nL,signal,x,y"
         assertEquals(mapOf(Layer.Sim to LayerResult.Pass("ready")), CellularCodec.decode(text))

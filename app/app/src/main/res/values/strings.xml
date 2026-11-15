@@ -41,7 +41,7 @@
     <string name="menu_cellular">Cellular Check</string>
     <string name="cellular_title">Cellular Check</string>
     <string name="cellular_switch">Check cellular service</string>
-    <string name="cellular_permission_denied">Allow the phone permission so the app can read the SIM and the signal.</string>
+    <string name="cellular_permission_denied">Allow the phone and SMS permissions: the app reads the SIM and the signal, and sends a test SMS to this phone.</string>
     <string name="cellular_own_number">Own number</string>
     <string name="cellular_own_number_note">This phone\'s number. The daily SMS test sends to it.</string>
     <string name="cellular_sms_test_at">Daily SMS test at</string>
@@ -60,6 +60,10 @@
     <string name="cellular_no_run">No check yet.</string>
     <string name="cellular_last">Last check %1$s.</string>
     <string name="cellular_last_next">Last check %1$s. Next check %2$s.</string>
+    <string name="cellular_need_number">Enter this phone\'s number first: the SMS test sends to it.</string>
+    <string name="cellular_sent_count">Test SMS sent: %1$d today, %2$d in the last 7 days</string>
+    <string name="cellular_channel_work">Cellular Check test SMS</string>
+    <string name="cellular_sending_text">Sending the test SMS</string>
 
     <!-- Plug switcher -->
     <string name="switcher_add">Add plug</string>
