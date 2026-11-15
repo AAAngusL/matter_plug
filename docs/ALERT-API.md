@@ -80,6 +80,8 @@ No other fields are sent. Treat an unknown field as something to ignore, not an 
 | `sinr_db` | integer, −20 to 30 | optional | Signal to Interference plus Noise Ratio, dB |
 | `read_at` | string | always | When the reading was taken, ISO 8601 with the UTC offset |
 
+**Radio types:** `signal_reading` is reported for LTE only. On 3G, 2G and 5G standalone it is always left out, and on 5G non-standalone it holds the LTE anchor cell, not the 5G cell. See `docs/4G_5G_gap.md`.
+
 A value is **left out** when Android did not give it, or gave one outside the range above. It is never sent as `0`, `null` or a placeholder, so a missing `sinr_db` means "unknown", not "0 dB". With no LTE cell (no SIM, radio off, 5G standalone) the whole `signal_reading` object is left out.
 
 ## 4. Delivery and repeats

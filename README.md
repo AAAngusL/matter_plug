@@ -133,6 +133,9 @@ A `started` or `recovered` request that cannot be delivered waits and goes out w
 - `docs/BATTERY-GUARD.md`: Battery Guard design
 - `docs/BATTERY-GUARD-IMPLEMENTATION.md`: Battery Guard programming instructions
 - `docs/CELLULAR-CHECK.md`: Cellular Check design, and what was verified on the phone
+- `docs/SIGNAL-STRENGTH.md`: signal strength reporting and the weak-signal alert design
+- `docs/ALERT-API.md`: every request the phone sends, for programming the server
+- `docs/4G_5G_gap.md`: what differs on 3G, 4G and 5G
 - `CONTEXT.md`: glossary of the terms used
 
 ## License
