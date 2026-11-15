@@ -130,7 +130,8 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	}
 	mu.Lock()
 	lastSeen = time.Now()
-	if a.Alert == "status" && a.NextCheckInMin != nil && *a.NextCheckInMin > 0 {
+	// Battery Guard's "status" and Cellular Check's "cellular_status" both tell when the next one is due.
+	if (a.Alert == "status" || a.Alert == "cellular_status") && a.NextCheckInMin != nil && *a.NextCheckInMin > 0 {
 		nextMin = *a.NextCheckInMin
 	}
 	back := silent

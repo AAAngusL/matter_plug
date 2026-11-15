@@ -161,6 +161,8 @@ The `MPCHK` prefix stays, so a person reading the inbox can tell the test messag
 
 ## 8. Alerts and status report
 
+> **Changed by `SIGNAL-STRENGTH.md` draft 5:** Cellular Check sends its own status report (`cellular_status`) and its alerts under its own switches, **Send cellular alerts** and **Send cellular status after every check**, sharing only the alert address and token. Battery Guard's status report no longer carries the `cellular` object. Where this section says otherwise, that draft wins.
+
 A fourth alert joins the three in `BATTERY-GUARD.md` section 7, with the same reminder rules:
 
 | Alert | Starts when | Ends when |

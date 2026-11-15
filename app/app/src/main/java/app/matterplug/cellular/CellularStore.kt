@@ -59,6 +59,8 @@ class CellularStore(context: Context) {
             p[ENABLED] = new.enabled
             p[OWN_NUMBER] = new.ownNumber
             p[SMS_TEST_MINUTES] = new.smsTestMinutes
+            p[ALERTS_ENABLED] = new.alertsEnabled
+            p[STATUS_ENABLED] = new.statusEnabled
             if (old.enabled && !new.enabled) {
                 // Like Battery Guard (BATTERY-GUARD.md 5.2): switching off ends the alert and forgets the loopback state.
                 p.remove(NEXT_RUN_AT)
@@ -106,12 +108,16 @@ class CellularStore(context: Context) {
         enabled = p[ENABLED] ?: false,
         ownNumber = p[OWN_NUMBER] ?: "",
         smsTestMinutes = p[SMS_TEST_MINUTES] ?: CellularSettings.DEFAULT_TEST_MINUTES,
+        alertsEnabled = p[ALERTS_ENABLED] ?: false,
+        statusEnabled = p[STATUS_ENABLED] ?: false,
     ).coerced()
 
     private companion object {
         val ENABLED = booleanPreferencesKey("enabled")
         val OWN_NUMBER = stringPreferencesKey("own_number")
         val SMS_TEST_MINUTES = intPreferencesKey("sms_test_minutes")
+        val ALERTS_ENABLED = booleanPreferencesKey("alerts_enabled")
+        val STATUS_ENABLED = booleanPreferencesKey("status_enabled")
         val LAST_RUN_AT = longPreferencesKey("last_run_at")
         val NEXT_RUN_AT = longPreferencesKey("next_run_at")
         val RESULTS = stringPreferencesKey("results")

@@ -10,7 +10,7 @@ object AlertJson {
 
     /**
      * Keys in this order: alert, state, message, battery, charging, time, then next_check_in_min (status reports) and
-     * cellular (cellular_down alerts, and status reports while Cellular Check is on), each only when it is not null.
+     * cellular (Cellular Check's requests), each only when it is not null.
      */
     fun encode(e: AlertEvent, message: String, time: String): String =
         """{"alert":${q(e.kind.wire)},"state":${q(e.phase.wire)},"message":${q(message)},""" +

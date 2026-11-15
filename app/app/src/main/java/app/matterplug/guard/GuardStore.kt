@@ -58,10 +58,12 @@ class GuardStore(context: Context) {
             val old = readSettings(p)
             val new = transform(old).coerced()
             writeSettings(p, new)
-            if (old.alertsEnabled && !new.alertsEnabled) p.remove(QUEUE)
-            if (old.enabled && !new.enabled) {
+            // Battery Guard's alerts or Battery Guard off: its own waiting requests go; Cellular Check's stay (draft 5).
+            if ((old.alertsEnabled && !new.alertsEnabled) || (old.enabled && !new.enabled)) {
                 val kept = DeliveryPlan.keptWhenGuardTurnsOff(QueueCodec.decode(p[QUEUE]))
-                if (kept.isEmpty() || !new.alertsEnabled) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(kept)
+                if (kept.isEmpty()) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(kept)
+            }
+            if (old.enabled && !new.enabled) {
                 p.remove(ALERT_STATE)       // default state: no active alerts, both counts 0
                 p.remove(NEXT_CHECK_AT)
             }
@@ -77,13 +79,14 @@ class GuardStore(context: Context) {
     /**
      * Appends finished bodies to the waiting list in ONE edit, and only while Battery Guard and "Send alerts" are both on
      * in that same edit, so a run that is still going cannot refill a list that the settings rules have just cleared (5.2).
-     * Capped at [DeliveryPlan.MAX_QUEUE] (oldest dropped). Cellular Check alerts pass [requireGuardOn] false: they need
-     * only "Send alerts", because Cellular Check runs with Battery Guard off.
+     * Capped at [DeliveryPlan.MAX_QUEUE] (oldest dropped). Cellular Check's requests pass [guardItems] false: its caller
+     * has checked Cellular Check's own "Send cellular alerts", and Cellular Check runs with Battery Guard off.
      */
-    suspend fun enqueue(bodies: List<String>, requireGuardOn: Boolean = true) {
+    suspend fun enqueue(bodies: List<String>, guardItems: Boolean = true) {
         if (bodies.isEmpty()) return
         store.edit { p ->
-            if ((!requireGuardOn || (p[ENABLED] ?: false)) && (p[ALERTS_ENABLED] ?: false)) {
+            // Battery Guard's need it on with its "Send alerts" on, in this same edit; Cellular Check checked its own switch.
+            if (!guardItems || ((p[ENABLED] ?: false) && (p[ALERTS_ENABLED] ?: false))) {
                 p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
             }
         }

@@ -59,6 +59,18 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { store.update { it.copy(ownNumber = text) } }
     }
 
+    /** Send cellular alerts. Switching it off drops Cellular Check's waiting alert requests, as Battery Guard's switch does its own. */
+    fun setAlerts(on: Boolean) {
+        viewModelScope.launch {
+            store.update { it.copy(alertsEnabled = on) }
+            if (!on) GuardStore(getApplication()).dropCellularAlerts()
+        }
+    }
+
+    fun setStatus(on: Boolean) {
+        viewModelScope.launch { store.update { it.copy(statusEnabled = on) } }
+    }
+
     fun setTestTime(hour: Int, minute: Int) {
         viewModelScope.launch { store.update { it.copy(smsTestMinutes = hour * 60 + minute) } }
     }

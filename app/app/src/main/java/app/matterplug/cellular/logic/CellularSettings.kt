@@ -10,6 +10,9 @@ data class CellularSettings(
     val enabled: Boolean = false,
     val ownNumber: String = "",
     val smsTestMinutes: Int = DEFAULT_TEST_MINUTES,        // minutes after midnight, local time
+    /** Cellular Check's own switches (SIGNAL-STRENGTH.md draft 5): its alerts and its status report, to the shared address. */
+    val alertsEnabled: Boolean = false,
+    val statusEnabled: Boolean = false,
 ) {
     val smsTestTime: LocalTime get() = LocalTime.of(smsTestMinutes / 60, smsTestMinutes % 60)
 

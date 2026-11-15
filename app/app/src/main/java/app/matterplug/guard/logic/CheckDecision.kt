@@ -34,5 +34,6 @@ object CheckDecision {
         AlertKind.Status -> 4204
         AlertKind.Test -> 4205
         AlertKind.CellularDown -> 4206
+        AlertKind.CellularStatus -> 4207
     }
 }

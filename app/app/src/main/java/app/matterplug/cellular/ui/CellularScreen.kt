@@ -92,6 +92,10 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
             Text(stringResource(R.string.cellular_permission_denied), color = MaterialTheme.colorScheme.error)
         }
 
+        SettingSwitch(stringResource(R.string.cellular_send_alerts), s.alertsEnabled, viewModel::setAlerts)
+        SettingSwitch(stringResource(R.string.cellular_send_status), s.statusEnabled, viewModel::setStatus)
+        Note(stringResource(R.string.cellular_send_note))
+
         OutlinedTextField(
             value = number,
             onValueChange = viewModel::setOwnNumber,
@@ -169,6 +173,14 @@ private fun layerName(layer: Layer): String = stringResource(
         Layer.Sms -> R.string.cellular_layer_sms
     }
 )
+
+@Composable
+private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
 
 @Composable
 private fun Note(text: String) {

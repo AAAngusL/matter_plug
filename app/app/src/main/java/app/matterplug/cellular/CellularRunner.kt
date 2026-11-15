@@ -23,6 +23,7 @@ import app.matterplug.guard.GuardStore
 import app.matterplug.guard.HttpAlerter
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
+import app.matterplug.guard.logic.AlertPhase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -60,12 +61,18 @@ object CellularRunner {
     private const val SERVICE_BUDGET_MS = 15_000L
     private val mutex = Mutex()
 
+    /** What a run sends after the lock is released, under Cellular Check's own switches: an alert step and its status report. */
+    private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val switches: HttpAlerter.SenderSwitches)
+
     suspend fun run(ctx: Context) {
-        val alert = mutex.withLock { runLocked(ctx) }
-        alert?.let { deliver(ctx, it, RECEIVER_BUDGET_MS) }
+        val out = mutex.withLock { runLocked(ctx) } ?: return
+        if (out.alert != null || out.status != null) {
+            HttpAlerter.deliver(ctx, GuardStore(ctx), listOfNotNull(out.alert), status = out.status,
+                budgetMs = RECEIVER_BUDGET_MS, cellular = out.switches)
+        }
     }
 
-    private suspend fun runLocked(ctx: Context): AlertEvent? {
+    private suspend fun runLocked(ctx: Context): Outgoing? {
         val store = CellularStore(ctx)
         val settings = try { store.readSettings() } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -127,7 +134,19 @@ object CellularRunner {
         store.writeState(state)
         Log.i(TAG, CellularLog.line(results) + " next_in_min=$intervalMin")
         store.recordRun(now, results, nextAt, reading.lte)
-        return alertStep(ctx, store, state.down, now)                   // reminders while down
+        val alert = alertStep(ctx, store, state.down, now)               // reminders while down
+        // Cellular Check's own status report, whether Battery Guard is on or off (draft 5): its own switch decides.
+        val status = if (settings.statusEnabled) statusReport(ctx, store, intervalMin, now) else null
+        return Outgoing(alert, status, switchesOf(settings))
+    }
+
+    private fun switchesOf(s: app.matterplug.cellular.logic.CellularSettings) = HttpAlerter.SenderSwitches(s.alertsEnabled, s.statusEnabled)
+
+    /** cellular_status: the same request shape as Battery Guard's status report, with this run's cellular object. */
+    private suspend fun statusReport(ctx: Context, store: CellularStore, intervalMin: Int, now: Long): AlertEvent {
+        val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
+        return AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, battery?.level ?: 0, battery?.pluggedIn ?: false, null, now,
+            nextCheckInMin = intervalMin, cellular = summaryOf(store))
     }
 
     /**
@@ -136,7 +155,10 @@ object CellularRunner {
      */
     suspend fun finishLoopback(ctx: Context, trigger: LoopbackTrigger, outcome: LoopbackOutcome?) {
         val alert = mutex.withLock { finishLocked(ctx, trigger, outcome) }
-        alert?.let { deliver(ctx, it, SERVICE_BUDGET_MS) }
+        if (alert != null) {
+            HttpAlerter.deliver(ctx, GuardStore(ctx), listOf(alert), status = null, budgetMs = SERVICE_BUDGET_MS,
+                cellular = switchesOf(CellularStore(ctx).readSettings()))
+        }
         if (CellularStore(ctx).manualRequested()) startSoon(ctx)      // Run now was tapped while this one was waiting
     }
 
@@ -175,22 +197,9 @@ object CellularRunner {
         return event
     }
 
-    /** Through Battery Guard's queue and alert address; needs "Send alerts", not Battery Guard on. */
-    private suspend fun deliver(ctx: Context, event: AlertEvent, budgetMs: Long) =
-        HttpAlerter.deliver(ctx, GuardStore(ctx), listOf(event), status = null, budgetMs = budgetMs, fromGuard = false)
-
     private suspend fun summaryOf(store: CellularStore): CellularSummary {
         val status = store.status.first()
         return CellularReport.summary(status.results, store.readState().lastTrigger, status.signal)
-    }
-
-    /** For Battery Guard's status report: the latest cellular results, or null while Cellular Check is off. */
-    suspend fun currentSummary(ctx: Context): CellularSummary? = try {
-        val store = CellularStore(ctx)
-        if (store.readSettings().enabled) summaryOf(store) else null
-    } catch (e: Exception) {
-        if (e is CancellationException) throw e
-        null
     }
 
     /**

@@ -1,6 +1,14 @@
 # Signal Strength Reporting: Design
 
-Status: draft 4, 2026-11-14, for approval. Replaces draft 3. Every open question is answered; nothing here is built yet. Adds to `CELLULAR-CHECK.md` and uses the same alert address, status report and receiver.
+Status: draft 5, 2026-11-14, for approval. Replaces draft 4 (approved; S1 and S2 built). Changes `CELLULAR-CHECK.md` section 8 as well.
+
+Changes in draft 5, a new requirement after S2:
+
+- **Two senders, each with its own messages.** Battery Guard, when on, sends only Battery Guard's status report and alerts, with no cellular data. Cellular Check, when on, sends its own status report and its own alerts (`cellular_down`, `weak_signal`), whether Battery Guard is on or off (section 6).
+- **Its own type:** Cellular Check's status report is `"alert":"cellular_status"`; Battery Guard's stays `"alert":"status"`. With both on, a server receives two status reports per check, one of each type.
+- **Its own switches:** Cellular Check's screen gets **Send cellular alerts** and **Send cellular status after every check**. The alert address and token stay shared, set in Battery Guard's section (section 9).
+- **The waiting list follows each sender's switches:** a request is queued only if its sender's alert switch is on; switching a sender's alerts off, or the sender off, drops only that sender's waiting requests (section 6).
+- Battery Guard's status report no longer carries the `cellular` object (it did since S2). The cellular-first order on the shared alarm stays, so both reports of a check carry the same moment.
 
 Changes in draft 4, from the review of draft 3:
 
@@ -50,12 +58,14 @@ These go into `CONTEXT.md` once the design is accepted.
 |---|---|
 | Interface | The HTTP requests to the alert address only |
 | When | Only while Cellular Check is on |
-| Which requests | Status reports, `cellular_down` and `weak_signal` |
+| Which requests | Cellular Check's own requests only: `cellular_status`, `cellular_down` and `weak_signal` |
+| Senders | Battery Guard sends Battery Guard's messages; Cellular Check sends Cellular Check's. Neither carries the other's data |
+| Cellular Check's switches | **Send cellular alerts** and **Send cellular status after every check**, on its screen; address and token shared |
 | Radio | LTE only |
 | Shape | A `signal` object of numbers inside the `cellular` object; `signal_detail` stays for people |
 | Data first | `CellularReader` keeps the reading as a structured value; the text is made from it |
 | Missing values | Left out of the object, never `0` or a sentinel |
-| With Battery Guard off | Cellular Check sends its own status report at its interval, when **Send status after every check** is on |
+| Cellular status report | `"alert":"cellular_status"`, at every cellular run, with **Send cellular status after every check** on, whether Battery Guard is on or off |
 | Weak signal | RSRP below −110 dBm **or** SINR below 0 dB, fixed |
 | Start and end | Two weak readings in a row start `weak_signal`; two good readings in a row end it |
 | A check with no reading | Not judged: it neither counts as weak or good nor breaks a run |
@@ -105,31 +115,52 @@ It is named `signal_reading`, because `signal` inside `cellular` is already the 
 
 With no reading, `signal_reading` is left out; the rest of the `cellular` object is unchanged.
 
-## 6. Where it goes
+## 6. Two senders
 
-| Request | `signal_reading` included |
+| Sender | Sends | Switched by |
+|---|---|---|
+| Battery Guard (while on) | `status`, `not_charging`, `plug_unreachable`, `guard_degraded`, `test` | Battery Guard's **Send alerts** and **Send status after every check** |
+| Cellular Check (while on) | `cellular_status`, `cellular_down`, `weak_signal` | Cellular Check's **Send cellular alerts** and **Send cellular status after every check** |
+
+Both use the alert address and token set in Battery Guard's section, and the same request shape. Neither carries the other's data: Battery Guard's requests have no `cellular` object; Cellular Check's carry it, with `signal_reading`.
+
+| Request | `cellular` with `signal_reading` |
 |---|---|
-| Battery Guard status report, while Cellular Check is on | Yes: the reading of the cellular run at the same alarm |
-| Cellular Check status report (new, only while Battery Guard is off) | Yes |
-| `cellular_down` started, reminder, recovered | Yes: the reading of the run that raised it |
+| `cellular_status` | Yes: this run's results and reading |
+| `cellular_down` started, reminder, recovered | Yes: the run that raised it |
 | `weak_signal` started, reminder, recovered | Yes: the reading that decided it |
-| Battery Guard's own alerts, the test alert | No |
+| Battery Guard's `status`, its alerts, `test` | No |
+
+### The cellular status report
+
+Sent at every cellular run while Cellular Check is on and **Send cellular status after every check** is on, whether Battery Guard is on or off:
+
+```json
+{"alert":"cellular_status","state":"status",
+ "message":"Matter Plug: cellular status: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
+ "battery":84,"charging":true,"time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
+ "cellular":{"sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE, RSRP -97 dBm, …",
+             "signal_reading":{"rat":"lte","level":3,"rsrp_dbm":-97,"rsrq_db":-11,"sinr_db":8,"read_at":"2026-11-14T20:10:50-06:00"}}}
+```
+
+- `battery` and `charging` stay in it: every request has them, and a server's handling of the shape does not change.
+- `next_check_in_min` lets the receiver's silence alarm use it, as it uses Battery Guard's `status`.
+- The SMS layer in it is the last test SMS's result, as on the screen.
 
 ### One alarm, cellular first
 
-While Battery Guard is on, its alarm brings both runs (`CheckReceiver`). Today it runs Battery Guard's check first and the cellular run second, so the status report built in the check would carry the previous cellular run's results, one interval old. The order is swapped: **the cellular run first, then Battery Guard's check**. The cellular run is quick (a passive read; a test SMS, when due, runs in its own service), and the status report then carries this check's reading.
+While Battery Guard is on, its alarm brings both runs (`CheckReceiver`): the cellular run first, then Battery Guard's check. Each sends its own requests. A failure in the cellular run never stops Battery Guard's check. While Battery Guard is off, Cellular Check's own alarm brings its runs.
 
-### The Cellular Check status report
+### The waiting list
 
-Only while Battery Guard is off and **Send status after every check** is on (that setting is in Battery Guard's section and applies to both):
+Both senders share one waiting list for alerts that could not be delivered. Each request in it belongs to its sender, and the list follows each sender's own switches:
 
-```json
-{"alert":"status","state":"status","message":"Matter Plug: status. Battery 84%, plugged in.",
- "battery":84,"charging":true,"time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
- "cellular":{…, "signal_reading":{"rat":"lte","level":3,"rsrp_dbm":-97,"rsrq_db":-11,"sinr_db":8,"read_at":"…"}}}
-```
+| Event | Waiting requests dropped |
+|---|---|
+| Battery Guard's **Send alerts** switched off, or Battery Guard switched off | Battery Guard's only |
+| **Send cellular alerts** switched off, or Cellular Check switched off | Cellular Check's only |
 
-The same request shape as Battery Guard's, so the receiver and its silence alarm (which uses `next_check_in_min`) work unchanged. It goes out only while Battery Guard is off, so a server never receives two status reports for one check.
+A request is queued only while its sender's alert switch is on, and the list is sent whenever the address is valid. Until now the whole list followed Battery Guard's **Send alerts**.
 
 ## 7. The weak-signal alert
 
@@ -143,7 +174,7 @@ A reading is **weak** when **RSRP < −110 dBm** or **SINR < 0 dB**. A value tha
 
 Readings come once per check (every **Check every** minutes, 15 by default), so the alert starts about 15 minutes after the signal turns weak and ends about 15 minutes after it recovers.
 
-It runs in every cellular run, whether that run comes from Battery Guard's alarm or Cellular Check's own. Reminders follow the existing 60-minute rule. It travels like Cellular Check's other alert: the same alert address, token and waiting list, with **Send alerts** on, and a phone notification.
+It runs in every cellular run, whether that run comes from Battery Guard's alarm or Cellular Check's own. Reminders follow the existing 60-minute rule. It travels like Cellular Check's other alert: the shared address, token and waiting list, with **Send cellular alerts** on, and a phone notification.
 
 | `state` | Example `message` |
 |---|---|
@@ -171,6 +202,7 @@ The rule is a pure function (`cellular/logic/WeakSignalPolicy.kt`), driven in un
 
 ## 8. Receiver
 
+- It learns `cellular_status` and counts it for the silence alarm, as it counts `status`: any valid request is a sign of life, and `next_check_in_min` from either sets the expected gap.
 - The log line gains `signal=lte/3 rsrp=-97 rsrq=-11 sinr=8` when the `cellular` object has a `signal_reading`.
 - It learns the `weak_signal` alert, prints its `weak` object, and runs the notification command for started and reminder, as for the other alerts.
 - Nothing is stored beyond its existing log; the server keeps the history.
@@ -178,7 +210,14 @@ The rule is a pure function (`cellular/logic/WeakSignalPolicy.kt`), driven in un
 
 ## 9. Settings screen
 
-No new control. Battery Guard's **Send status after every check** gains a note: "Includes the cellular signal while Cellular Check is on."
+The Cellular Check screen gets two switches, below **Check cellular service**:
+
+| Control | Type | Default |
+|---|---|---|
+| **Send cellular alerts** | Switch | Off |
+| **Send cellular status after every check** | Switch | Off |
+
+With a note: "Sent to the alert address set in Battery Guard." Nothing changes in Battery Guard's section: its switches now cover Battery Guard's messages only. Your phone today sends Cellular Check's alerts through Battery Guard's **Send alerts** (on); after this change they need **Send cellular alerts** switched on.
 
 ## 10. Risks
 
@@ -190,6 +229,8 @@ No new control. Battery Guard's **Send status after every check** gains a note: 
 | 4 | 5G standalone reports no LTE values | No `signal_reading` and no judgement; stated in section 1 |
 | 5 | A phone maker reports nonsense values | Out-of-range values are dropped at the boundary, so they are never judged weak |
 | 6 | Swapping the order delays Battery Guard's check | The cellular run is a passive read of milliseconds; its test SMS runs in its own service |
+| 7 | A server that reads every `status` as Battery Guard's | Cellular Check's report has its own type, `cellular_status` |
+| 8 | Two reports per check double the requests a server receives | Each sender's status switch is separate; switch either off |
 
 ## 11. Build order
 
@@ -197,19 +238,21 @@ No new control. Battery Guard's **Send status after every check** gains a note: 
 |---|---|---|
 | S1 | `SignalReading` (pure, with tests: unavailable values, LTE ranges, no LTE entry); `CellularReader` and `SignalDetail` use it; the reading is stored with the run | The screen and `signal_detail` are unchanged on the phone |
 | S2 | `signal_reading` in the `cellular` object; the cellular run before Battery Guard's check | A status report from the phone carries this check's reading |
-| S3 | The Cellular Check status report while Battery Guard is off | With Battery Guard off, a status report with `signal_reading` arrives every interval |
+| S3 | Two senders: Cellular Check's switches; `cellular_status` at every cellular run; the `cellular` object out of Battery Guard's `status`; the waiting list by sender | With both on, a `status` without `cellular` and a `cellular_status` with `signal_reading` arrive every interval; with Battery Guard off, only the `cellular_status` |
 | S4 | `WeakSignalPolicy` (pure, with tests: two in a row, missing values, unjudged checks, recovery) and the `weak_signal` alert, ended by switching Cellular Check off | A weak spot starts the alert after two checks and a good spot ends it after two |
-| S5 | Receiver: log line and `weak_signal` | Both show on the receiver from the phone |
+| S5 | Receiver: `cellular_status` for the silence alarm, the log line, `weak_signal` | All show on the receiver from the phone |
 
 ## 12. Test plan
 
 | # | Test | Expected |
 |---|---|---|
-| ST1 | Normal LTE, both features on | Status report with `signal_reading`, `"rat":"lte"` and all three values, `read_at` equal to this check |
+| ST1 | Normal LTE, both features on, both status switches on | Each check: a `status` with no `cellular`, and a `cellular_status` with `signal_reading`, `"rat":"lte"` and all three values, `read_at` equal to this check |
 | ST2 | Airplane mode | No `signal_reading`; no weak-signal judgement |
 | ST3 | A cell where Android reports no SINR | `sinr_db` left out; weak judged on RSRP only |
-| ST4 | Cellular Check off, Battery Guard on | Status reports without `signal_reading` (and without `cellular`) |
-| ST5 | Battery Guard off, Cellular Check on | Cellular Check status reports with `signal_reading` every interval |
+| ST4 | Cellular Check off, Battery Guard on | Only `status`, without `cellular` |
+| ST5 | Battery Guard off, Cellular Check on | Only `cellular_status`, with `signal_reading`, every interval |
+| ST5a | **Send cellular alerts** off, Battery Guard's **Send alerts** on, a `cellular_down` starts | No `cellular_down` request; Battery Guard's alerts still sent |
+| ST5b | A `cellular_down` waiting, then **Send cellular alerts** off | That request dropped; a waiting Battery Guard alert kept |
 | ST6 | A weak spot (for example a basement, or the phone in a metal tin) for 30 minutes, then back | `weak_signal` started after the second weak check, recovered after the second good one |
 | ST7 | One weak reading between good ones | No alert |
 | ST8 | Airplane mode in the middle of a weak spell | The airplane-mode checks are not judged; the run of weak readings carries on after it |
@@ -234,3 +277,6 @@ No open questions remain.
 | Signal with Cellular Check off | No | 4 |
 | Receiver history | None: the server keeps it | 4 |
 | Live callbacks | No: one reading per check | 4 |
+| Who sends what | Battery Guard its messages, Cellular Check its own; neither carries the other's data | 5 |
+| Cellular status report type | `cellular_status` | 5 |
+| Cellular Check's switches | Its own **Send cellular alerts** and **Send cellular status**; address and token shared | 5 |

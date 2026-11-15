@@ -12,6 +12,8 @@ class CellularSettingsTest {
         assertFalse(s.enabled)
         assertEquals("", s.ownNumber)
         assertEquals(LocalTime.of(10, 0), s.smsTestTime)
+        assertFalse(s.alertsEnabled)          // Cellular Check's own switches, off until switched on
+        assertFalse(s.statusEnabled)
     }
 
     @Test fun ownNumberKeepsOnlyDigitsAndALeadingPlus() =

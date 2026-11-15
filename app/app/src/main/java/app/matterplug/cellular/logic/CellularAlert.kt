@@ -106,6 +106,13 @@ object CellularReport {
         else "Matter Plug: SMS is not working although the signal is fine; $sms. Battery $battery%."
     }
 
+    /** The cellular_status message: every layer's result in words, "not tested" for an SMS test not yet run. */
+    fun statusText(s: CellularSummary?, battery: Int): String {
+        val word = { l: Layer -> (s?.layers?.get(l) ?: "not_due").let { if (it == "not_due") "not tested" else it } }
+        return "Matter Plug: cellular status: SIM ${word(Layer.Sim)}, registered ${word(Layer.Registration)}, " +
+            "signal ${word(Layer.Signal)}, SMS ${word(Layer.Sms)}. Battery $battery%."
+    }
+
     fun recoveredText(battery: Int): String = "Matter Plug: SMS works again. Battery $battery%."
 
     private fun passivePhrase(s: CellularSummary): String =

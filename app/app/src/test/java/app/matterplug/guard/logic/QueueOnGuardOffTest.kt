@@ -7,11 +7,17 @@ import org.junit.Test
 class QueueOnGuardOffTest {
     private val guard = """{"alert":"plug_unreachable","state":"started","message":"m","battery":1,"charging":false,"time":"t"}"""
     private val cellular = """{"alert":"cellular_down","state":"started","message":"m","battery":1,"charging":false,"time":"t"}"""
+    private val weak = """{"alert":"weak_signal","state":"started","message":"m","battery":1,"charging":false,"time":"t"}"""
 
     @Test fun onlyCellularAlertsAreKept() = assertEquals(listOf(cellular), DeliveryPlan.keptWhenGuardTurnsOff(listOf(guard, cellular, guard)))
 
     @Test fun switchingCellularCheckOffDropsOnlyItsAlerts() =
         assertEquals(listOf(guard, guard), DeliveryPlan.withoutCellularAlerts(listOf(guard, cellular, guard)))
+
+    @Test fun bothCellularAlertKindsBelongToCellularCheck() {
+        assertEquals(listOf(cellular, weak), DeliveryPlan.keptWhenGuardTurnsOff(listOf(guard, cellular, weak)))
+        assertEquals(listOf(guard), DeliveryPlan.withoutCellularAlerts(listOf(guard, cellular, weak)))
+    }
 
     @Test fun nothingWaitingStaysEmpty() = assertEquals(emptyList<String>(), DeliveryPlan.keptWhenGuardTurnsOff(emptyList()))
 }

@@ -5,6 +5,7 @@ import app.matterplug.cellular.logic.CellularSummary
 enum class AlertKind(val wire: String) {
     NotCharging("not_charging"), PlugUnreachable("plug_unreachable"), GuardDegraded("guard_degraded"),
     CellularDown("cellular_down"),      // Cellular Check (docs/CELLULAR-CHECK.md section 8)
+    CellularStatus("cellular_status"),  // Cellular Check's own status report (docs/SIGNAL-STRENGTH.md section 6)
     Status("status"), Test("test")
 }
 
@@ -39,5 +40,5 @@ data class AlertEvent(
     val battery: Int, val pluggedIn: Boolean, val wantedOn: Boolean?, val atMs: Long,
     val detail: String? = null,
     val nextCheckInMin: Int? = null,    // status reports only
-    val cellular: CellularSummary? = null,      // cellular_down alerts, and status reports while Cellular Check is on
+    val cellular: CellularSummary? = null,      // Cellular Check's requests only: cellular_status and its alerts
 )

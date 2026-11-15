@@ -121,11 +121,18 @@ object HttpAlerter {
      * 4. list empty: reminders once, then the status report once (never queued)
      * 5. list not empty: schedule the flush job
      */
+    /**
+     * The switches of the sender whose requests a delivery carries (SIGNAL-STRENGTH.md draft 5). Null means Battery
+     * Guard's own, read from its settings; Cellular Check passes its own.
+     */
+    data class SenderSwitches(val alertsOn: Boolean, val statusOn: Boolean)
+
     suspend fun deliver(
-        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long, fromGuard: Boolean = true,
+        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
+        cellular: SenderSwitches? = null,
     ) {
         try {
-            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, fromGuard)
+            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, cellular)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
@@ -133,25 +140,27 @@ object HttpAlerter {
     }
 
     private suspend fun deliverInner(
-        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, fromGuard: Boolean,
+        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, cellular: SenderSwitches?,
     ) {
         val settings = store.readSettings()
-        val alertsOn = settings.alertsEnabled
-        val statusOn = settings.statusEnabled && status != null
+        val alertsOn = cellular?.alertsOn ?: settings.alertsEnabled
+        val statusOn = (cellular?.statusOn ?: settings.statusEnabled) && status != null
         val valid = AlertAddress.isValid(settings.alertAddress)
 
         if (alertsOn) {                                                                  // step 2
             val bodies = DeliveryPlan.toEnqueue(events, true).map { body(it) }
-            if (bodies.isNotEmpty()) store.enqueue(bodies, requireGuardOn = fromGuard)
+            if (bodies.isNotEmpty()) store.enqueue(bodies, guardItems = cellular == null)
         }
-        if (DeliveryPlan.nothingToSend(valid, alertsOn, statusOn)) {                    // step 1
+        val waiting = store.readQueue().isNotEmpty()
+        if (DeliveryPlan.nothingToSend(valid, alertsOn || waiting, statusOn)) {          // step 1
             Log.i(TAG, "deliver: nothing to send (address valid=$valid alerts=$alertsOn status=$statusOn)")
             return
         }
         val address = settings.alertAddress.trim()
         val host = AlertAddress.hostOf(address)
 
-        if (alertsOn) flushQueue(store, address, settings.alertToken, host, deadline)                         // step 3
+        // Step 3: every waiting request was queued under its own sender's switch, so the list is sent whoever asks.
+        if (waiting || alertsOn) flushQueue(store, address, settings.alertToken, host, deadline)
 
         if (store.readQueue().isEmpty()) {                                               // step 4
             for (e in DeliveryPlan.extras(events, status, alertsOn, statusOn)) {
@@ -169,14 +178,14 @@ object HttpAlerter {
 
     /**
      * Steps 1 and 3 only, for the flush job. Returns true when the waiting list is still not empty AND a later try can
-     * succeed (alerts on, valid address), so the job should be rescheduled.
+     * succeed (a valid address), so the job should be rescheduled. Each request was queued under its own sender's switch.
      */
     suspend fun flush(store: GuardStore, budgetMs: Long): Boolean {
         val deadline = SystemClock.elapsedRealtime() + budgetMs
         val settings = store.readSettings()
         val address = settings.alertAddress.trim()
-        if (!settings.alertsEnabled || !AlertAddress.isValid(address)) {
-            Log.i(TAG, "flush: alerts off or address invalid, nothing to do")
+        if (!AlertAddress.isValid(address)) {
+            Log.i(TAG, "flush: address invalid, nothing to do")
             return false
         }
         flushQueue(store, address, settings.alertToken, AlertAddress.hostOf(address), deadline)

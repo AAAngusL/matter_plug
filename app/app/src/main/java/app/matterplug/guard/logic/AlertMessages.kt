@@ -7,7 +7,7 @@ object AlertMessages {
     fun text(e: AlertEvent): String = when (e.phase) {
         AlertPhase.Recovered -> if (e.kind == AlertKind.CellularDown) CellularReport.recoveredText(e.battery) else "Matter Plug: recovered. Battery ${e.battery}%, " + (if (e.pluggedIn) "charging." else "not charging.")
         AlertPhase.Test -> "Matter Plug: test alert."
-        AlertPhase.Status -> "Matter Plug: status. Battery ${e.battery}%, " + (if (e.pluggedIn) "plugged in." else "on battery.")
+        AlertPhase.Status -> if (e.kind == AlertKind.CellularStatus) CellularReport.statusText(e.cellular, e.battery) else "Matter Plug: status. Battery ${e.battery}%, " + (if (e.pluggedIn) "plugged in." else "on battery.")
         AlertPhase.Started -> body(e)
         AlertPhase.Reminder -> body(e).replaceFirst("Matter Plug: ", "Matter Plug (reminder): ")
     }
@@ -19,6 +19,6 @@ object AlertMessages {
             else "Matter Plug: battery ${e.battery}%, not charging. The charger plug cannot be reached."
         AlertKind.GuardDegraded -> "Matter Plug: Battery Guard is not working: ${e.detail ?: "unknown fault"}. Battery ${e.battery}%."
         AlertKind.CellularDown -> e.cellular?.let { CellularReport.downText(it, e.battery) } ?: "Matter Plug: SMS is not working. Battery ${e.battery}%."
-        AlertKind.Status, AlertKind.Test -> "Matter Plug: test alert."   // not reached: Status and Test use their phase's text above
+        AlertKind.Status, AlertKind.Test, AlertKind.CellularStatus -> "Matter Plug: test alert."   // not reached: Status and Test use their phase's text above
     }
 }

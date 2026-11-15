@@ -41,6 +41,9 @@
     <string name="menu_cellular">Cellular Check</string>
     <string name="cellular_title">Cellular Check</string>
     <string name="cellular_switch">Check cellular service</string>
+    <string name="cellular_send_alerts">Send cellular alerts</string>
+    <string name="cellular_send_status">Send cellular status after every check</string>
+    <string name="cellular_send_note">Sent to the alert address set in Battery Guard.</string>
     <string name="cellular_permission_denied">Allow the phone and SMS permissions: the app reads the SIM and the signal, and sends a test SMS to this phone.</string>
     <string name="cellular_own_number">Own number</string>
     <string name="cellular_own_number_note">This phone\'s number. The daily SMS test sends to it.</string>

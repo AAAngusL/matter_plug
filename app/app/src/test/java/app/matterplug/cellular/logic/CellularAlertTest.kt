@@ -107,3 +107,29 @@ class CellularReportTest {
         CellularReport.json(CellularReport.summary(smsOnly + (Layer.Sms to LayerResult.Pass("daily: sent, delivered, received back")), LoopbackTrigger.Daily)),
     )
 }
+
+/** Cellular Check's own status report (SIGNAL-STRENGTH.md draft 5, section 6). */
+class CellularStatusReportTest {
+    private val healthy = mapOf(
+        Layer.Sim to LayerResult.Pass("ready"), Layer.Registration to LayerResult.Pass("LTE, home"),
+        Layer.Signal to LayerResult.Pass("LTE, RSRP -97 dBm"), Layer.Sms to LayerResult.Pass("daily: sent, delivered, received back"),
+    )
+    private fun report(results: Map<Layer, LayerResult>) =
+        AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, 84, true, null, 0L, nextCheckInMin = 15,
+            cellular = CellularReport.summary(results, LoopbackTrigger.Daily))
+
+    @Test fun itsTypeIsCellularStatus() = assertTrue(
+        AlertJson.encode(report(healthy), "m", "t").startsWith("""{"alert":"cellular_status","state":"status","message":"m","battery":84,"charging":true,"time":"t","next_check_in_min":15,"cellular":{"""),
+    )
+
+    @Test fun itsMessageNamesEveryLayer() = assertEquals(
+        "Matter Plug: cellular status: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
+        AlertMessages.text(report(healthy)),
+    )
+
+    @Test fun skippedAndUntestedLayersSaySo() = assertEquals(
+        "Matter Plug: cellular status: SIM fail, registered skipped, signal skipped, SMS not tested. Battery 84%.",
+        AlertMessages.text(report(mapOf(Layer.Sim to LayerResult.Fail("SIM absent"),
+            Layer.Registration to LayerResult.Skipped(Layer.Sim), Layer.Signal to LayerResult.Skipped(Layer.Sim)))),
+    )
+}
