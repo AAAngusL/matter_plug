@@ -2,6 +2,7 @@ package app.matterplug.cellular.logic
 
 import app.matterplug.guard.logic.AlertJson
 import app.matterplug.guard.logic.AlertPhase
+import java.time.ZoneId
 
 /** The cellular_down alert while it is on: when it started and when a request about it was last sent. */
 data class CellularAlert(val startedAt: Long, val lastSentAt: Long)
@@ -44,13 +45,14 @@ data class CellularSummary(
     val layers: Map<Layer, String>,          // pass, fail, skipped or not_due
     val smsReason: String?,                  // the SMS layer's failure, without its trigger: "not sent: radio off"
     val signalDetail: String,
+    val reading: SignalReading? = null,      // the LTE signal as numbers (docs/SIGNAL-STRENGTH.md); null with no LTE cell
 )
 
 object CellularReport {
     private val passive = listOf(Layer.Sim, Layer.Registration, Layer.Signal)
     private val triggerPrefix = Regex("^[a-z]+: ")
 
-    fun summary(results: Map<Layer, LayerResult>, trigger: LoopbackTrigger?): CellularSummary {
+    fun summary(results: Map<Layer, LayerResult>, trigger: LoopbackTrigger?, reading: SignalReading? = null): CellularSummary {
         val sms = (results[Layer.Sms] as? LayerResult.Fail)?.reason?.replace(triggerPrefix, "")
         val failedPassive = CellularVerdict.firstFailed(results)
         val failed = failedPassive ?: if (sms != null) Layer.Sms else null
@@ -66,11 +68,15 @@ object CellularReport {
             layers = Layer.entries.associateWith { status(results[it]) },
             smsReason = sms,
             signalDetail = (results[Layer.Signal] as? LayerResult.Pass)?.detail ?: "none",
+            reading = reading,
         )
     }
 
-    /** The `cellular` object; trigger, failed_layer, reason and sms_reason only when known. */
-    fun json(s: CellularSummary): String {
+    /**
+     * The `cellular` object; trigger, failed_layer, reason, sms_reason and signal_reading only when known. [zone] gives
+     * signal_reading's read_at its UTC offset.
+     */
+    fun json(s: CellularSummary, zone: ZoneId = ZoneId.systemDefault()): String {
         val parts = listOfNotNull(
             s.trigger?.let { "\"trigger\":${AlertJson.q(it.wire)}" },
             s.failedLayer?.let { "\"failed_layer\":${AlertJson.q(it.wire)}" },
@@ -78,9 +84,20 @@ object CellularReport {
         ) + Layer.entries.map { "\"${it.wire}\":${AlertJson.q(s.layers[it] ?: "not_due")}" } + listOfNotNull(
             s.smsReason?.let { "\"sms_reason\":${AlertJson.q(it)}" },
             "\"signal_detail\":${AlertJson.q(s.signalDetail)}",
+            s.reading?.let { "\"signal_reading\":${readingJson(it, zone)}" },
         )
         return parts.joinToString(",", "{", "}")
     }
+
+    /** The numbers Android gave, each left out when it gave none; rat is always "lte" in this version. */
+    private fun readingJson(r: SignalReading, zone: ZoneId): String = listOfNotNull(
+        "\"rat\":\"lte\"",
+        r.level?.let { "\"level\":$it" },
+        r.rsrpDbm?.let { "\"rsrp_dbm\":$it" },
+        r.rsrqDb?.let { "\"rsrq_db\":$it" },
+        r.sinrDb?.let { "\"sinr_db\":$it" },
+        "\"read_at\":${AlertJson.q(AlertJson.isoTime(r.at, zone))}",
+    ).joinToString(",", "{", "}")
 
     /** The started text; AlertMessages turns it into the reminder. A passive fault says which layer; an SMS-only fault says the signal is fine. */
     fun downText(s: CellularSummary, battery: Int): String {

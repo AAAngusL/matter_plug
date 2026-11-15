@@ -85,6 +85,23 @@ class CellularReportTest {
         AlertJson.encode(event(AlertPhase.Started, CellularReport.summary(airplane, LoopbackTrigger.Confirmation)), "m", "t"),
     )
 
+    private val utc = java.time.ZoneOffset.ofHours(-6)
+    private val at = java.time.OffsetDateTime.of(2026, 11, 14, 20, 10, 50, 0, utc).toInstant().toEpochMilli()
+
+    @Test fun theReadingGoesInAsNumbersWithItsOwnTime() = assertTrue(
+        CellularReport.json(CellularReport.summary(smsOnly, LoopbackTrigger.Daily, SignalReading(3, -97, -11, 8, at)), utc).endsWith(
+            ""","signal_detail":"LTE, RSRP -97 dBm","signal_reading":{"rat":"lte","level":3,"rsrp_dbm":-97,"rsrq_db":-11,"sinr_db":8,"read_at":"2026-11-14T20:10:50-06:00"}}"""),
+    )
+
+    @Test fun aMissingValueIsLeftOutNotSentAsZero() = assertTrue(
+        CellularReport.json(CellularReport.summary(smsOnly, LoopbackTrigger.Daily, SignalReading(null, -101, null, null, at)), utc).endsWith(
+            ""","signal_reading":{"rat":"lte","rsrp_dbm":-101,"read_at":"2026-11-14T20:10:50-06:00"}}"""),
+    )
+
+    @Test fun noReadingNoSignalReadingKey() = assertTrue(
+        !CellularReport.json(CellularReport.summary(airplane, LoopbackTrigger.Confirmation, null), utc).contains("signal_reading"),
+    )
+
     @Test fun aHealthyStatusReportHasNoFailure() = assertEquals(
         """{"trigger":"daily","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE, RSRP -97 dBm"}""",
         CellularReport.json(CellularReport.summary(smsOnly + (Layer.Sms to LayerResult.Pass("daily: sent, delivered, received back")), LoopbackTrigger.Daily)),

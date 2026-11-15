@@ -179,8 +179,10 @@ object CellularRunner {
     private suspend fun deliver(ctx: Context, event: AlertEvent, budgetMs: Long) =
         HttpAlerter.deliver(ctx, GuardStore(ctx), listOf(event), status = null, budgetMs = budgetMs, fromGuard = false)
 
-    private suspend fun summaryOf(store: CellularStore): CellularSummary =
-        CellularReport.summary(store.status.first().results, store.readState().lastTrigger)
+    private suspend fun summaryOf(store: CellularStore): CellularSummary {
+        val status = store.status.first()
+        return CellularReport.summary(status.results, store.readState().lastTrigger, status.signal)
+    }
 
     /** For Battery Guard's status report: the latest cellular results, or null while Cellular Check is off. */
     suspend fun currentSummary(ctx: Context): CellularSummary? = try {
