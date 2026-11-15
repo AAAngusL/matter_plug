@@ -216,6 +216,8 @@ All three runtime permissions are asked when the user turns the check on, never 
 
 ## 10. The Cellular Check screen
 
+> **Changed 2026-11-15:** Cellular Check is now the second tab under the plug switch, beside the Battery Guard tab, with the same controls, on every plug. The ⋮ menu item and the back button are gone. The text below is the original design.
+
 Its own screen, opened from a new **Cellular Check** item in the ⋮ menu of the plug screen (next to Rename and Remove plug). It is the same screen whichever plug is shown, since the check is about the phone. The back button returns to the plug screen.
 
 | Control | Type | Default |

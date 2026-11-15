@@ -16,12 +16,13 @@ Status: work in progress. Pairing and switching have been tested on a Galaxy S20
 - Pair a factory-reset Matter Wi-Fi plug over Bluetooth, using the QR code or the 11-digit manual code printed on it. The Wi-Fi password is typed at each pairing and never stored.
 - On/off toggle that shows only the state the plug reports.
 - Several plugs: the plug name at the top of the screen opens a switcher, with **Add plug** at the end. Rename or remove a plug from its ⋮ menu.
-- **Battery Guard** (optional):
+- Under the toggle, two tabs: **Battery Guard** and **Cellular Check**.
+- **Battery Guard** (optional, first tab):
   - turns the charger plug on at a low battery level (default 20%) and off at a high level (default 85%), checked at an interval you choose (5, 10, 15, 30 or 60 minutes)
   - works with the app closed and the screen off, using scheduled alarms rather than an always-running service
   - switches one plug, the **charger plug**: the first plug until you tap **Use this plug for Battery Guard** on another. Removing the charger plug switches Battery Guard off
   - optional alerts and status reports as HTTP POST requests (JSON, optional bearer token) to an address you set, with a small receiver program included in `tools/alert-receiver/`
-- **Cellular Check** (optional, ⋮ menu → **Cellular Check**):
+- **Cellular Check** (optional, second tab, the same on every plug):
   - reads the SIM, the network registration and the signal (RSRP, RSRQ, SINR) at Battery Guard's check interval, at no cost
   - sends a test SMS to the phone's own number once a day, and at once when one of those readings fails, to confirm whether SMS really works
   - raises a `cellular_down` alert after two failed test SMS in a row, and a recovered alert when one passes again

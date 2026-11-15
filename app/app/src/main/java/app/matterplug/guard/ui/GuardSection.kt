@@ -27,7 +27,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -121,9 +120,6 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
     )
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        Text(stringResource(R.string.guard_title), style = MaterialTheme.typography.titleMedium)
-
         SwitchRow(
             label = stringResource(R.string.guard_switch),
             checked = s.enabled,

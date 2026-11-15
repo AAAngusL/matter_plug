@@ -21,13 +21,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +46,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
+import app.matterplug.cellular.ui.CellularSection
 import app.matterplug.data.Plug
 import app.matterplug.guard.ui.GuardSection
 import app.matterplug.matter.PlugState
@@ -60,7 +65,6 @@ fun PlugScreen(
     onSelect: (Plug) -> Unit,
     onAdd: () -> Unit,
     onUseAsCharger: () -> Unit,
-    onOpenCellular: () -> Unit,
     onRemoved: (unreachable: Boolean) -> Unit
 ) {
     val application = LocalContext.current.applicationContext as Application
@@ -125,10 +129,6 @@ fun PlugScreen(
                         onClick = { menuOpen = false; renaming = true }
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.menu_cellular)) },
-                        onClick = { menuOpen = false; onOpenCellular() }
-                    )
-                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_remove)) },
                         onClick = { menuOpen = false; viewModel.remove(onRemoved) }
                     )
@@ -137,8 +137,7 @@ fun PlugScreen(
         }
 
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),   // G2: scrolls so the Battery Guard section fits
-            verticalArrangement = Arrangement.Center,
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),   // scrolls so the longer tab fits
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val pending = ui.pending
@@ -168,10 +167,17 @@ fun PlugScreen(
                     modifier = Modifier.padding(top = 16.dp)
                 )
             }
-            if (isCharger) {
-                GuardSection(Modifier.padding(top = 24.dp))
-            } else {
-                OutlinedButton(onClick = onUseAsCharger, modifier = Modifier.padding(top = 24.dp)) {
+            // Two tabs under the switch; the selected tab survives rotation, and the app opens on Battery Guard.
+            var tab by rememberSaveable { mutableIntStateOf(0) }
+            TabRow(selectedTabIndex = tab, modifier = Modifier.padding(top = 24.dp)) {
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.guard_title)) })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.cellular_title)) })
+            }
+            val tabContent = Modifier.padding(top = 16.dp)
+            when {
+                tab == 1 -> CellularSection(tabContent)
+                isCharger -> GuardSection(tabContent)
+                else -> OutlinedButton(onClick = onUseAsCharger, modifier = tabContent) {
                     Text(stringResource(R.string.guard_use_this_plug))
                 }
             }

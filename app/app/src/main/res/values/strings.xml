@@ -38,7 +38,6 @@
     <string name="rename_title">Rename plug</string>
 
     <!-- Cellular Check (docs/CELLULAR-CHECK.md section 10) -->
-    <string name="menu_cellular">Cellular Check</string>
     <string name="cellular_title">Cellular Check</string>
     <string name="cellular_switch">Check cellular service</string>
     <string name="cellular_send_alerts">Send cellular alerts</string>

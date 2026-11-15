@@ -3,26 +3,21 @@ package app.matterplug.cellular.ui
 import android.Manifest
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,10 +39,9 @@ import app.matterplug.cellular.logic.Layer
 import app.matterplug.cellular.logic.LayerResult
 import java.util.Date
 
-/** Cellular Check, its own screen from the ⋮ menu (section 10). The same screen whichever plug is shown. */
+/** Cellular Check, the second tab under the plug switch. The same section whichever plug is shown. */
 @Composable
-fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel()) {
-    BackHandler(onBack = onBack)
+fun CellularSection(modifier: Modifier = Modifier, viewModel: CellularViewModel = viewModel()) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
     val intervalMin by viewModel.intervalMin.collectAsStateWithLifecycle()
@@ -63,14 +57,7 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
         if (granted) viewModel.enable()
     }
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("←", style = MaterialTheme.typography.titleLarge) }
-            Text(stringResource(R.string.cellular_title), style = MaterialTheme.typography.headlineMedium)
-        }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val s = settings ?: return@Column
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
