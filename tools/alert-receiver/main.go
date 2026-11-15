@@ -41,6 +41,8 @@ type alert struct {
 	Charging       *bool  `json:"charging"`
 	Time           string `json:"time"`
 	NextCheckInMin *int   `json:"next_check_in_min"`
+	// Cellular Check (docs/CELLULAR-CHECK.md section 8): on cellular_down alerts, and on status reports while it is on.
+	Cellular json.RawMessage `json:"cellular"`
 }
 
 var (
@@ -142,7 +144,11 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	if a.Charging != nil {
 		chg = fmt.Sprint(*a.Charging)
 	}
-	logLine("%s/%s  battery=%s plugged_in=%s event_time=%s from=%s  %q", a.Alert, a.State, bat, chg, a.Time, r.RemoteAddr, a.Message)
+	cell := ""
+	if len(a.Cellular) > 0 && string(a.Cellular) != "null" {
+		cell = "  cellular=" + string(a.Cellular)
+	}
+	logLine("%s/%s  battery=%s plugged_in=%s event_time=%s from=%s  %q%s", a.Alert, a.State, bat, chg, a.Time, r.RemoteAddr, a.Message, cell)
 	if back {
 		logLine("BACK: the phone is reporting again")
 		notify("Matter Plug: the phone is reporting again.")

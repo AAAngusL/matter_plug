@@ -7,7 +7,16 @@ import android.util.Log
 import app.matterplug.alarm.ExactAlarm
 import app.matterplug.alarm.runAsync
 import app.matterplug.cellular.logic.CellularLog
+import app.matterplug.cellular.logic.CellularAlertPolicy
+import app.matterplug.cellular.logic.CellularReport
+import app.matterplug.cellular.logic.CellularSummary
 import app.matterplug.cellular.logic.CellularVerdict
+import app.matterplug.guard.BatteryReader
+import app.matterplug.guard.GuardNotifier
+import app.matterplug.guard.HttpAlerter
+import app.matterplug.guard.logic.AlertEvent
+import app.matterplug.guard.logic.AlertKind
+import kotlinx.coroutines.flow.first
 import app.matterplug.cellular.logic.DeliveryStatus
 import app.matterplug.cellular.logic.Layer
 import app.matterplug.cellular.logic.LayerResult
@@ -90,6 +99,7 @@ object CellularRunner {
         store.writeState(state)
         Log.i(TAG, CellularLog.line(results) + " next_in_min=$intervalMin")
         store.recordRun(now, results, nextAt)
+        alertStep(ctx, store, state.down, now)            // reminders while down
     }
 
     /** Called by LoopbackService when the loopback is over. A null outcome (cut off, or an error) is recorded as not sent. */
@@ -101,7 +111,37 @@ object CellularRunner {
         store.writeState(state)
         store.recordLayer(Layer.Sms, result)
         Log.i(TAG, CellularLog.line(mapOf(Layer.Sms to result)) + " failed_in_a_row=${state.failedInARow} down=${state.down}")
+        alertStep(ctx, store, state.down, System.currentTimeMillis())     // started or recovered
         if (store.manualRequested()) startSoon(ctx)       // Run now was tapped while this one was waiting
+    }
+
+    /**
+     * Moves the cellular_down alert on (CellularAlertPolicy) and, when it says so, posts the phone notification and
+     * delivers the request through Battery Guard's queue and alert address. Needs "Send alerts", not Battery Guard on.
+     */
+    private suspend fun alertStep(ctx: Context, store: CellularStore, down: Boolean, now: Long) {
+        val (memo, phase) = CellularAlertPolicy.step(store.readAlert(), down, now)
+        store.writeAlert(memo)
+        if (phase == null) return
+        val summary = summaryOf(store)
+        val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
+        val event = AlertEvent(AlertKind.CellularDown, phase, battery?.level ?: 0, battery?.pluggedIn ?: false, null, now,
+            cellular = summary)
+        Log.i(TAG, "alert: kind=${event.kind.wire} phase=${phase.wire} failed_layer=${summary.failedLayer?.wire}")
+        GuardNotifier.post(ctx, listOf(event))
+        HttpAlerter.deliver(ctx, GuardStore(ctx), listOf(event), status = null, budgetMs = 15_000, fromGuard = false)
+    }
+
+    private suspend fun summaryOf(store: CellularStore): CellularSummary =
+        CellularReport.summary(store.status.first().results, store.readState().lastTrigger)
+
+    /** For Battery Guard's status report: the latest cellular results, or null while Cellular Check is off. */
+    suspend fun currentSummary(ctx: Context): CellularSummary? = try {
+        val store = CellularStore(ctx)
+        if (store.readSettings().enabled) summaryOf(store) else null
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        null
     }
 
     /** "Run cellular check now": a run with a loopback, in 1 s. */

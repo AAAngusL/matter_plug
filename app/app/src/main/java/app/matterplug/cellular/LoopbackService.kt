@@ -94,7 +94,7 @@ class LoopbackService : Service() {
     companion object {
         private const val TAG = "Cellular"
         private const val CHANNEL_ID = "cellular_work"
-        private const val NOTIFICATION_ID = 4201
+        private const val NOTIFICATION_ID = 4301      // 42xx are Battery Guard alert ids
         private const val WAKE_TAG = "matterplug:cellular"
         /** Sent 60 s, back within 5 min, delivery grace 30 s: 6 minutes covers it. */
         private const val SERVICE_TIMEOUT_MS = 6 * 60_000L

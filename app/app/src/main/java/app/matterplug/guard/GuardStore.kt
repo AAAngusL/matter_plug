@@ -75,12 +75,13 @@ class GuardStore(context: Context) {
     /**
      * Appends finished bodies to the waiting list in ONE edit, and only while Battery Guard and "Send alerts" are both on
      * in that same edit, so a run that is still going cannot refill a list that the settings rules have just cleared (5.2).
-     * Capped at [DeliveryPlan.MAX_QUEUE] (oldest dropped).
+     * Capped at [DeliveryPlan.MAX_QUEUE] (oldest dropped). Cellular Check alerts pass [requireGuardOn] false: they need
+     * only "Send alerts", because Cellular Check runs with Battery Guard off.
      */
-    suspend fun enqueue(bodies: List<String>) {
+    suspend fun enqueue(bodies: List<String>, requireGuardOn: Boolean = true) {
         if (bodies.isEmpty()) return
         store.edit { p ->
-            if ((p[ENABLED] ?: false) && (p[ALERTS_ENABLED] ?: false)) {
+            if ((!requireGuardOn || (p[ENABLED] ?: false)) && (p[ALERTS_ENABLED] ?: false)) {
                 p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
             }
         }

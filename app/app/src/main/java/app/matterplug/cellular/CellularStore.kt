@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.matterplug.cellular.logic.CellularAlert
+import app.matterplug.cellular.logic.CellularAlertCodec
 import app.matterplug.cellular.logic.CellularCodec
 import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.cellular.logic.CellularState
@@ -76,6 +78,9 @@ class CellularStore(context: Context) {
         store.edit { p -> p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + (layer to result)) }
     }
 
+    suspend fun readAlert(): CellularAlert? = CellularAlertCodec.decode(store.data.first()[ALERT])
+    suspend fun writeAlert(a: CellularAlert?) { store.edit { if (a == null) it.remove(ALERT) else it[ALERT] = CellularAlertCodec.encode(a) } }
+
     suspend fun recordSent(at: Long) {
         store.edit { p -> p[SENT_LOG] = SentLog.encode(SentLog.add(SentLog.decode(p[SENT_LOG]), at)) }
     }
@@ -96,5 +101,6 @@ class CellularStore(context: Context) {
         val STATE = stringPreferencesKey("loopback_state")
         val MANUAL = booleanPreferencesKey("manual_requested")
         val SENT_LOG = stringPreferencesKey("sent_log")
+        val ALERT = stringPreferencesKey("alert")
     }
 }

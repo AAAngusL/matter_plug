@@ -121,16 +121,20 @@ object HttpAlerter {
      * 4. list empty: reminders once, then the status report once (never queued)
      * 5. list not empty: schedule the flush job
      */
-    suspend fun deliver(ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long) {
+    suspend fun deliver(
+        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long, fromGuard: Boolean = true,
+    ) {
         try {
-            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs)
+            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, fromGuard)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
         }
     }
 
-    private suspend fun deliverInner(ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long) {
+    private suspend fun deliverInner(
+        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, fromGuard: Boolean,
+    ) {
         val settings = store.readSettings()
         val alertsOn = settings.alertsEnabled
         val statusOn = settings.statusEnabled && status != null
@@ -138,7 +142,7 @@ object HttpAlerter {
 
         if (alertsOn) {                                                                  // step 2
             val bodies = DeliveryPlan.toEnqueue(events, true).map { body(it) }
-            if (bodies.isNotEmpty()) store.enqueue(bodies)
+            if (bodies.isNotEmpty()) store.enqueue(bodies, requireGuardOn = fromGuard)
         }
         if (DeliveryPlan.nothingToSend(valid, alertsOn, statusOn)) {                    // step 1
             Log.i(TAG, "deliver: nothing to send (address valid=$valid alerts=$alertsOn status=$statusOn)")

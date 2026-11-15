@@ -3,6 +3,7 @@ package app.matterplug.guard
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import app.matterplug.cellular.CellularRunner
 import app.matterplug.data.PlugRepository
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
@@ -223,7 +224,7 @@ object GuardRunner {
         // B12: the status report is built here and sent once by deliver (never queued). It needs statusEnabled, not alertsEnabled.
         val status: AlertEvent? = if (settings.statusEnabled) {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, plugged, null, System.currentTimeMillis(),
-                nextCheckInMin = settings.intervalMin)
+                nextCheckInMin = settings.intervalMin, cellular = CellularRunner.currentSummary(ctx))
         } else null
         HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
     }

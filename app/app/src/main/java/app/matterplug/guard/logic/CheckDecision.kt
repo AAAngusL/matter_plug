@@ -33,5 +33,6 @@ object CheckDecision {
         AlertKind.GuardDegraded -> 4203
         AlertKind.Status -> 4204
         AlertKind.Test -> 4205
+        AlertKind.CellularDown -> 4206
     }
 }

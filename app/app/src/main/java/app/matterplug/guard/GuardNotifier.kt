@@ -68,6 +68,8 @@ object GuardNotifier {
     }
 
     private fun titleRes(e: AlertEvent): Int = when {
+        e.kind == AlertKind.CellularDown && e.phase == AlertPhase.Recovered -> R.string.cellular_alert_title_recovered
+        e.kind == AlertKind.CellularDown -> R.string.cellular_alert_title_down
         e.phase == AlertPhase.Recovered -> R.string.guard_alert_title_recovered
         e.kind == AlertKind.NotCharging -> R.string.guard_alert_title_not_charging
         e.kind == AlertKind.PlugUnreachable -> R.string.guard_alert_title_unreachable

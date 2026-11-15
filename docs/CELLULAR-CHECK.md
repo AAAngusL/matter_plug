@@ -171,7 +171,7 @@ Reminders follow the existing 60-minute rule. Each reminder carries the latest p
 {
   "alert": "cellular_down",
   "state": "started",
-  "message": "Matter Plug: SMS service unavailable: not registered, and the test SMS was not sent (no service). Battery 64%.",
+  "message": "Matter Plug: SMS service unavailable: not registered (out of service); the test SMS was not sent: no service. Battery 64%.",
   "battery": 64,
   "charging": true,
   "time": "2026-11-14T10:20:12-05:00",
@@ -188,8 +188,11 @@ Reminders follow the existing 60-minute rule. Each reminder carries the latest p
 
 | `trigger` | `failed_layer` | Message |
 |---|---|---|
-| `confirmation` | The first passive layer that failed | `SMS service unavailable: <passive reason>, and the test SMS <sms reason>.` |
-| `daily` | `sms` | `SMS is not working although the signal is fine: the test SMS <sms reason>.` |
+| any | A passive layer | `Matter Plug: SMS service unavailable: <reason>; the test SMS was <sms reason>. Battery 64%.` For registration the reason reads `not registered (<reason>)` |
+| any | `sms` | `Matter Plug: SMS is not working although the signal is fine; the test SMS was <sms reason>. Battery 64%.` |
+| any | (recovered) | `Matter Plug: SMS works again. Battery 64%.` |
+
+As built (C4), the text follows the failed layer rather than the trigger, and `trigger` can also be `recovery` or `manual`.
 
 - The status report gains the same `cellular` object, so the receiver shows the last result even when nothing has failed. A **warning** (a passive failure that a passing loopback disproved) appears there, not as an alert.
 - The alert travels by the same queue and the same alert address as the others, over whatever network works. A cellular fault usually leaves Wi-Fi up, so the alert still arrives. If both are down, the receiver's silence alarm is the cover, as today.
