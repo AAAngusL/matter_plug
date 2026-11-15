@@ -72,7 +72,7 @@ The time between **Checks**. One value, whether or not the **Device** is **Plugg
 _Avoid_: frequency, polling rate
 
 **Alert**:
-A message sent when **Battery Guard** cannot keep the battery in the **Band** or cannot do its job: the phone is not charging after the plug was turned on, the plug cannot be reached, or Battery Guard itself is faulty.
+A message sent when **Battery Guard** cannot keep the battery in the **Band** or cannot do its job (the phone is not charging after the plug was turned on, the plug cannot be reached, or Battery Guard itself is faulty), or when **Cellular Check** finds that SMS does not work.
 _Avoid_: warning, notification (a notification is only how an alert shows on the phone)
 
 **Alert address**:
@@ -90,3 +90,27 @@ _Avoid_: heartbeat, ping
 **Silence alarm**:
 The **Receiver**'s own alarm, raised when it hears nothing from the **Device** for longer than expected.
 _Avoid_: watchdog, timeout
+
+**Cellular Check**:
+The feature that proves the **Device** can still send and receive SMS: it reads the **Passive layers** at every **Check** and confirms with a **Loopback SMS**.
+_Avoid_: signal check, network monitor
+
+**Layer**:
+One thing that can fail on its own in **Cellular Check**: SIM, registration, signal, or SMS. A failed layer marks the layers that need it as skipped.
+_Avoid_: step, stage
+
+**Passive layer**:
+The SIM, registration or signal **Layer**: read from Android without sending anything, so it costs nothing.
+_Avoid_: free check, readings (in anything the rule depends on)
+
+**Loopback SMS**:
+A test SMS the **Device** sends to its own number and waits to receive back; its body starts with `MPCHK`.
+_Avoid_: ping SMS, test message (unqualified)
+
+**Confirmation loopback**:
+A **Loopback SMS** sent because a **Passive layer** failed, to confirm that SMS is really unavailable. A passive failure alone never raises an **Alert**.
+_Avoid_: retry
+
+**Daily loopback**:
+The one **Loopback SMS** a day sent while every **Passive layer** passes, to catch SMS faults the radio cannot show.
+_Avoid_: scheduled SMS
