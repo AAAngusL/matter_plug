@@ -1,6 +1,8 @@
 # Cellular Check: Design
 
-Status: draft 5, 2026-11-14, for approval. Replaces draft 4. Every open question is answered; nothing here is built yet. Nothing here is built yet. Adds to `BATTERY-GUARD.md` and reuses its alarm chain, alert requests, status report and receiver.
+Status: built, 2026-11-14 (draft 5, approved; steps C1 to C4 done).
+
+Verified on the SM-G780F: a normal passive run; airplane mode (registration fails, SIM passes); daily and manual loopbacks (sent, delivered, received back in under 2 s); a wrong own number (fails at "not received back"); and a `cellular_down` started and recovered alert reaching the receiver. Not verified on the phone: a run with the SIM removed (unit tests only), and a run after Android has ended the app's process (the alarm fired with the app in the background, but the process was never seen to end). Nothing here is built yet. Adds to `BATTERY-GUARD.md` and reuses its alarm chain, alert requests, status report and receiver.
 
 Changes in draft 5, from the review of draft 4:
 
