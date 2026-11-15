@@ -50,7 +50,8 @@ class GuardStore(context: Context) {
     /**
      * Applies [transform] to the stored settings and writes the result (coerced) in one edit, together with the
      * effects of BATTERY-GUARD.md section 7 "Rules for the alert settings":
-     * alerts true -> false clears the queue; enabled true -> false clears the queue, resets the alert state and clears next_check_at.
+     * alerts true -> false clears the queue; enabled true -> false clears Battery Guard's alerts from the queue (Cellular
+     * Check's stay, DeliveryPlan.keptWhenGuardTurnsOff), resets the alert state and clears next_check_at.
      */
     suspend fun update(transform: (GuardSettings) -> GuardSettings) {
         store.edit { p ->
@@ -59,7 +60,8 @@ class GuardStore(context: Context) {
             writeSettings(p, new)
             if (old.alertsEnabled && !new.alertsEnabled) p.remove(QUEUE)
             if (old.enabled && !new.enabled) {
-                p.remove(QUEUE)
+                val kept = DeliveryPlan.keptWhenGuardTurnsOff(QueueCodec.decode(p[QUEUE]))
+                if (kept.isEmpty() || !new.alertsEnabled) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(kept)
                 p.remove(ALERT_STATE)       // default state: no active alerts, both counts 0
                 p.remove(NEXT_CHECK_AT)
             }

@@ -6,7 +6,9 @@ import java.time.ZoneId
 
 /**
  * What Cellular Check remembers between runs about loopbacks. [down] is the alert: two failed loopbacks in a row.
- * [confirmedFault] is the passive layer whose fault is being (or was) confirmed; null when no passive fault is open.
+ * [confirmedFault] is the passive layer whose fault a finished loopback has confirmed (or shown SMS survives); null when
+ * no passive fault is open. [startedFault] is the fault a running confirmation is about: it becomes [confirmedFault]
+ * only when that loopback finishes, so one that never finishes does not mute the fault.
  */
 data class CellularState(
     val confirmedFault: Layer? = null,
@@ -16,6 +18,7 @@ data class CellularState(
     val lastPassAt: Long? = null,
     val inProgress: Boolean = false,
     val startedAt: Long? = null,
+    val startedFault: Layer? = null,
 ) {
     val down: Boolean get() = failedInARow >= 2
 }
@@ -49,18 +52,26 @@ object LoopbackPlan {
     fun started(s: CellularState, trigger: LoopbackTrigger, failedLayer: Layer?, at: Long): CellularState = s.copy(
         inProgress = true,
         startedAt = at,
-        confirmedFault = if (trigger == LoopbackTrigger.Confirmation) failedLayer else s.confirmedFault,
+        startedFault = if (trigger == LoopbackTrigger.Confirmation) failedLayer else null,
     )
+
+    /** A loopback that could not run (the service was refused, the app failed, or it was cut off): undone, not counted. */
+    fun released(s: CellularState): CellularState = s.copy(inProgress = false, startedAt = null, startedFault = null)
 
     fun finished(s: CellularState, trigger: LoopbackTrigger, passed: Boolean, at: Long): CellularState = s.copy(
         inProgress = false,
         startedAt = null,
+        startedFault = null,
         failedInARow = if (passed) 0 else s.failedInARow + 1,
         lastTrigger = trigger,
         lastLoopbackAt = at,
         lastPassAt = if (passed) at else s.lastPassAt,
         // A recovery check closes the passive fault either way: if it failed, the fault is now one only SMS shows.
-        confirmedFault = if (trigger == LoopbackTrigger.Recovery) null else s.confirmedFault,
+        confirmedFault = when (trigger) {
+            LoopbackTrigger.Recovery -> null
+            LoopbackTrigger.Confirmation -> s.startedFault ?: s.confirmedFault
+            else -> s.confirmedFault
+        },
     )
 
     /**
@@ -68,7 +79,7 @@ object LoopbackPlan {
      * killed): it is released without counting, so a killed process can neither block the plan nor raise the alert.
      */
     fun clearStale(s: CellularState, now: Long): CellularState =
-        if (s.inProgress && now - (s.startedAt ?: Long.MIN_VALUE / 2) > STALE_MS) s.copy(inProgress = false, startedAt = null) else s
+        if (s.inProgress && now - (s.startedAt ?: Long.MIN_VALUE / 2) > STALE_MS) released(s) else s
 
     private const val STALE_MS = 10 * 60_000L
 

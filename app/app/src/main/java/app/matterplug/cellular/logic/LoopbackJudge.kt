@@ -73,6 +73,7 @@ object CellularStateCodec {
         "pass=${s.lastPassAt ?: ""}",
         "running=${if (s.inProgress) 1 else 0}",
         "started=${s.startedAt ?: ""}",
+        "sfault=${s.startedFault?.wire ?: ""}",
     ).joinToString(";")
 
     fun decode(text: String?): CellularState {
@@ -88,6 +89,7 @@ object CellularStateCodec {
                 lastPassAt = m["pass"]?.toLongOrNull(),
                 inProgress = m["running"] == "1",
                 startedAt = m["started"]?.toLongOrNull(),
+                startedFault = Layer.entries.firstOrNull { it.wire == m["sfault"] },
             )
         } catch (e: NumberFormatException) {
             CellularState()

@@ -60,7 +60,7 @@
     <string name="cellular_no_run">No check yet.</string>
     <string name="cellular_last">Last check %1$s.</string>
     <string name="cellular_last_next">Last check %1$s. Next check %2$s.</string>
-    <string name="cellular_need_number">Enter this phone\'s number first: the SMS test sends to it.</string>
+    <string name="cellular_need_number">Enter this phone\'s full number first (at least 7 digits): the SMS test sends to it.</string>
     <string name="cellular_sent_count">Test SMS sent: %1$d today, %2$d in the last 7 days</string>
     <string name="cellular_channel_work">Cellular Check test SMS</string>
     <string name="cellular_alert_title_down">Cellular Check: SMS not working</string>

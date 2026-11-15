@@ -72,13 +72,10 @@ object LoopbackSender {
         // SMS_RECEIVED comes from the system, guarded by its own permission.
         ContextCompat.registerReceiver(ctx, smsReceiver, IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION), ContextCompat.RECEIVER_EXPORTED)
         try {
-            try {
-                smsManager(ctx).sendTextMessage(number, null, LoopbackJudge.body(token),
-                    pending(ctx, ACTION_SENT, token, 1), pending(ctx, ACTION_DELIVERED, token, 2))
-            } catch (e: Exception) {
-                Log.e(TAG, "sendTextMessage failed", e)
-                return LoopbackOutcome(SentStatus.Error(1), DeliveryStatus.NoReport, received = false)
-            }
+            // An exception here (permission revoked, a bad number) is the app's problem, not proof that SMS is down: it is
+            // passed up, and the service releases the loopback without counting it.
+            smsManager(ctx).sendTextMessage(number, null, LoopbackJudge.body(token),
+                pending(ctx, ACTION_SENT, token, 0), pending(ctx, ACTION_DELIVERED, token, 1))
             val start = System.currentTimeMillis()
             val sentStatus = withTimeoutOrNull(SENT_TIMEOUT_MS) { sent.await() } ?: SentStatus.NoAnswer
             if (sentStatus != SentStatus.Ok) return LoopbackOutcome(sentStatus, DeliveryStatus.NoReport, received = false)
@@ -106,9 +103,13 @@ object LoopbackSender {
         null
     }
 
-    /** Mutable, because the system adds the delivery report ("pdu", "format") to it; aimed at this app only. */
-    private fun pending(ctx: Context, action: String, token: String, code: Int): PendingIntent = PendingIntent.getBroadcast(
-        ctx, code, Intent(action).setPackage(ctx.packageName).putExtra(EXTRA_TOKEN, token),
+    /**
+     * Mutable, because the system adds the delivery report ("pdu", "format") to it; aimed at this app only. Each loopback
+     * gets its own request code, so a late report for an earlier test SMS keeps that SMS's token instead of being
+     * rewritten to the current one by FLAG_UPDATE_CURRENT.
+     */
+    private fun pending(ctx: Context, action: String, token: String, kind: Int): PendingIntent = PendingIntent.getBroadcast(
+        ctx, (token.hashCode() and 0x3fffffff) * 2 + kind, Intent(action).setPackage(ctx.packageName).putExtra(EXTRA_TOKEN, token),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
     )
 

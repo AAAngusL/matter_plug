@@ -76,7 +76,7 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.cellular_switch), modifier = Modifier.weight(1f))
             Switch(checked = s.enabled, onCheckedChange = { on ->
-                needNumber = on && s.ownNumber.isEmpty()
+                needNumber = on && !s.ownNumberValid
                 when {
                     !on -> viewModel.disable()
                     needNumber -> {}                                     // the check cannot confirm anything without it
@@ -85,7 +85,7 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
                 }
             })
         }
-        if (needNumber && s.ownNumber.isEmpty()) {
+        if (needNumber && !s.ownNumberValid) {
             Text(stringResource(R.string.cellular_need_number), color = MaterialTheme.colorScheme.error)
         }
         if (permissionDenied) {
@@ -118,7 +118,10 @@ fun CellularScreen(onBack: () -> Unit, viewModel: CellularViewModel = viewModel(
         OutlinedButton(onClick = viewModel::runNow, enabled = s.enabled) { Text(stringResource(R.string.cellular_run_now)) }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        for (layer in Layer.entries) LayerLine(layer, status.results[layer], status.lastRunAt?.let { timeFormat.format(Date(it)) })
+        for (layer in Layer.entries) {
+            val at = if (layer == Layer.Sms) status.smsAt else status.lastRunAt
+            LayerLine(layer, status.results[layer], at?.let { timeFormat.format(Date(it)) })
+        }
 
         val (today, week) = SentLog.counts(status.sentTimes, System.currentTimeMillis(), java.time.ZoneId.systemDefault())
         Text(stringResource(R.string.cellular_sent_count, today, week), style = MaterialTheme.typography.bodyMedium)

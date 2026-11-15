@@ -66,7 +66,8 @@ class LoopbackJudgeTest {
 
 class CellularStateCodecTest {
     @Test fun stateSurvivesARoundTrip() {
-        val s = CellularState(Layer.Registration, 2, LoopbackTrigger.Confirmation, 111L, 99L, inProgress = true, startedAt = 100L)
+        val s = CellularState(Layer.Registration, 2, LoopbackTrigger.Confirmation, 111L, 99L, inProgress = true, startedAt = 100L,
+            startedFault = Layer.Signal)
         assertEquals(s, CellularStateCodec.decode(CellularStateCodec.encode(s)))
         assertEquals(CellularState(), CellularStateCodec.decode(CellularStateCodec.encode(CellularState())))
     }
@@ -74,6 +75,31 @@ class CellularStateCodecTest {
     @Test fun nothingOrGarbageIsTheDefault() {
         assertEquals(CellularState(), CellularStateCodec.decode(null))
         assertEquals(CellularState(), CellularStateCodec.decode("nonsense;;=x"))
+    }
+}
+
+class ReleasedLoopbackTest {
+    private val zone = ZoneOffset.UTC
+    private val ten = java.time.LocalTime.of(10, 0)
+
+    @Test fun aConfirmationCutOffByAKilledProcessIsTriedAgain() {
+        val started = LoopbackPlan.started(CellularState(), LoopbackTrigger.Confirmation, Layer.Sim, at = 0L)
+        val cleared = LoopbackPlan.clearStale(started, now = 11 * 60_000L)
+        assertEquals(LoopbackTrigger.Confirmation, LoopbackPlan.next(cleared, Layer.Sim, 11 * 60_000L, zone, ten))
+    }
+
+    @Test fun aConfirmationThatCouldNotRunIsTriedAgainAndNotCounted() {
+        val before = CellularState()
+        val released = LoopbackPlan.released(LoopbackPlan.started(before, LoopbackTrigger.Confirmation, Layer.Sim, at = 0L))
+        assertEquals(before, released)
+        assertEquals(LoopbackTrigger.Confirmation, LoopbackPlan.next(released, Layer.Sim, 0L, zone, ten))
+    }
+
+    @Test fun aFinishedConfirmationRemembersItsFault() {
+        val done = LoopbackPlan.finished(LoopbackPlan.started(CellularState(), LoopbackTrigger.Confirmation, Layer.Sim, at = 0L),
+            LoopbackTrigger.Confirmation, passed = true, at = 1L)
+        assertEquals(Layer.Sim, done.confirmedFault)
+        assertEquals(null, LoopbackPlan.next(done, Layer.Sim, 2L, zone, ten))      // SMS was fine: no second SMS for this fault
     }
 }
 

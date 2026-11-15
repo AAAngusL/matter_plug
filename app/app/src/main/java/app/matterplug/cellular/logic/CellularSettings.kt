@@ -13,6 +13,9 @@ data class CellularSettings(
 ) {
     val smsTestTime: LocalTime get() = LocalTime.of(smsTestMinutes / 60, smsTestMinutes % 60)
 
+    /** At least 7 digits: shorter is not a phone number, and every test SMS to it would fail and raise a false alert. */
+    val ownNumberValid: Boolean get() = ownNumber.count { it.isDigit() } >= MIN_DIGITS
+
     /** Own number: digits and one leading plus only. Test time: inside the day, else 10:00. */
     fun coerced(): CellularSettings = copy(
         ownNumber = ownNumber.trim().let { n -> (if (n.startsWith("+")) "+" else "") + n.filter { it.isDigit() } },
@@ -21,5 +24,6 @@ data class CellularSettings(
 
     companion object {
         const val DEFAULT_TEST_MINUTES = 10 * 60
+        const val MIN_DIGITS = 7
     }
 }

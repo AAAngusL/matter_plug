@@ -30,6 +30,8 @@ data class CellularStatus(
     val nextRunAt: Long? = null,
     val results: Map<Layer, LayerResult> = emptyMap(),
     val sentTimes: List<Long> = emptyList(),
+    /** When the SMS line's result was recorded (a loopback, or "cannot send"); the passive lines use [lastRunAt]. */
+    val smsAt: Long? = null,
 )
 
 /** Cellular Check's own DataStore file ("cellular"). Nothing of it is kept in "guard" or "plugs". */
@@ -39,7 +41,7 @@ class CellularStore(context: Context) {
     val settings: Flow<CellularSettings> = store.data.map { readSettings(it) }
 
     val status: Flow<CellularStatus> = store.data.map { p ->
-        CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]), SentLog.decode(p[SENT_LOG]))
+        CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]), SentLog.decode(p[SENT_LOG]), p[SMS_AT])
     }
 
     suspend fun readSettings(): CellularSettings = readSettings(store.data.first())
@@ -52,7 +54,12 @@ class CellularStore(context: Context) {
             p[ENABLED] = new.enabled
             p[OWN_NUMBER] = new.ownNumber
             p[SMS_TEST_MINUTES] = new.smsTestMinutes
-            if (old.enabled && !new.enabled) p.remove(NEXT_RUN_AT)
+            if (old.enabled && !new.enabled) {
+                // Like Battery Guard (BATTERY-GUARD.md 5.2): switching off ends the alert and forgets the loopback state.
+                p.remove(NEXT_RUN_AT)
+                p.remove(ALERT)
+                p.remove(STATE)
+            }
         }
     }
 
@@ -61,6 +68,7 @@ class CellularStore(context: Context) {
         store.edit { p ->
             p[LAST_RUN_AT] = atMs
             p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + results)
+            if (results.containsKey(Layer.Sms)) p[SMS_AT] = atMs
             if (nextAtMs == null) p.remove(NEXT_RUN_AT) else p[NEXT_RUN_AT] = nextAtMs
         }
     }
@@ -75,7 +83,10 @@ class CellularStore(context: Context) {
 
     /** Records one layer's result without touching the run time (used when a loopback finishes). */
     suspend fun recordLayer(layer: Layer, result: LayerResult) {
-        store.edit { p -> p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + (layer to result)) }
+        store.edit { p ->
+            p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + (layer to result))
+            if (layer == Layer.Sms) p[SMS_AT] = System.currentTimeMillis()
+        }
     }
 
     suspend fun readAlert(): CellularAlert? = CellularAlertCodec.decode(store.data.first()[ALERT])
@@ -102,5 +113,6 @@ class CellularStore(context: Context) {
         val MANUAL = booleanPreferencesKey("manual_requested")
         val SENT_LOG = stringPreferencesKey("sent_log")
         val ALERT = stringPreferencesKey("alert")
+        val SMS_AT = longPreferencesKey("sms_at")
     }
 }
