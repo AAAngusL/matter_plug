@@ -89,6 +89,14 @@ class GuardStore(context: Context) {
         }
     }
 
+    /** Cellular Check switched off: its waiting requests are dropped, Battery Guard's stay. */
+    suspend fun dropCellularAlerts() {
+        store.edit { p ->
+            val rest = DeliveryPlan.withoutCellularAlerts(QueueCodec.decode(p[QUEUE]))
+            if (rest.isEmpty()) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(rest)
+        }
+    }
+
     /** Removes the first entry if it is [sent], in one edit (the list may have been cleared or changed meanwhile). */
     suspend fun dequeueIfHead(sent: String) {
         store.edit { p ->

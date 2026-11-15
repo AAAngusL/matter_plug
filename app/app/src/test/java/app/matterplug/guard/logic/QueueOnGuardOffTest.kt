@@ -10,5 +10,8 @@ class QueueOnGuardOffTest {
 
     @Test fun onlyCellularAlertsAreKept() = assertEquals(listOf(cellular), DeliveryPlan.keptWhenGuardTurnsOff(listOf(guard, cellular, guard)))
 
+    @Test fun switchingCellularCheckOffDropsOnlyItsAlerts() =
+        assertEquals(listOf(guard, guard), DeliveryPlan.withoutCellularAlerts(listOf(guard, cellular, guard)))
+
     @Test fun nothingWaitingStaysEmpty() = assertEquals(emptyList<String>(), DeliveryPlan.keptWhenGuardTurnsOff(emptyList()))
 }

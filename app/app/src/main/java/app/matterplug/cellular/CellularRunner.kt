@@ -24,6 +24,10 @@ import app.matterplug.guard.HttpAlerter
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -186,15 +190,30 @@ object CellularRunner {
         null
     }
 
-    /** "Run cellular check now": a run with a loopback, in 1 s. */
-    suspend fun runNowWithLoopback(ctx: Context) {
-        CellularStore(ctx).requestManual()
-        startSoon(ctx)
+    /**
+     * "Run cellular check now", or switching the check on: the run happens at once, not through the alarm. Android may
+     * hold a one-second exact alarm back (its limit on exact alarms), and a second tap would replace the first before
+     * it fired. [withLoopback] asks for a manual test SMS; it stays asked if one is still waiting.
+     */
+    fun runNow(ctx: Context, withLoopback: Boolean) {
+        val app = ctx.applicationContext
+        appScope.launch {
+            try {
+                if (withLoopback) CellularStore(app).requestManual()
+                run(app)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "run now failed", e)
+            }
+        }
     }
 
+    /** Outlives the screen: a run started from it finishes even if the user leaves the screen at once. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     /**
-     * A run in 1 s through Cellular Check's own alarm: switching it on, Run now, or Battery Guard switching off (its
-     * alarm stops bringing cellular runs, so the own chain takes over from there).
+     * A run in 1 s through Cellular Check's own alarm, for starts in the background: Battery Guard switching off (its
+     * alarm stops bringing cellular runs, so the own chain takes over), or a Run now kept while a test SMS was waiting.
      */
     fun startSoon(ctx: Context) {
         CellularScheduler.alarm.scheduleIn(ctx, 1_000)

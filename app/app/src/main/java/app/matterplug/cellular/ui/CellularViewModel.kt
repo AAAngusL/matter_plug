@@ -42,14 +42,15 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
     fun enable() {
         viewModelScope.launch {
             store.update { it.copy(enabled = true) }
-            CellularRunner.startSoon(getApplication())
+            CellularRunner.runNow(getApplication(), withLoopback = false)      // the first run, now
         }
     }
 
     fun disable() {
         viewModelScope.launch {
-            store.update { it.copy(enabled = false) }
+            store.update { it.copy(enabled = false) }        // ends the alert and forgets the loopback state
             CellularRunner.stop(getApplication())
+            GuardStore(getApplication()).dropCellularAlerts()    // and its waiting requests, so no stale "started" goes out
         }
     }
 
@@ -65,6 +66,6 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
     /** Run cellular check now: the passive layers and a loopback SMS, whatever the state (section 6). */
     fun runNow() {
         if (settings.value?.enabled != true) return
-        viewModelScope.launch { CellularRunner.runNowWithLoopback(getApplication()) }
+        CellularRunner.runNow(getApplication(), withLoopback = true)
     }
 }

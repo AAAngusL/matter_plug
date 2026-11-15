@@ -100,6 +100,9 @@ object DeliveryPlan {
      */
     fun keptWhenGuardTurnsOff(queue: List<String>): List<String> = queue.filter { it.startsWith(CELLULAR_PREFIX) }
 
+    /** The waiting list after Cellular Check is switched off: its alert ended, so its waiting requests go too. */
+    fun withoutCellularAlerts(queue: List<String>): List<String> = queue.filterNot { it.startsWith(CELLULAR_PREFIX) }
+
     private const val CELLULAR_PREFIX = "{\"alert\":\"cellular_down\""
 
     fun toEnqueue(events: List<AlertEvent>, alertsOn: Boolean): List<AlertEvent> =
