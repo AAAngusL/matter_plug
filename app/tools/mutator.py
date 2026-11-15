@@ -2,7 +2,8 @@
 """Small mutation tester for the pure-logic Kotlin files. For each site (a comparison, boolean operator, boolean
 literal or +/- on one line) it flips the operator, runs the unit tests, and restores the file. A mutant is KILLED when
 the tests fail (or the build breaks), SURVIVED when they still pass: a survivor is a behaviour no test pins down.
-Run: python3 tools/mutator.py [file ...]      (default: the files in TARGETS). Needs ANDROID_HOME.
+Run: python3 tools/mutator.py [--literals] [file ...]      (default: the files in TARGETS). Needs ANDROID_HOME.
+--literals also moves every whole-number literal by one (n -> n+1), for code whose logic is in ranges and limits.
 Writes survivors to tools/mutation-survivors.txt."""
 import re, subprocess, sys, pathlib, shutil
 
@@ -12,10 +13,14 @@ TARGETS = ["guard/logic/GuardPolicy.kt", "guard/logic/CheckDecision.kt", "guard/
            "guard/logic/PercentInput.kt", "guard/logic/AlertToken.kt", "guard/logic/AlertAddress.kt", "data/Plug.kt",
            "cellular/logic/CellularVerdict.kt", "cellular/logic/LoopbackPlan.kt", "matter/BleFilter.kt",
            "cellular/logic/LoopbackJudge.kt", "cellular/logic/CellularCodec.kt", "cellular/logic/CellularSettings.kt",
-           "cellular/logic/CellularAlert.kt"]
+           "cellular/logic/CellularAlert.kt",
+           "cellular/logic/SignalReading.kt"]
 SWAPS = [(r"<=", ">"), (r">=", "<"), (r"(?<![<>=!-])<(?![=<])", ">="), (r"(?<![<>=!-])>(?![=>])", "<="),
          (r"==", "!="), (r"!=", "=="), (r"&&", "||"), (r"\|\|", "&&"), (r"\btrue\b", "false"), (r"\bfalse\b", "true"),
          (r"(?<=\w) \+ (?=\w)", " - ")]
+
+LITERALS = "--literals" in sys.argv
+LITERAL = re.compile(r"(?:(?<=\.\.)|(?<![\w.]))-?\d+(?!\w|\.\d)")   # 42, -140, both ends of -140..-44; not 1.5, 0x1F or names
 
 def sites(text):
     out = []
@@ -26,6 +31,9 @@ def sites(text):
         for pat, rep in SWAPS:
             for m in re.finditer(pat, code):
                 out.append((n, m.start(), m.end(), rep))
+        if LITERALS and "const val" not in code and not code.lstrip().startswith(("//", "*")):
+            for m in LITERAL.finditer(code):
+                out.append((n, m.start(), m.end(), str(int(m.group()) + 1)))
     return out
 
 def run_tests():
@@ -35,7 +43,8 @@ def run_tests():
         return "survived"
     return "killed" if "tests completed" in r.stdout + r.stderr else "invalid"
 
-files = [ROOT / f for f in (sys.argv[1:] or TARGETS)]
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+files = [ROOT / f for f in (args or TARGETS)]
 survivors, total, killed, invalid = [], 0, 0, 0
 for f in files:
     original = f.read_text()

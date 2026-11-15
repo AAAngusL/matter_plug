@@ -16,6 +16,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import app.matterplug.cellular.logic.PassiveReading
 import app.matterplug.cellular.logic.SignalDetail
+import app.matterplug.cellular.logic.SignalReading
 
 /**
  * Reads the passive layers (SIM, registration, signal) of the default SMS subscription and parses them into a
@@ -47,7 +48,8 @@ object CellularReader {
 
         val strength = tm.signalStrength
         val level = strength?.level
-        val detail = signalDetail(strength, level)
+        val lte = lteReading(strength)
+        val detail = signalDetail(strength, level, lte)
 
         return PassiveReading(
             simReady = true, simDetail = "ready",
@@ -57,7 +59,7 @@ object CellularReader {
                 airplane -> "airplane mode"
                 else -> serviceText(service)
             },
-            signalLevel = level, signalDetail = detail,
+            signalLevel = level, signalDetail = detail, lte = lte,
         )
     }
 
@@ -77,17 +79,28 @@ object CellularReader {
         return (s.state == ServiceState.STATE_IN_SERVICE) to s.roaming
     }
 
-    private fun signalDetail(strength: android.telephony.SignalStrength?, level: Int?): String {
+    /** The text for the Signal line: NR when the phone lists it first (5G), else the LTE reading, as before. */
+    private fun signalDetail(strength: android.telephony.SignalStrength?, level: Int?, lte: SignalReading?): String {
         if (strength == null) return "unknown"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             for (c in strength.cellSignalStrengths) {
                 when (c) {
                     is CellSignalStrengthNr -> return SignalDetail.format("NR", v(c.ssRsrp), v(c.ssRsrq), v(c.ssSinr), level)
-                    is CellSignalStrengthLte -> return SignalDetail.format("LTE", v(c.rsrp), v(c.rsrq), v(c.rssnr), level)
+                    is CellSignalStrengthLte -> if (lte != null) return SignalDetail.format(lte)
                 }
             }
         }
         return SignalDetail.format(null, null, null, null, level)
+    }
+
+    /**
+     * The LTE cell's values as numbers, from its CellSignalStrengthLte entry only (5G is not considered: on 5G
+     * non-standalone this is the LTE anchor cell). Null with no LTE entry, or below Android 10.
+     */
+    private fun lteReading(strength: android.telephony.SignalStrength?): SignalReading? {
+        if (strength == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val c = strength.cellSignalStrengths.filterIsInstance<CellSignalStrengthLte>().firstOrNull() ?: return null
+        return SignalReading.lte(c.level, c.rsrp, c.rsrq, c.rssnr, System.currentTimeMillis())
     }
 
     /** CellInfo.UNAVAILABLE means Android has no value. */

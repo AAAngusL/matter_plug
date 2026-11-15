@@ -26,6 +26,9 @@ object CellularVerdict {
 }
 
 object SignalDetail {
+    /** The screen's text for an LTE reading: the same text as before the reading was kept as numbers. */
+    fun format(r: SignalReading): String = format("LTE", r.rsrpDbm, r.rsrqDb, r.sinrDb, r.level)
+
     /** "LTE, RSRP -97 dBm, RSRQ -11 dB, SINR 8 dB", keeping only the values Android gave; "level 2" when there are none. */
     fun format(kind: String?, rsrp: Int?, rsrq: Int?, sinr: Int?, level: Int? = null): String {
         val values = listOfNotNull(rsrp?.let { "RSRP $it dBm" }, rsrq?.let { "RSRQ $it dB" }, sinr?.let { "SINR $it dB" })

@@ -16,6 +16,8 @@ import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.cellular.logic.CellularState
 import app.matterplug.cellular.logic.CellularStateCodec
 import app.matterplug.cellular.logic.SentLog
+import app.matterplug.cellular.logic.SignalReading
+import app.matterplug.cellular.logic.SignalReadingCodec
 import app.matterplug.cellular.logic.Layer
 import app.matterplug.cellular.logic.LayerResult
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +34,8 @@ data class CellularStatus(
     val sentTimes: List<Long> = emptyList(),
     /** When the SMS line's result was recorded (a loopback, or "cannot send"); the passive lines use [lastRunAt]. */
     val smsAt: Long? = null,
+    /** The LTE reading of the last run, as numbers (docs/SIGNAL-STRENGTH.md); null with no LTE cell. */
+    val signal: SignalReading? = null,
 )
 
 /** Cellular Check's own DataStore file ("cellular"). Nothing of it is kept in "guard" or "plugs". */
@@ -41,7 +45,8 @@ class CellularStore(context: Context) {
     val settings: Flow<CellularSettings> = store.data.map { readSettings(it) }
 
     val status: Flow<CellularStatus> = store.data.map { p ->
-        CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]), SentLog.decode(p[SENT_LOG]), p[SMS_AT])
+        CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]), SentLog.decode(p[SENT_LOG]), p[SMS_AT],
+            SignalReadingCodec.decode(p[SIGNAL_READING]))
     }
 
     suspend fun readSettings(): CellularSettings = readSettings(store.data.first())
@@ -64,8 +69,9 @@ class CellularStore(context: Context) {
     }
 
     /** Keeps the results of layers that did not run this time (the SMS layer, when no loopback was due). A null next time removes it. */
-    suspend fun recordRun(atMs: Long, results: Map<Layer, LayerResult>, nextAtMs: Long?) {
+    suspend fun recordRun(atMs: Long, results: Map<Layer, LayerResult>, nextAtMs: Long?, signal: SignalReading?) {
         store.edit { p ->
+            if (signal == null) p.remove(SIGNAL_READING) else p[SIGNAL_READING] = SignalReadingCodec.encode(signal)
             p[LAST_RUN_AT] = atMs
             p[RESULTS] = CellularCodec.encode(CellularCodec.decode(p[RESULTS]) + results)
             if (results.containsKey(Layer.Sms)) p[SMS_AT] = atMs
@@ -114,5 +120,6 @@ class CellularStore(context: Context) {
         val SENT_LOG = stringPreferencesKey("sent_log")
         val ALERT = stringPreferencesKey("alert")
         val SMS_AT = longPreferencesKey("sms_at")
+        val SIGNAL_READING = stringPreferencesKey("signal_reading")
     }
 }

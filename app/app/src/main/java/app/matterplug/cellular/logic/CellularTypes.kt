@@ -32,4 +32,6 @@ data class PassiveReading(
     val registrationDetail: String,
     val signalLevel: Int?,
     val signalDetail: String,
+    /** The serving LTE cell's values as numbers (docs/SIGNAL-STRENGTH.md); null with no LTE cell. Not judged here. */
+    val lte: SignalReading? = null,
 )

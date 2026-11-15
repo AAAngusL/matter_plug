@@ -94,7 +94,8 @@ object CellularRunner {
         }
 
         val now = System.currentTimeMillis()
-        val results = CellularVerdict.passive(CellularReader.read(ctx)).toMutableMap()
+        val reading = CellularReader.read(ctx)
+        val results = CellularVerdict.passive(reading).toMutableMap()
         val failed = CellularVerdict.firstFailed(results)
         var state = LoopbackPlan.afterPassive(LoopbackPlan.clearStale(store.readState(), now), failed)
         val trigger = LoopbackPlan.next(state, failed, now, ZoneId.systemDefault(), settings.smsTestTime, store.manualRequested())
@@ -125,7 +126,7 @@ object CellularRunner {
         }
         store.writeState(state)
         Log.i(TAG, CellularLog.line(results) + " next_in_min=$intervalMin")
-        store.recordRun(now, results, nextAt)
+        store.recordRun(now, results, nextAt, reading.lte)
         return alertStep(ctx, store, state.down, now)                   // reminders while down
     }
 
