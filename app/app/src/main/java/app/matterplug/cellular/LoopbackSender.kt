@@ -49,7 +49,7 @@ object LoopbackSender {
         val sentReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 if (i.getStringExtra(EXTRA_TOKEN) != token) return
-                sent.complete(if (resultCode == Activity.RESULT_OK) SentStatus.Ok else SentStatus.Error(resultCode))
+                sent.complete(if (resultCode == Activity.RESULT_OK) SentStatus.Ok else SentStatus.Error(resultCode, codeName(resultCode)))
             }
         }
         val deliveredReceiver = object : BroadcastReceiver() {
@@ -94,6 +94,16 @@ object LoopbackSender {
                 try { ctx.unregisterReceiver(r) } catch (e: Exception) { Log.w(TAG, "unregister failed", e) }
             }
         }
+    }
+
+    /** The name of the SmsManager RESULT_* constant with this value, so an unusual failure is readable; null if none. */
+    private fun codeName(code: Int): String? = try {
+        SmsManager::class.java.fields.firstOrNull {
+            it.name.startsWith("RESULT_") && it.type == Int::class.javaPrimitiveType &&
+                java.lang.reflect.Modifier.isStatic(it.modifiers) && it.getInt(null) == code
+        }?.name
+    } catch (e: Exception) {
+        null
     }
 
     /** Mutable, because the system adds the delivery report ("pdu", "format") to it; aimed at this app only. */

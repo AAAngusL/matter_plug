@@ -39,6 +39,14 @@ class LoopbackJudgeTest {
             LoopbackJudge.result(daily, LoopbackOutcome(SentStatus.NoAnswer, DeliveryStatus.NoReport, false)))
     }
 
+    @Test fun anUnlistedCodeUsesAndroidsOwnName() {
+        assertEquals(LayerResult.Fail("confirmation: not sent: no default sms app (code 32)"),
+            LoopbackJudge.result(LoopbackTrigger.Confirmation,
+                LoopbackOutcome(SentStatus.Error(32, "RESULT_NO_DEFAULT_SMS_APP"), DeliveryStatus.NoReport, false)))
+        assertEquals(LayerResult.Fail("daily: not sent: radio not available (code 9)"),
+            LoopbackJudge.result(daily, LoopbackOutcome(SentStatus.Error(9, "RESULT_ERROR_RADIO_NOT_AVAILABLE"), DeliveryStatus.NoReport, false)))
+    }
+
     @Test fun aReceivedMessageWithoutASentResultDoesNotPass() =
         assertFalse(LoopbackJudge.passed(LoopbackOutcome(SentStatus.NoAnswer, DeliveryStatus.NoReport, received = true)))
 

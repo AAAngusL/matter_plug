@@ -6,8 +6,8 @@ import java.time.ZoneId
 /** The send result of the loopback SMS: its sent PendingIntent's result, or nothing within 60 s. */
 sealed interface SentStatus {
     data object Ok : SentStatus
-    /** An SmsManager RESULT_ERROR_* code. */
-    data class Error(val code: Int) : SentStatus
+    /** An SmsManager result code, with the name of its SmsManager constant when Android has one ("RESULT_NO_DEFAULT_SMS_APP"). */
+    data class Error(val code: Int, val name: String? = null) : SentStatus
     data object NoAnswer : SentStatus
 }
 
@@ -29,7 +29,7 @@ object LoopbackJudge {
     fun result(trigger: LoopbackTrigger, o: LoopbackOutcome): LayerResult {
         val text = "${trigger.wire}: " + when (val s = o.sent) {
             SentStatus.Ok -> "sent, ${deliveryText(o.delivery)}, ${if (o.received) "received back" else "not received back"}"
-            is SentStatus.Error -> "not sent: ${errorText(s.code)}"
+            is SentStatus.Error -> "not sent: ${errorText(s.code, s.name)}"
             SentStatus.NoAnswer -> "not sent: no answer"
         }
         return if (passed(o)) LayerResult.Pass(text) else LayerResult.Fail(text)
@@ -51,14 +51,15 @@ object LoopbackJudge {
         DeliveryStatus.NoReport -> "no delivery report"
     }
 
-    /** SmsManager.RESULT_ERROR_* values, named; anything else by its code. */
-    private fun errorText(code: Int) = when (code) {
+    /** The common SmsManager codes in plain words; any other by Android's constant name, or by its number. */
+    private fun errorText(code: Int, name: String?) = when (code) {
         1 -> "generic failure"
         2 -> "radio off"
         3 -> "no message data"
         4 -> "no service"
         5 -> "sending limit reached"
-        else -> "error code $code"
+        else -> name?.let { it.removePrefix("RESULT_").removePrefix("ERROR_").lowercase().replace('_', ' ') + " (code $code)" }
+            ?: "error code $code"
     }
 }
 
