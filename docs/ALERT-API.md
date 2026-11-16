@@ -1,6 +1,21 @@
 # Alert API: Requests the Phone Sends
 
-For anyone programming the server at the **alert address**. It lists every request the app sends, from Battery Guard and from Cellular Check: each type, each field, and which fields are optional. It describes the app as built on 2026-11-14, in the same commit as this document (signal strength step S3), with the charging fields of 2026-11-16: `charging` now follows Android's battery status, and `plugged_in` carries its old meaning (section 3); and the recovery signals and `cancelled` state of `RECOVERY-SIGNALS.md` (sections 4 and 5). One type, `weak_signal`, is designed but not built yet; it is listed at the end so the server can be ready for it.
+For anyone programming the server at the **alert address**. It lists every request the app sends, from Battery Guard and from Cellular Check: each type, each field, and which fields are optional. It describes the app as built on 2026-11-16 (commit `a35bb35`). One type, `weak_signal`, is designed but not built yet; it is listed at the end so the server can be ready for it.
+
+## 0. Changes on 2026-11-16: what the server must change
+
+| # | Change | What the server must do |
+|---|---|---|
+| 1 | **`charging` changed meaning.** It is now `true` only when Android says the battery is taking charge. A phone plugged in but full, or held at a charge limit (Samsung's 85% "Protect battery"), sends `charging: false` | Where the server used `charging` to mean "on power", read **`plugged_in`** instead |
+| 2 | **Two new fields in every request:** `plugged_in` (boolean) and `battery_status` (`charging`, `discharging`, `not_charging`, `full`, `unknown`) | Store or show them; ignore them if not needed (section 3) |
+| 3 | **A new state, `cancelled`,** with a new field **`cancelled_by`**. Sent once per open alert when a switch is turned off (Battery Guard, Send alerts, Cellular Check, Send cellular alerts) | Close the alert as `recovered` would, but do not announce a fix (sections 4 and 5) |
+| 4 | **Waiting requests are no longer thrown away** when a switch is turned off: they are sent, followed by the `cancelled` | Expect `started` or `recovered` to arrive after the switch was turned off |
+| 5 | **Reminders now always follow an alert the server was told about.** Turning **Send alerts** off or on resets the alerts, so a fault is confirmed again and a new `started` comes | Nothing, but a server may still treat a `reminder` for an alert it does not have open as a `started` (section 7) |
+| 6 | **New end conditions:** `not_charging` ends only when the battery takes charge; `guard_degraded` for `service could not start` ends only when the service actually starts | `recovered` may come later than before, and `reminder` can arrive while `plugged_in` is `true` |
+| 7 | **`cellular_down` is re-tested every hour** while only SMS shows the fault, just before each reminder | A `recovered` arrives within the hour of a fix, not the next morning. The re-test's `trigger` is `recovery` |
+| 8 | **`not_charging` texts** use the power words: `Matter Plug: battery 18%, on battery. The plug is on. …` (was `…, not charging. …`) | Only if the server matched on the text (it should not) |
+
+Section 8 shows how to make the phone send each request, to test the server.
 
 ## 1. Transport
 
@@ -38,7 +53,7 @@ With both features on and both status switches on, a server receives **two statu
 |---|---|---|---|
 | `alert` | string | yes | The request type (section 5) |
 | `state` | string | yes | `started`, `reminder`, `recovered`, `cancelled`, `status` or `test` |
-| `message` | string | yes | A ready-to-display sentence in English (texts in section 5). Do not parse it: every value in it is also in a field |
+| `message` | string | yes | A ready-to-display sentence in English (texts in section 5). Do not parse it. Two values are **only** in the message: the reason of `guard_degraded`, and whether a `plug_unreachable` was found by a switch on, a switch off or a read. Show them from the message; do not branch on them |
 | `battery` | integer 0–100 | yes | Battery percentage when the event happened. `0` when the battery could not be read |
 | `charging` | boolean | yes | Whether the battery is taking charge: Android reports its battery status as charging (`battery_status` is `charging`). `false` when the phone is plugged in but the battery is full, held at a charge limit, or not charging for another reason |
 | `plugged_in` | boolean | yes | Whether the phone is connected to power (AC, USB, wireless or dock), whether or not the battery takes charge. Battery Guard switches the plug by this |
@@ -59,7 +74,7 @@ No other fields are sent. Treat an unknown field as something to ignore, not an 
 
 | Field | Type | Present | Meaning |
 |---|---|---|---|
-| `trigger` | string | optional: absent until the first test SMS | Why the last test SMS was sent: `daily`, `confirmation` (a reading failed), `recovery` (proving the alert has ended), `manual` (Run now) |
+| `trigger` | string | optional: absent until the first test SMS | Why the last test SMS was sent: `daily`, `confirmation` (a reading failed), `recovery` (during `cellular_down`: the readings pass again, or the hourly re-test), `manual` (Run now) |
 | `failed_layer` | string | optional: only when a layer failed | The first layer that failed: `sim`, `registration`, `signal` or `sms` |
 | `reason` | string | optional: with `failed_layer` | That layer's reason, in words (section 6) |
 | `sim` | string | always | `pass` or `fail` |
@@ -102,6 +117,7 @@ What a server must allow for:
 - **Repeats.** If the server stores a request but its `2xx` does not reach the phone (a timeout, a dropped connection), the phone sends the same request again. Treat a request with the same `alert`, `state` and `time` as the same event.
 - **Gaps.** A `reminder` that fails is not sent again; the next one follows 60 minutes later. A `status` or `cellular_status` that fails is not sent again; the next one follows at the next check.
 - **An end with no recovery.** When Battery Guard or Cellular Check is switched off, or its alert switch is switched off, each of its open alerts ends with one `cancelled` request (`cancelled_by` names the switch), sent after the requests already waiting, which are kept. Close the alert, but do not announce that anything was fixed. Nothing more is sent about that alert; if the fault is still there when the switch is turned back on, it is confirmed again and a new `started` follows.
+- **The life of an alert.** `started`, then a `reminder` every 60 minutes while it lasts, then exactly one of `recovered` (fixed) or `cancelled` (a switch closed it). After that end, the same fault starts a new alert with its own `started`. A `cancelled` is sent even when the switch turned off was **Send alerts**: it is the last request about the alert.
 - **Silence.** A phone that is dead, offline or has lost the app sends nothing at all. Expect a `status` or `cellular_status` every `next_check_in_min` minutes while the status switches are on; three intervals with nothing is a reasonable alarm (the bundled receiver uses that, at least 31 minutes).
 
 ## 5. The request types
@@ -140,7 +156,7 @@ The battery was at or below the low threshold, the charger plug was switched on 
 
 #### `plug_unreachable` (states `started`, `reminder`, `recovered`, `cancelled`)
 
-The charger plug could not be reached at two checks in a row: by a switch, or, when no switch was needed, by a read-only check of the plug (made at every check since `PLUG-WATCH.md`). Ends when the plug is reached again. `wanted_on` is left out when the alert started from a read.
+The charger plug could not be reached at two checks in a row: by a switch, or, when no switch was needed, by a read-only check of the plug (made at every check since `PLUG-WATCH.md`). Ends when the plug is reached again. Which way the failed switch went (on, off, or none: a read) is in the message only.
 
 | State | Message |
 |---|---|
@@ -257,3 +273,28 @@ Reasons are words for people. A server may show or store them, but should decide
 5. Keep `signal_reading` numbers as numbers, with missing values as missing, not zero.
 6. Raise your own alarm when neither `status` nor `cellular_status` has arrived for three times `next_check_in_min`.
 7. Ignore unknown fields and unknown `alert` types rather than failing, so a newer app does not break the server.
+8. Close an alert on `recovered` **or** `cancelled`; announce a fix only on `recovered`.
+9. Treat a `reminder` (or a second `started`) for an alert that is not open as a new `started`: a reinstalled app, cleared app data or a full waiting list (over 100) can lose the first one.
+10. Use `plugged_in` for "on power" and `charging` / `battery_status` for "taking charge".
+
+## 8. Testing the server
+
+How to make the phone send each request. Times assume a 5-minute **Check every**; with another value, replace 5 minutes by it. Each request also shows on the phone's notification, and in the app's delivery line ("Last alert delivered …").
+
+| Request | How to cause it on the phone | Expect |
+|---|---|---|
+| `test` | Battery Guard: tap **Send test alert** | At once |
+| `status`, `cellular_status` | Turn on **Send status after every check** and **Send cellular status after every check** | One of each at every check |
+| `plug_unreachable` `started` | Unplug the smart plug from the wall (leave the phone's charger in it) | After the 2nd check that cannot reach it: about 5–10 minutes |
+| `plug_unreachable` `reminder` | Leave it unplugged | 60 minutes after `started`, then every 60 minutes |
+| `plug_unreachable` `recovered` | Plug the smart plug back in | At the first check that reaches it: within about 5 minutes |
+| `cancelled`, `guard_off` | During `plug_unreachable`, turn **Keep battery between** off | At once (it may first send the requests still waiting). Turn it back on afterwards |
+| `cancelled`, `alerts_off` | During `plug_unreachable`, turn **Send alerts** off | At once. Turning **Send alerts** back on while the plug is still unplugged gives a new `started` after two more checks |
+| `cellular_down` `started` (a reading failed) | Turn on airplane mode, with Cellular Check on and **Send cellular alerts** on | After two failed test SMS, 1 check apart. Nothing reaches the server until airplane mode is off again, unless the server is reached over Wi-Fi with Wi-Fi left on |
+| `cellular_down` `recovered` | Turn airplane mode off | At the next run: a test SMS runs at once and passes |
+| `cellular_down`, SMS-only fault, hourly re-test | Set a wrong **Own number** (the test SMS never comes back), then wait | `started` after the daily test and its retry fail; then a test SMS and a `reminder` every 60 minutes. Put the right number back: `recovered` at the next hourly test |
+| `cancelled`, `cellular_alerts_off` / `cellular_off` | During `cellular_down`, turn **Send cellular alerts** off, or Cellular Check off | At once |
+| `not_charging` | With the battery at or below 50% (**Turn on** goes up to 50%): pull the charger cable out of the phone, then set **Turn on** just above the current battery. The next check turns the plug on and finds the phone not plugged in 30 s later | `started` about 30 s after that check. Plug the cable back in: `recovered` at the next check where the battery charges. Set **Turn on** back afterwards |
+| `guard_degraded` | Not practical on Android 13 and later | — |
+
+Turning airplane mode on also cuts Wi-Fi unless Wi-Fi is turned back on; the waiting requests are sent when the network returns, with their original `time`.
