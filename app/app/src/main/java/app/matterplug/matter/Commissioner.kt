@@ -9,6 +9,7 @@ import chip.devicecontroller.NetworkCredentials
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withTimeoutOrNull
@@ -25,11 +26,46 @@ sealed interface PairingEvent {
     data object CodeMismatch : PairingEvent
 }
 
-/** Runs one pairing attempt (Matter commissioning over Bluetooth, then Wi-Fi) and reports stages. */
+/** How a pairing attempt reaches the plug. */
+sealed interface PairingRoute {
+    /** A new or reset plug: found over Bluetooth, then told to join this Wi-Fi network. */
+    data class Bluetooth(val ssid: String, val password: String) : PairingRoute
+    /** A plug already on Wi-Fi with its pairing window open (shared from another Matter app). */
+    data class Network(val plug: NetworkPlug) : PairingRoute
+}
+
+/** Runs one pairing attempt (Matter commissioning over Bluetooth then Wi-Fi, or over the network) and reports stages. */
 class Commissioner(context: Context) {
     private val context: Context = context.applicationContext
 
-    fun pair(setupCode: SetupCode, ssid: String, password: String, nodeId: Long): Flow<PairingEvent> = callbackFlow {
+    /**
+     * Looks on the Wi-Fi network, for up to [timeoutMs], for a plug waiting to be paired with [setupCode].
+     * Null when none is found (the plug then has to be paired over Bluetooth).
+     */
+    suspend fun findOnNetwork(setupCode: SetupCode, timeoutMs: Long = NETWORK_LOOK_MS): NetworkPlug? {
+        val controller = ChipController.get(context)
+        try {
+            controller.discoverCommissionableNodes()
+        } catch (e: Exception) {
+            Log.w(TAG, "network discovery could not start", e)
+            return null
+        }
+        val end = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < end) {
+            delay(NETWORK_POLL_MS)
+            val found = (0 until MAX_DISCOVERED).mapNotNull { i ->
+                try { controller.getDiscoveredDevice(i) } catch (e: Exception) { null }
+            }.map { NetworkPlug(it.ipAddress ?: "", it.port, it.discriminator.toInt()) }
+            pickNetworkPlug(setupCode, found)?.let {
+                Log.i(TAG, "found on the network: discriminator=${it.discriminator} at ${it.ipAddress}:${it.port}")
+                return it
+            }
+        }
+        Log.i(TAG, "not found on the network in $timeoutMs ms")
+        return null
+    }
+
+    fun pair(setupCode: SetupCode, route: PairingRoute, nodeId: Long): Flow<PairingEvent> = callbackFlow {
         val controller = ChipController.get(context)
         val lastStage = AtomicReference(PairingStage.FindingPlug)
         val terminal = CompletableDeferred<PairingEvent>()
@@ -103,56 +139,70 @@ class Commissioner(context: Context) {
             }
         }
 
+        // Shared by both routes, set just before commissioning starts.
+        fun prepareController() {
+            controller.setCompletionListener(listener)
+            // Device verification is skipped: always continue commissioning.
+            // The library calls this on its own thread while it holds its internal lock. Calling
+            // continueCommissioning from inside the callback stalls commissioning, so it is posted to the
+            // main thread, as CHIPTool does.
+            controller.setDeviceAttestationDelegate(ATTESTATION_FAILSAFE_SECONDS) { devicePointer, _, errorCode ->
+                Log.d(TAG, "attestation result: error=$errorCode; continuing")
+                Handler(Looper.getMainLooper()).post {
+                    try {
+                        controller.continueCommissioning(devicePointer, true)
+                        Log.d(TAG, "continueCommissioning sent")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "continueCommissioning failed", e)
+                    }
+                }
+            }
+            advance(PairingStage.SecuringSession)
+        }
+
         trySend(PairingEvent.Progress(PairingStage.FindingPlug))
         try {
             val outcome = withTimeoutOrNull(ATTEMPT_TIMEOUT_MS) {
-                val ble = BleTransport()
-                val device = ble.getBluetoothDevice(context, setupCode.discriminator, setupCode.isShortDiscriminator)
-                if (device == null) {
-                    val nearby = try { ble.matterDiscriminatorsNearby() } catch (e: Exception) {
-                        if (e is CancellationException) throw e
-                        Log.w(TAG, "second scan failed", e)
-                        emptySet()
+                when (route) {
+                    is PairingRoute.Network -> {
+                        // Already on Wi-Fi: no Bluetooth and no network credentials.
+                        advance(PairingStage.Connecting)
+                        prepareController()
+                        val params = CommissionParameters.Builder().setCsrNonce(null).setICDRegistrationInfo(null).build()
+                        val plug = route.plug
+                        controller.pairDeviceWithAddress(nodeId, plug.ipAddress, plug.port, plug.discriminator, setupCode.passcode, params)
                     }
-                    if (nearby.isNotEmpty()) terminal.complete(PairingEvent.CodeMismatch) else fail(PairingStage.FindingPlug, null)
-                    return@withTimeoutOrNull terminal.await()
-                }
-
-                advance(PairingStage.Connecting)
-                val gatt = ble.connect(context, device)
-                if (gatt == null) {
-                    fail(PairingStage.Connecting, null)
-                    return@withTimeoutOrNull terminal.await()
-                }
-                val connectionId = ble.connectionId
-
-                controller.setCompletionListener(listener)
-
-                // Device verification is skipped: always continue commissioning.
-                // The library calls this on its own thread while it holds its internal lock. Calling
-                // continueCommissioning from inside the callback stalls commissioning, so it is posted to the
-                // main thread, as CHIPTool does.
-                controller.setDeviceAttestationDelegate(ATTESTATION_FAILSAFE_SECONDS) { devicePointer, _, errorCode ->
-                    Log.d(TAG, "attestation result: error=$errorCode; continuing")
-                    Handler(Looper.getMainLooper()).post {
-                        try {
-                            controller.continueCommissioning(devicePointer, true)
-                            Log.d(TAG, "continueCommissioning sent")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "continueCommissioning failed", e)
+                    is PairingRoute.Bluetooth -> {
+                        val ble = BleTransport()
+                        val device = ble.getBluetoothDevice(context, setupCode.discriminator, setupCode.isShortDiscriminator)
+                        if (device == null) {
+                            val nearby = try { ble.matterDiscriminatorsNearby() } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                Log.w(TAG, "second scan failed", e)
+                                emptySet()
+                            }
+                            if (nearby.isNotEmpty()) terminal.complete(PairingEvent.CodeMismatch) else fail(PairingStage.FindingPlug, null)
+                            return@withTimeoutOrNull terminal.await()
                         }
+
+                        advance(PairingStage.Connecting)
+                        val gatt = ble.connect(context, device)
+                        if (gatt == null) {
+                            fail(PairingStage.Connecting, null)
+                            return@withTimeoutOrNull terminal.await()
+                        }
+                        val connectionId = ble.connectionId
+                        prepareController()
+                        val params = CommissionParameters.Builder()
+                            .setCsrNonce(null)
+                            .setNetworkCredentials(
+                                NetworkCredentials.forWiFi(NetworkCredentials.WiFiCredentials(route.ssid, route.password))
+                            )
+                            .setICDRegistrationInfo(null)
+                            .build()
+                        controller.pairDeviceThroughBLE(gatt, connectionId, nodeId, setupCode.passcode, params)
                     }
                 }
-
-                advance(PairingStage.SecuringSession)
-                val params = CommissionParameters.Builder()
-                    .setCsrNonce(null)
-                    .setNetworkCredentials(
-                        NetworkCredentials.forWiFi(NetworkCredentials.WiFiCredentials(ssid, password))
-                    )
-                    .setICDRegistrationInfo(null)
-                    .build()
-                controller.pairDeviceThroughBLE(gatt, connectionId, nodeId, setupCode.passcode, params)
                 terminal.await()
             }
             trySend(outcome ?: PairingEvent.Failure(lastStage.get(), null))
@@ -189,5 +239,8 @@ class Commissioner(context: Context) {
         const val TAG = "Commissioner"
         const val ATTEMPT_TIMEOUT_MS = 120_000L
         const val ATTESTATION_FAILSAFE_SECONDS = 600
+        const val NETWORK_LOOK_MS = 6_000L
+        const val NETWORK_POLL_MS = 500L
+        const val MAX_DISCOVERED = 10
     }
 }

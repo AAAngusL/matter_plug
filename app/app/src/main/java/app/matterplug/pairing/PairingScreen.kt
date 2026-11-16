@@ -59,7 +59,8 @@ import kotlinx.coroutines.launch
 fun PairingScreen(onExit: (() -> Unit)? = null, viewModel: PairingViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Cancel is offered before pairing starts and after it failed; never while it runs or once the plug is paired.
-    val canLeave = onExit != null && (state is PairingState.EnterCode || state is PairingState.EnterWifi || state is PairingState.Failed)
+    val canLeave = onExit != null && (state is PairingState.EnterCode || state is PairingState.LookingOnNetwork ||
+        state is PairingState.EnterWifi || state is PairingState.Failed)
     val leave = { viewModel.abandon(); onExit?.invoke(); Unit }
     BackHandler(enabled = canLeave, onBack = leave)
 
@@ -72,6 +73,7 @@ fun PairingScreen(onExit: (() -> Unit)? = null, viewModel: PairingViewModel = vi
     ) {
         when (val s = state) {
             is PairingState.EnterCode -> EnterCodeStep(viewModel, s)
+            PairingState.LookingOnNetwork -> LookingStep()
             is PairingState.EnterWifi -> EnterWifiStep(viewModel, s)
             is PairingState.Running -> RunningStep(viewModel, s)
             is PairingState.Failed -> FailedStep(viewModel, s)
@@ -162,6 +164,17 @@ private fun PhotoButton(onCode: (String) -> Unit) {
         onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     ) { Text(stringResource(if (reading) R.string.pair_photo_reading else R.string.pair_pick_photo)) }
     if (noCode) Text(stringResource(R.string.pair_photo_no_code), color = MaterialTheme.colorScheme.error)
+}
+
+// ---- LookingOnNetwork ----
+
+@Composable
+private fun LookingStep() {
+    Text(stringResource(R.string.pair_title), style = MaterialTheme.typography.headlineMedium)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        Text(stringResource(R.string.pair_looking_on_network))
+    }
 }
 
 // ---- EnterWifi ----

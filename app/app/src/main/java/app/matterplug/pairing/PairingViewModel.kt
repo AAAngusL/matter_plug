@@ -15,6 +15,7 @@ import app.matterplug.data.PlugRepository
 import app.matterplug.matter.Commissioner
 import app.matterplug.matter.EndpointFinder
 import app.matterplug.matter.PairingEvent
+import app.matterplug.matter.PairingRoute
 import app.matterplug.matter.PairingStage
 import app.matterplug.matter.PlugClient
 import app.matterplug.matter.SetupCode
@@ -43,6 +44,8 @@ sealed interface FailureReason {
 /** State machine of spec section 7.1. */
 sealed interface PairingState {
     data class EnterCode(val typing: Boolean = false, val notMatterCode: Boolean = false) : PairingState
+    /** A few seconds after the code is entered: is the plug already on Wi-Fi, shared from another Matter app? */
+    data object LookingOnNetwork : PairingState
     data class EnterWifi(val problem: StartProblem? = null, val fiveGhzHint: Boolean = false) : PairingState
     data class Running(val stage: PairingStage, val canCancel: Boolean = true) : PairingState
     data class Failed(val reason: FailureReason) : PairingState
@@ -82,8 +85,21 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
         val current = _state.value as? PairingState.EnterCode ?: return
         when (val result = parseSetupCode(text)) {
             is SetupCodeResult.Ok -> {
-                code = result.code
-                _state.value = PairingState.EnterWifi(fiveGhzHint = isPhoneOn5Ghz())
+                val setupCode = result.code
+                code = setupCode
+                _state.value = PairingState.LookingOnNetwork
+                pairJob?.cancel()
+                pairJob = viewModelScope.launch {
+                    // A shared plug is paired over the network, with no Wi-Fi step; otherwise Bluetooth, as before.
+                    val plug = try { commissioner.findOnNetwork(setupCode) } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "network look failed", e)
+                        null
+                    }
+                    if (plug != null) runPairing(setupCode, PairingRoute.Network(plug))
+                    else _state.value = PairingState.EnterWifi(fiveGhzHint = isPhoneOn5Ghz())
+                }
             }
             SetupCodeResult.NotAMatterCode -> _state.value = current.copy(notMatterCode = true)
         }
@@ -117,34 +133,36 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
         }
 
         pairJob?.cancel()
-        pairJob = viewModelScope.launch {
-            _state.value = PairingState.Running(PairingStage.FindingPlug)
-            val nodeId = repository.nextNodeId()   // saved before pairing starts, so a failed attempt never reuses it
-            var terminal: PairingEvent? = null
-            try {
-                commissioner.pair(setupCode, _ssid.value, _password.value, nodeId)
-                    .takeWhile { event ->
-                        if (event is PairingEvent.Progress) {
-                            _state.value = PairingState.Running(event.stage, canCancel = event.stage != PairingStage.Finishing)
-                            true
-                        } else {
-                            terminal = event
-                            false
-                        }
+        pairJob = viewModelScope.launch { runPairing(setupCode, PairingRoute.Bluetooth(_ssid.value, _password.value)) }
+    }
+
+    private suspend fun runPairing(setupCode: SetupCode, route: PairingRoute) {
+        _state.value = PairingState.Running(PairingStage.FindingPlug)
+        val nodeId = repository.nextNodeId()   // saved before pairing starts, so a failed attempt never reuses it
+        var terminal: PairingEvent? = null
+        try {
+            commissioner.pair(setupCode, route, nodeId)
+                .takeWhile { event ->
+                    if (event is PairingEvent.Progress) {
+                        _state.value = PairingState.Running(event.stage, canCancel = event.stage != PairingStage.Finishing)
+                        true
+                    } else {
+                        terminal = event
+                        false
                     }
-                    .collect { }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "pairing flow failed", e)
-                terminal = PairingEvent.Failure(lastStageOrDefault(), null)
-            }
-            when (val event = terminal) {
-                is PairingEvent.Success -> afterSuccess(event.nodeId)
-                is PairingEvent.Failure -> fail(FailureReason.AtStage(event.stage, event.errorCode))
-                PairingEvent.CodeMismatch -> fail(FailureReason.CodeMismatch)
-                else -> fail(FailureReason.AtStage(lastStageOrDefault(), null))
-            }
+                }
+                .collect { }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "pairing flow failed", e)
+            terminal = PairingEvent.Failure(lastStageOrDefault(), null)
+        }
+        when (val event = terminal) {
+            is PairingEvent.Success -> afterSuccess(event.nodeId)
+            is PairingEvent.Failure -> fail(FailureReason.AtStage(event.stage, event.errorCode))
+            PairingEvent.CodeMismatch -> fail(FailureReason.CodeMismatch)
+            else -> fail(FailureReason.AtStage(lastStageOrDefault(), null))
         }
     }
 

@@ -81,6 +81,7 @@
     <string name="pair_pick_photo">Read the QR code from a saved photo</string>
     <string name="pair_photo_reading">Reading the photo…</string>
     <string name="pair_photo_no_code">No QR code found in that photo. Try a sharper photo, or type the code.</string>
+    <string name="pair_looking_on_network">Looking for the plug on your Wi-Fi…</string>
     <string name="pair_camera_denied">The camera is not available. Type the code instead.</string>
     <string name="pair_code_label">Setup code (11 digits)</string>
     <string name="pair_continue">Continue</string>
