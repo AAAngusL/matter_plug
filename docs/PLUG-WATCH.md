@@ -66,6 +66,17 @@ In the check itself, inside the alarm receiver (`CheckReceiver` → `GuardRunner
 
 **Risk:** with the app closed, the Matter library has to start inside the receiver for the read (today it starts only in the service or on screen). Starting it and connecting may take longer than 8 seconds on the first check after the app was closed. Unit P1 measures this on the phone before the rest is built. If the start is too slow, the fallback is to run the read in `ActionService`, which shows its notification while it runs.
 
+**P1 result (2026-11-15, Galaxy S20 FE, app closed):** the probe itself did not run, because the phone was charging from USB at 85% and every check needed a switch. The switch path, which also started the Matter library cold in a fresh process, gave the numbers:
+
+| Check | What | Time |
+|---|---|---|
+| First after the app was closed | Matter library started | 0.16 s |
+| Same check | Connect, Off command, read-back, confirmed | about 2.0 s |
+| Next check, same process | The same switch | 0.16 s |
+| Plug without power | Connect reused the remembered session; the command timed out | 10 s (the command's limit) |
+
+So the read runs in the receiver, as designed: an 8-second limit leaves room, and a dead plug uses the full 8 seconds and counts as a miss. The read alone (no command) was not timed; it is a part of the same exchange.
+
 ## 6. What the requests carry
 
 Nothing new. The server learns about the plug only through `plug_unreachable` (`started`, `reminder`, `recovered`), as today. Battery Guard's `status` request and `cellular_status` are unchanged.

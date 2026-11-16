@@ -59,7 +59,7 @@ class PlugCommander(context: Context) {
 
             // 3. Read OnOff back and compare. A failed or timed-out read is Unconfirmed, not NotReached: the command was accepted.
             val actual: Boolean? = try {
-                withTimeoutOrNull(READ_TIMEOUT_MS) { readOnOff(plug, pointer) }
+                withTimeoutOrNull(READ_TIMEOUT_MS) { readOnOffAt(plug, pointer) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -79,12 +79,12 @@ class PlugCommander(context: Context) {
      * One 8-second limit covers connect and read. Null on any failure or timeout. Does not touch [switchTo].
      * A cancellation of the caller propagates. A pointer that arrives after the timeout is lost, as in ChipController.connect (V3 note in G4).
      */
-    suspend fun readOnOff(plug: Plug): Boolean? {
+    suspend fun readOnOff(plug: Plug, timeoutMs: Long = READ_ONLY_TIMEOUT_MS): Boolean? {
         var pointer = 0L
         try {
-            return withTimeoutOrNull(READ_ONLY_TIMEOUT_MS) {
+            return withTimeoutOrNull(timeoutMs) {
                 pointer = ChipController.connect(context, plug.nodeId)
-                readOnOff(plug, pointer)
+                readOnOffAt(plug, pointer)
             }
         } catch (e: CancellationException) {
             throw e
@@ -99,7 +99,7 @@ class PlugCommander(context: Context) {
     private suspend fun sendOnOff(plug: Plug, pointer: Long, on: Boolean): Result<Unit> =
         invokeCommand(context, pointer, plug.endpoint, ON_OFF_CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure())
 
-    private suspend fun readOnOff(plug: Plug, pointer: Long): Boolean? =
+    private suspend fun readOnOffAt(plug: Plug, pointer: Long): Boolean? =
         readAttribute(context, pointer, plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE) { TlvReader(it).getBool(AnonymousTag) }
 
     private companion object {

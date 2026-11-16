@@ -14,6 +14,7 @@ import app.matterplug.guard.logic.CheckLog
 import app.matterplug.guard.logic.GuardAction
 import app.matterplug.guard.logic.GuardPolicy
 import app.matterplug.guard.logic.GuardSettings
+import app.matterplug.matter.ChipController
 import app.matterplug.matter.PlugCommander
 import app.matterplug.matter.SwitchResult
 import kotlinx.coroutines.CancellationException
@@ -37,6 +38,7 @@ object GuardRunner {
 
     private const val POWER_WAIT_MS = 30_000L
     private const val POWER_POLL_MS = 2_000L
+    private const val PROBE_TIMEOUT_MS = 20_000L     // P1: long enough to see the real time, inside the receiver's limit
 
     /** One run at a time. `work` takes the same lock. */
     private val mutex = Mutex()
@@ -112,6 +114,8 @@ object GuardRunner {
 
             Log.i(TAG, CheckLog.line(reading?.level, plugged, action, fault, intervalMin, nextAt))
 
+            if (action == GuardAction.Nothing) probePlugRead(ctx)      // PLUG-WATCH.md P1: timing only, no alert yet
+
             var serviceFailed = false
             if (action != GuardAction.Nothing) {
                 if (ActionService.start(ctx)) return      // the service does the rest (work, finish), including the next alarm
@@ -177,6 +181,25 @@ object GuardRunner {
         } finally {
             // Runs on cancellation (the 120 s limit) too, so the chain of alarms goes on.
             withContext(NonCancellable) { rescheduleAfterWork(ctx, store, settings, reading, finalReading, action, outcome) }
+        }
+    }
+
+    /**
+     * PLUG-WATCH.md unit P1, temporary: how long a plug read takes inside the alarm receiver, with the Matter library
+     * started cold when the app is closed. Logs only; P3 replaces it with the real read and its alert.
+     */
+    private suspend fun probePlugRead(ctx: Context) {
+        try {
+            val plug = PlugRepository(ctx).charger() ?: run { Log.i(TAG, "plug probe: no charger plug"); return }
+            val t0 = SystemClock.elapsedRealtime()
+            ChipController.get(ctx)
+            val t1 = SystemClock.elapsedRealtime()
+            val on = PlugCommander(ctx).readOnOff(plug, timeoutMs = PROBE_TIMEOUT_MS)
+            val t2 = SystemClock.elapsedRealtime()
+            Log.i(TAG, "plug probe: init_ms=${t1 - t0} read_ms=${t2 - t1} total_ms=${t2 - t0} result=${on?.let { if (it) "on" else "off" } ?: "not reached"}")
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.w(TAG, "plug probe failed", e)
         }
     }
 
