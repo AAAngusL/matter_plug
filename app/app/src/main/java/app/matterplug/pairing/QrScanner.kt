@@ -1,5 +1,8 @@
 package app.matterplug.pairing
 
+import android.content.Context
+import android.graphics.ImageDecoder
+import android.net.Uri
 import android.util.Log
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -24,6 +27,8 @@ import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
 import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Camera preview that decodes QR codes with ZXing (no Google ML Kit, no Play services).
@@ -83,6 +88,30 @@ fun QrScanner(onCode: (String) -> Unit, modifier: Modifier = Modifier) {
 }
 
 private const val TAG = "QrScanner"
+
+/** Longest side a picked photo is decoded at: enough for a QR code, and keeps a 12 MP photo small in memory. */
+private const val PHOTO_SIDE = 2048
+
+/**
+ * Reads a QR code from a photo the user picked (a content [uri] from the photo picker).
+ * Null when the photo cannot be opened or holds no readable QR code.
+ */
+suspend fun readQrFromPhoto(context: Context, uri: Uri): String? = withContext(Dispatchers.Default) {
+    try {
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        val bitmap = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            val sample = maxOf(info.size.width, info.size.height) / PHOTO_SIDE
+            if (sample > 1) decoder.setTargetSampleSize(sample)
+        }
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        QrPhoto.decode(pixels, bitmap.width, bitmap.height).also { bitmap.recycle() }
+    } catch (e: Exception) {
+        Log.w(TAG, "could not read the photo", e)
+        null
+    }
+}
 
 /** Decodes one camera frame from its luminance (Y) plane. QR detection works at any rotation. */
 private fun decode(reader: QRCodeReader, image: ImageProxy): String? {

@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
 import app.matterplug.matter.PairingStage
+import kotlinx.coroutines.launch
 
 /**
  * Pairing flow of spec section 7.1. Shown when the plug list is empty, and from "Add plug" in the plug switcher.
@@ -130,9 +133,35 @@ private fun EnterCodeStep(viewModel: PairingViewModel, state: PairingState.Enter
         }
     }
 
+    PhotoButton(onCode = viewModel::submitCode)
+
     if (state.notMatterCode) {
         Text(stringResource(R.string.err_not_matter_code), color = MaterialTheme.colorScheme.error)
     }
+}
+
+/** Reads the QR code from a saved photo or screenshot. The system photo picker needs no permission. */
+@Composable
+private fun PhotoButton(onCode: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var reading by remember { mutableStateOf(false) }
+    var noCode by rememberSaveable { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        reading = true
+        noCode = false
+        scope.launch {
+            val text = readQrFromPhoto(context, uri)
+            reading = false
+            if (text == null) noCode = true else onCode(text)
+        }
+    }
+    OutlinedButton(
+        enabled = !reading,
+        onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    ) { Text(stringResource(if (reading) R.string.pair_photo_reading else R.string.pair_pick_photo)) }
+    if (noCode) Text(stringResource(R.string.pair_photo_no_code), color = MaterialTheme.colorScheme.error)
 }
 
 // ---- EnterWifi ----
