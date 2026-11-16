@@ -8,7 +8,7 @@ object AlertPolicy {
 
     fun apply(
         state: AlertState, checkEvents: List<CheckEvent>,
-        battery: Int, pluggedIn: Boolean, nowMs: Long,
+        battery: Int, power: Power, nowMs: Long,
     ): AlertResult {
         var failed = state.failedChecks
         var degraded = state.degradedChecks
@@ -19,12 +19,12 @@ object AlertPolicy {
         fun isActive(k: AlertKind) = active.any { it.kind == k }
         fun start(k: AlertKind, wantedOn: Boolean?, detail: String? = null) {
             active += ActiveAlert(k, nowMs, nowMs, wantedOn, detail)
-            out += AlertEvent(k, AlertPhase.Started, battery, pluggedIn, wantedOn, nowMs, detail)
+            out += AlertEvent(k, AlertPhase.Started, battery, power, wantedOn, nowMs, detail)
         }
         fun recover(k: AlertKind) {
             val a = active.firstOrNull { it.kind == k } ?: return
             active.remove(a)
-            out += AlertEvent(k, AlertPhase.Recovered, battery, pluggedIn, a.wantedOn, nowMs, a.detail)
+            out += AlertEvent(k, AlertPhase.Recovered, battery, power, a.wantedOn, nowMs, a.detail)
         }
 
         fun reached() {
@@ -62,14 +62,14 @@ object AlertPolicy {
             degraded = 0
             recover(AlertKind.GuardDegraded)
         }
-        if (pluggedIn) recover(AlertKind.NotCharging)
+        if (power.pluggedIn) recover(AlertKind.NotCharging)
 
         // Reminders: an alert started in this call has lastSentAtMs = now, so it is not reminded.
         for (i in active.indices) {
             val a = active[i]
             if (nowMs - a.lastSentAtMs >= REMINDER_MS) {
                 active[i] = a.copy(lastSentAtMs = nowMs)
-                out += AlertEvent(a.kind, AlertPhase.Reminder, battery, pluggedIn, a.wantedOn, nowMs, a.detail)
+                out += AlertEvent(a.kind, AlertPhase.Reminder, battery, power, a.wantedOn, nowMs, a.detail)
             }
         }
         return AlertResult(AlertState(failed, degraded, active.toList()), out)

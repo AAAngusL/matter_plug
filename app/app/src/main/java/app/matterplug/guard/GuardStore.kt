@@ -12,6 +12,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import app.matterplug.guard.logic.PlugSighting
 import app.matterplug.guard.logic.AlertState
 import app.matterplug.guard.logic.AlertStateCodec
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 import app.matterplug.guard.logic.DeliveryPlan
 import app.matterplug.guard.logic.GuardSettings
 import app.matterplug.guard.logic.QueueCodec
@@ -33,6 +35,7 @@ class GuardStore(context: Context) {
             lastCheckAt = p[LAST_CHECK_AT],
             lastLevel = p[LAST_LEVEL],
             lastPlugged = p[LAST_PLUGGED],
+            lastBatteryStatus = p[LAST_BATTERY_STATUS]?.let(BatteryStatus::fromWire),
             nextCheckAt = p[NEXT_CHECK_AT],
             lastSwitchAt = p[LAST_SWITCH_AT],
             lastSwitchOn = p[LAST_SWITCH_ON],
@@ -114,12 +117,13 @@ class GuardStore(context: Context) {
         }
     }
 
-    /** A null level, plugged state or next time removes the stored value. */
-    suspend fun recordCheck(atMs: Long, level: Int?, pluggedIn: Boolean?, nextAtMs: Long?) {
+    /** A null level, power or next time removes the stored value. */
+    suspend fun recordCheck(atMs: Long, level: Int?, power: Power?, nextAtMs: Long?) {
         store.edit { p ->
             p[LAST_CHECK_AT] = atMs
             putOrRemove(p, LAST_LEVEL, level)
-            putOrRemove(p, LAST_PLUGGED, pluggedIn)
+            putOrRemove(p, LAST_PLUGGED, power?.pluggedIn)
+            putOrRemove(p, LAST_BATTERY_STATUS, power?.status?.wire)
             putOrRemove(p, NEXT_CHECK_AT, nextAtMs)
         }
     }
@@ -212,6 +216,7 @@ class GuardStore(context: Context) {
         val LAST_CHECK_AT = longPreferencesKey("last_check_at")
         val LAST_LEVEL = intPreferencesKey("last_level")
         val LAST_PLUGGED = booleanPreferencesKey("last_plugged")
+        val LAST_BATTERY_STATUS = stringPreferencesKey("last_battery_status")
         val NEXT_CHECK_AT = longPreferencesKey("next_check_at")
         val LAST_SWITCH_AT = longPreferencesKey("last_switch_at")
         val LAST_SWITCH_ON = booleanPreferencesKey("last_switch_on")

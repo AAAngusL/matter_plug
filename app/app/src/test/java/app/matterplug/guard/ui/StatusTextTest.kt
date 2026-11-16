@@ -3,6 +3,8 @@ package app.matterplug.guard.ui
 import app.matterplug.guard.logic.ActiveAlert
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertState
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 
 import app.matterplug.guard.GuardStatus
 import app.matterplug.guard.logic.PlugSighting
@@ -20,16 +22,16 @@ class StatusTextTest {
     }
 
     @Test fun lastCheckAndSwitch() {
-        val s = GuardStatus(lastCheckAt = 1, lastLevel = 64, lastPlugged = true, nextCheckAt = 2,
+        val s = GuardStatus(lastCheckAt = 1, lastLevel = 64, lastPlugged = true, lastBatteryStatus = BatteryStatus.NotCharging, nextCheckAt = 2,
             lastSwitchAt = 3, lastSwitchOn = false, lastSwitchLevel = 87)
         val l = lines(s)
-        assertEquals(StatusLine.LastCheck("t1", 64, true, "t2"), l[0])
+        assertEquals(StatusLine.LastCheck("t1", 64, Power(true, BatteryStatus.NotCharging), "t2"), l[0])
         assertEquals(StatusLine.LastSwitch(false, 87, "t3"), l[1])
     }
 
     @Test fun nextCheckHiddenWhenDisabled() {
         val l = lines(GuardStatus(lastCheckAt = 1, lastLevel = 50, lastPlugged = false, nextCheckAt = 2), enabled = false)
-        assertEquals(StatusLine.LastCheck("t1", 50, false, null), l[0])
+        assertEquals(StatusLine.LastCheck("t1", 50, Power(false, BatteryStatus.Unknown), null), l[0])
     }
 
     @Test fun unreadableBatteryKeepsNulls() {

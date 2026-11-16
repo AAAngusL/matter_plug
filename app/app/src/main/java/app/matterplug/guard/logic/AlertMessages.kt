@@ -5,9 +5,9 @@ import app.matterplug.cellular.logic.CellularReport
 /** Fixed wire text. */
 object AlertMessages {
     fun text(e: AlertEvent): String = when (e.phase) {
-        AlertPhase.Recovered -> if (e.kind == AlertKind.CellularDown) CellularReport.recoveredText(e.battery) else "Matter Plug: recovered. Battery ${e.battery}%, " + (if (e.pluggedIn) "charging." else "not charging.")
+        AlertPhase.Recovered -> if (e.kind == AlertKind.CellularDown) CellularReport.recoveredText(e.battery) else "Matter Plug: recovered. Battery ${e.battery}%, ${e.power.words.wire}."
         AlertPhase.Test -> "Matter Plug: test alert."
-        AlertPhase.Status -> if (e.kind == AlertKind.CellularStatus) CellularReport.statusText(e.cellular, e.battery) else "Matter Plug: status. Battery ${e.battery}%, " + (if (e.pluggedIn) "plugged in." else "on battery.")
+        AlertPhase.Status -> if (e.kind == AlertKind.CellularStatus) CellularReport.statusText(e.cellular, e.battery) else "Matter Plug: status. Battery ${e.battery}%, ${e.power.words.wire}."
         AlertPhase.Started -> body(e)
         AlertPhase.Reminder -> body(e).replaceFirst("Matter Plug: ", "Matter Plug (reminder): ")
     }

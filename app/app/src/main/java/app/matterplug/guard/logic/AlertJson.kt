@@ -9,12 +9,13 @@ object AlertJson {
             .format(java.time.OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(atMs), zone).withNano(0))
 
     /**
-     * Keys in this order: alert, state, message, battery, charging, time, then next_check_in_min (status reports) and
+     * Keys in this order: alert, state, message, battery, charging, plugged_in, battery_status, time, then next_check_in_min (status reports) and
      * cellular (Cellular Check's requests), each only when it is not null.
      */
     fun encode(e: AlertEvent, message: String, time: String): String =
         """{"alert":${q(e.kind.wire)},"state":${q(e.phase.wire)},"message":${q(message)},""" +
-            """"battery":${e.battery},"charging":${e.pluggedIn},"time":${q(time)}""" +
+            """"battery":${e.battery},"charging":${e.power.charging},"plugged_in":${e.power.pluggedIn},""" +
+            """"battery_status":${q(e.power.status.wire)},"time":${q(time)}""" +
             (e.nextCheckInMin?.let { ""","next_check_in_min":$it""" } ?: "") +
             (e.cellular?.let { ""","cellular":${CellularReport.json(it)}""" } ?: "") + "}"
 

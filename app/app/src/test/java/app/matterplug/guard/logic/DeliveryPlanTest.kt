@@ -13,7 +13,7 @@ import javax.net.ssl.SSLHandshakeException
 
 class DeliveryPlanTest {
     private fun ev(kind: AlertKind, phase: AlertPhase, next: Int? = null) =
-        AlertEvent(kind, phase, 18, false, null, 1_000L, null, next)
+        AlertEvent(kind, phase, 18, Power(false, BatteryStatus.Discharging), null, 1_000L, null, next)
 
     private val started = ev(AlertKind.PlugUnreachable, AlertPhase.Started)
     private val reminder = ev(AlertKind.NotCharging, AlertPhase.Reminder)

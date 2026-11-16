@@ -135,6 +135,10 @@
     <string name="guard_status_next_check">" Next check %1$s."</string>
     <string name="guard_plugged_in">plugged in</string>
     <string name="guard_on_battery">on battery</string>
+    <string name="guard_power_charging">charging</string>
+    <string name="guard_power_full">plugged in, full</string>
+    <string name="guard_power_not_charging">plugged in, not charging</string>
+    <string name="guard_power_discharging">plugged in, discharging</string>
     <string name="guard_status_last_switch">Last switch: %1$s at %2$d%%, %3$s.</string>
     <string name="guard_switch_on">on</string>
     <string name="guard_switch_off">off</string>

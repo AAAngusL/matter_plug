@@ -9,7 +9,8 @@ class AlertPolicyTest {
 
     private fun step(
         st: AlertState, events: List<CheckEvent>, t: Int, battery: Int = 18, plugged: Boolean = false,
-    ) = AlertPolicy.apply(st, events, battery, plugged, min(t))
+        status: BatteryStatus = BatteryStatus.Unknown,
+    ) = AlertPolicy.apply(st, events, battery, Power(plugged, status), min(t))
 
     private fun List<AlertEvent>.phases() = map { it.kind to it.phase }
     private val fail = CheckEvent.SwitchFailed(true)
@@ -148,11 +149,11 @@ class AlertPolicyTest {
     // 7
     @Test fun scenario7_notChargingRecoversWhenPluggedIn() {
         var r = step(AlertState(), notCharging, 0)
-        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 15, battery = 25, plugged = true)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 15, battery = 25, plugged = true, status = BatteryStatus.Charging)
         val e = r.events.single()
         assertEquals(AlertKind.NotCharging, e.kind)
         assertEquals(AlertPhase.Recovered, e.phase)
-        assertEquals(true, e.pluggedIn)
+        assertEquals(Power(true, BatteryStatus.Charging), e.power)
         assertTrue(r.state.active.isEmpty())
     }
 

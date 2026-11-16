@@ -1,6 +1,8 @@
 package app.matterplug.cellular.logic
 
 import app.matterplug.guard.logic.AlertEvent
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 import app.matterplug.guard.logic.AlertJson
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertMessages
@@ -54,7 +56,7 @@ class CellularReportTest {
     )
 
     private fun event(phase: AlertPhase, s: CellularSummary) =
-        AlertEvent(AlertKind.CellularDown, phase, 64, true, null, 0L, cellular = s)
+        AlertEvent(AlertKind.CellularDown, phase, 64, Power(true, BatteryStatus.Charging), null, 0L, cellular = s)
 
     @Test fun aPassiveFaultNamesTheFirstFailedLayerAndTheSmsResult() {
         val s = CellularReport.summary(airplane, LoopbackTrigger.Confirmation)
@@ -79,7 +81,7 @@ class CellularReportTest {
     }
 
     @Test fun theAlertBodyCarriesTheCellularObject() = assertEquals(
-        """{"alert":"cellular_down","state":"started","message":"m","battery":64,"charging":true,"time":"t",""" +
+        """{"alert":"cellular_down","state":"started","message":"m","battery":64,"charging":true,"plugged_in":true,"battery_status":"charging","time":"t",""" +
             """"cellular":{"trigger":"confirmation","failed_layer":"registration","reason":"airplane mode",""" +
             """"sim":"pass","registration":"fail","signal":"skipped","sms":"fail","sms_reason":"not sent: radio off","signal_detail":"none"}}""",
         AlertJson.encode(event(AlertPhase.Started, CellularReport.summary(airplane, LoopbackTrigger.Confirmation)), "m", "t"),
@@ -115,11 +117,11 @@ class CellularStatusReportTest {
         Layer.Signal to LayerResult.Pass("LTE, RSRP -97 dBm"), Layer.Sms to LayerResult.Pass("daily: sent, delivered, received back"),
     )
     private fun report(results: Map<Layer, LayerResult>) =
-        AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, 84, true, null, 0L, nextCheckInMin = 15,
+        AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, 84, Power(true, BatteryStatus.Charging), null, 0L, nextCheckInMin = 15,
             cellular = CellularReport.summary(results, LoopbackTrigger.Daily))
 
     @Test fun itsTypeIsCellularStatus() = assertTrue(
-        AlertJson.encode(report(healthy), "m", "t").startsWith("""{"alert":"cellular_status","state":"status","message":"m","battery":84,"charging":true,"time":"t","next_check_in_min":15,"cellular":{"""),
+        AlertJson.encode(report(healthy), "m", "t").startsWith("""{"alert":"cellular_status","state":"status","message":"m","battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"t","next_check_in_min":15,"cellular":{"""),
     )
 
     @Test fun itsMessageNamesEveryLayer() = assertEquals(

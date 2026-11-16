@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import app.matterplug.data.PlugRepository
 import app.matterplug.guard.GuardStatus
 import app.matterplug.guard.BatteryReader
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 import app.matterplug.guard.CheckScheduler
 import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardPermissions
@@ -317,8 +319,8 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
                 val app = getApplication<Application>()
                 val reading = try { BatteryReader.read(app) } catch (e: Exception) { null }
                 val level = reading?.level ?: status.value.lastLevel ?: 0
-                val plugged = reading?.pluggedIn ?: status.value.lastPlugged ?: false
-                val result = HttpAlerter.postTest(app, store, level, plugged)
+                val power = reading?.power ?: Power(status.value.lastPlugged ?: false, BatteryStatus.Unknown)
+                val result = HttpAlerter.postTest(app, store, level, power)
                 _testState.value = TestState.Done(DeliveryPlan.describeTest(result))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e

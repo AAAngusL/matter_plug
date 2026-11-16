@@ -40,7 +40,7 @@ sealed interface CheckEvent {
 
 data class AlertEvent(
     val kind: AlertKind, val phase: AlertPhase,
-    val battery: Int, val pluggedIn: Boolean, val wantedOn: Boolean?, val atMs: Long,
+    val battery: Int, val power: Power, val wantedOn: Boolean?, val atMs: Long,
     val detail: String? = null,
     val nextCheckInMin: Int? = null,    // status reports only
     val cellular: CellularSummary? = null,      // Cellular Check's requests only: cellular_status and its alerts

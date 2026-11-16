@@ -55,6 +55,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
 import app.matterplug.guard.GuardPermissions
 import app.matterplug.guard.logic.AlertAddress
+import app.matterplug.guard.logic.PowerWords
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.DeliveryError
 import app.matterplug.guard.logic.TestOutcome
@@ -321,6 +322,16 @@ private fun Note(text: String) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
+/** One string per PowerWords value: the same words the status report sends. */
+private fun powerWordsRes(w: PowerWords): Int = when (w) {
+    PowerWords.OnBattery -> R.string.guard_on_battery
+    PowerWords.Charging -> R.string.guard_power_charging
+    PowerWords.Full -> R.string.guard_power_full
+    PowerWords.NotCharging -> R.string.guard_power_not_charging
+    PowerWords.Discharging -> R.string.guard_power_discharging
+    PowerWords.PluggedIn -> R.string.guard_plugged_in
+}
+
 @Composable
 private fun StatusLineText(line: StatusLine) {
     val text = when (line) {
@@ -330,7 +341,7 @@ private fun StatusLineText(line: StatusLine) {
             if (line.level == null) stringResource(R.string.guard_status_last_check_unreadable, line.time, next)
             else stringResource(
                 R.string.guard_status_last_check, line.time, line.level,
-                stringResource(if (line.pluggedIn == true) R.string.guard_plugged_in else R.string.guard_on_battery), next,
+                stringResource(powerWordsRes(line.power?.words ?: PowerWords.OnBattery)), next,
             )
         }
         is StatusLine.LastSwitch -> stringResource(

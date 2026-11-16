@@ -24,6 +24,8 @@ import app.matterplug.guard.HttpAlerter
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +57,8 @@ class CellularReceiver : BroadcastReceiver() {
  */
 object CellularRunner {
     private const val TAG = "Cellular"
+    /** The battery could not be read: nothing is known about the power. */
+    private val UNREAD_POWER = Power(false, BatteryStatus.Unknown)
     private const val RETRY_MS = 5 * 60_000L
     /** From an alarm receiver, as Battery Guard's checks (its B11); the loopback service can wait longer. */
     private const val RECEIVER_BUDGET_MS = 5_000L
@@ -145,7 +149,7 @@ object CellularRunner {
     /** cellular_status: the same request shape as Battery Guard's status report, with this run's cellular object. */
     private suspend fun statusReport(ctx: Context, store: CellularStore, intervalMin: Int, now: Long): AlertEvent {
         val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
-        return AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, battery?.level ?: 0, battery?.pluggedIn ?: false, null, now,
+        return AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now,
             nextCheckInMin = intervalMin, cellular = summaryOf(store))
     }
 
@@ -190,7 +194,7 @@ object CellularRunner {
         if (phase == null) return null
         val summary = summaryOf(store)
         val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
-        val event = AlertEvent(AlertKind.CellularDown, phase, battery?.level ?: 0, battery?.pluggedIn ?: false, null, now,
+        val event = AlertEvent(AlertKind.CellularDown, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now,
             cellular = summary)
         Log.i(TAG, "alert: kind=${event.kind.wire} phase=${phase.wire} failed_layer=${summary.failedLayer?.wire}")
         GuardNotifier.post(ctx, listOf(event))

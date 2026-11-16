@@ -1,6 +1,7 @@
 package app.matterplug.guard
 
 import app.matterplug.guard.logic.AlertState
+import app.matterplug.guard.logic.BatteryStatus
 import app.matterplug.guard.logic.PlugSighting
 
 /** Everything the settings screen shows under the controls. Null means "never recorded". */
@@ -8,6 +9,7 @@ data class GuardStatus(
     val lastCheckAt: Long? = null,
     val lastLevel: Int? = null,
     val lastPlugged: Boolean? = null,
+    val lastBatteryStatus: BatteryStatus? = null,   // Android's battery status at the last check
     val nextCheckAt: Long? = null,
     val lastSwitchAt: Long? = null,
     val lastSwitchOn: Boolean? = null,

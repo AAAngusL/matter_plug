@@ -8,6 +8,8 @@ import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
 import app.matterplug.guard.logic.AlertPolicy
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 import app.matterplug.guard.logic.CheckDecision
 import app.matterplug.guard.logic.CheckEvent
 import app.matterplug.guard.logic.CheckLog
@@ -84,6 +86,7 @@ object GuardRunner {
                 null
             }
             val plugged = reading?.pluggedIn
+            val power = reading?.power
             val intervalMin = settings.intervalMin
 
             // B4: the next alarm first, so nothing below can end the chain.
@@ -98,7 +101,7 @@ object GuardRunner {
 
             val now = System.currentTimeMillis()
             try {
-                store.recordCheck(now, reading?.level, plugged, nextAt)
+                store.recordCheck(now, reading?.level, power, nextAt)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "recordCheck failed", e)
@@ -267,14 +270,15 @@ object GuardRunner {
         val store = GuardStore(ctx)
         val last = if (reading == null) store.status.first() else null
         val level = reading?.level ?: last?.lastLevel ?: 0
-        val plugged = reading?.pluggedIn ?: last?.lastPlugged ?: false
-        val result = AlertPolicy.apply(store.readAlertState(), events, level, plugged, System.currentTimeMillis())
+        // Unread battery: the last plugged-in state, but the status is not known now (ALERT-API.md section 3).
+        val power = reading?.power ?: Power(last?.lastPlugged ?: false, BatteryStatus.Unknown)
+        val result = AlertPolicy.apply(store.readAlertState(), events, level, power, System.currentTimeMillis())
         store.writeAlertState(result.state)
-        for (e in result.events) Log.i(TAG, "alert: kind=${e.kind.wire} phase=${e.phase.wire} battery=${e.battery} plugged=${e.pluggedIn}")
+        for (e in result.events) Log.i(TAG, "alert: kind=${e.kind.wire} phase=${e.phase.wire} battery=${e.battery} plugged=${e.power.pluggedIn} status=${e.power.status.wire}")
         GuardNotifier.post(ctx, result.events)                                   // always
         // B12: the status report is built here and sent once by deliver (never queued). It needs statusEnabled, not alertsEnabled.
         val status: AlertEvent? = if (settings.statusEnabled) {
-            AlertEvent(AlertKind.Status, AlertPhase.Status, level, plugged, null, System.currentTimeMillis(),
+            AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
         HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
@@ -330,7 +334,7 @@ object GuardRunner {
             null
         }
         try {
-            store.recordCheck(System.currentTimeMillis(), after?.level, after?.pluggedIn, nextAt)
+            store.recordCheck(System.currentTimeMillis(), after?.level, after?.power, nextAt)
         } catch (e: Exception) {
             Log.e(TAG, "recordCheck failed", e)
         }

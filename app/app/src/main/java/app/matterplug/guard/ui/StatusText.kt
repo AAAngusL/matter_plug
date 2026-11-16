@@ -3,6 +3,8 @@ package app.matterplug.guard.ui
 import app.matterplug.guard.GuardStatus
 import app.matterplug.guard.logic.ActiveAlert
 import app.matterplug.guard.logic.AlertKind
+import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.guard.logic.Power
 
 /**
  * One line under the controls, as data. No Android imports, so it is unit-tested; GuardSection turns each line
@@ -11,8 +13,8 @@ import app.matterplug.guard.logic.AlertKind
  */
 sealed interface StatusLine {
     data object NoCheckYet : StatusLine
-    /** [level] or [pluggedIn] null: the battery could not be read at that check. [nextTime] null: none scheduled. */
-    data class LastCheck(val time: String, val level: Int?, val pluggedIn: Boolean?, val nextTime: String?) : StatusLine
+    /** [level] or [power] null: the battery could not be read at that check. [nextTime] null: none scheduled. */
+    data class LastCheck(val time: String, val level: Int?, val power: Power?, val nextTime: String?) : StatusLine
     data class LastSwitch(val on: Boolean, val level: Int, val time: String) : StatusLine
     data object NoAlerts : StatusLine
     data class PlugReached(val time: String, val on: Boolean?) : StatusLine      // PLUG-WATCH.md section 7
@@ -45,7 +47,8 @@ object StatusText {
             out += StatusLine.NoCheckYet
         } else {
             // A next check time is only meaningful while enabled; the store clears it when Battery Guard is switched off.
-            out += StatusLine.LastCheck(formatTime(checkAt), s.lastLevel, s.lastPlugged, if (enabled) s.nextCheckAt?.let(formatTime) else null)
+            val power = s.lastPlugged?.let { Power(it, s.lastBatteryStatus ?: BatteryStatus.Unknown) }
+            out += StatusLine.LastCheck(formatTime(checkAt), s.lastLevel, power, if (enabled) s.nextCheckAt?.let(formatTime) else null)
         }
         val swAt = s.lastSwitchAt; val swOn = s.lastSwitchOn; val swLevel = s.lastSwitchLevel
         if (swAt != null && swOn != null && swLevel != null) out += StatusLine.LastSwitch(swOn, swLevel, formatTime(swAt))

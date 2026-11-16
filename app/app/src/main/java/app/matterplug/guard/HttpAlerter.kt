@@ -12,6 +12,7 @@ import app.matterplug.guard.logic.AlertPhase
 import app.matterplug.guard.logic.DeliveryError
 import app.matterplug.guard.logic.DeliveryPlan
 import app.matterplug.guard.logic.PostResult
+import app.matterplug.guard.logic.Power
 import app.matterplug.guard.logic.authorizationHeader
 import app.matterplug.guard.logic.resultForCode
 import kotlinx.coroutines.CancellationException
@@ -103,11 +104,11 @@ object HttpAlerter {
      * The test button: posts an AlertEvent(Test, Test, ...). Works whether or not alerts are on; needs a valid address only.
      * Does not touch the waiting list, the alert state or the delivery line.
      */
-    suspend fun postTest(ctx: Context, store: GuardStore, level: Int, pluggedIn: Boolean): PostResult {
+    suspend fun postTest(ctx: Context, store: GuardStore, level: Int, power: Power): PostResult {
         val settings = store.readSettings()
         val address = settings.alertAddress
         if (!AlertAddress.isValid(address)) return PostResult(null, DeliveryError.BAD_ADDRESS)
-        val e = AlertEvent(AlertKind.Test, AlertPhase.Test, level, pluggedIn, null, System.currentTimeMillis())
+        val e = AlertEvent(AlertKind.Test, AlertPhase.Test, level, power, null, System.currentTimeMillis())
         val r = post(address.trim(), settings.alertToken, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
         Log.i(TAG, "test alert host=${AlertAddress.hostOf(address)} code=${r.code} error=${r.error}")
         return r
