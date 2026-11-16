@@ -1,6 +1,6 @@
-# Plug Watch: Design (draft 1, for review)
+# Plug Watch: Design (draft 2, for review)
 
-Battery Guard checks that the charger plug can still be reached at every check, not only when it needs to switch the plug, and alerts when it cannot. Written 2026-11-15 from the code at commit `5738ae7`.
+Battery Guard checks that the charger plug can still be reached at every check, not only when it needs to switch the plug, and alerts when it cannot. Written 2026-11-15 from the code at commit `5738ae7`. Draft 2 takes the answers to draft 1: a plug read at every check, no new field in the requests, and a plug found Off is only shown.
 
 ## 1. The problem
 
@@ -15,12 +15,12 @@ On 2026-11-15 the charger plug was off power for a long time and no alert came.
 
 - Learn that the charger plug cannot be reached within about two check intervals (about 10 minutes at a 5-minute interval), whatever the battery level.
 - Send the existing `plug_unreachable` alert for it, with its reminders every 60 minutes, and `recovered` only once the plug really answers again.
-- No new notification on the phone at each check, and no new server request type.
+- No new notification on the phone at each check, and no change to any request: no new type and no new field.
 
 Out of scope:
 - Checking the plug while Battery Guard is off, or when no plug is paired. With no charger plug there is nothing to watch; Battery Guard switches off when its plug is removed, as now.
 - Checking plugs other than the charger plug.
-- Acting on what the plug reports (for example, turning it on when it was found off). Battery Guard's rule is unchanged.
+- Acting on what the plug reports (for example, turning it on when it was found Off). Battery Guard's rule is unchanged; Off between the two levels is normal after it turns the plug off at 85%.
 
 ## 3. Terms
 
@@ -32,7 +32,7 @@ Out of scope:
 
 ## 4. The rule
 
-At every Battery Guard check:
+At every Battery Guard check (every 5 minutes at your interval):
 
 | The check | What contacts the plug | Counts as |
 |---|---|---|
@@ -64,35 +64,25 @@ In the check itself, inside the alarm receiver (`CheckReceiver` → `GuardRunner
 - The plug read runs after the next alarm is set and the battery is recorded (as today), so a slow or failed read cannot break the chain of checks.
 - Battery Guard's status report and any alert go out after the read, so they carry its result.
 
-**Risk:** with the app closed, the Matter library has to start inside the receiver for the read (today it starts only in the service or on screen). Starting it and connecting may take longer than 8 seconds on the first check after the app was closed. Unit P1 measures this on the phone before the rest is built. If the start is too slow, the fallback is to run the read in `ActionService` at a slower rate (section 8, Q1).
+**Risk:** with the app closed, the Matter library has to start inside the receiver for the read (today it starts only in the service or on screen). Starting it and connecting may take longer than 8 seconds on the first check after the app was closed. Unit P1 measures this on the phone before the rest is built. If the start is too slow, the fallback is to run the read in `ActionService`, which shows its notification while it runs.
 
 ## 6. What the requests carry
 
-Battery Guard's `status` request gets one new optional object, so the server can show the plug's state at every check, not only when an alert starts:
-
-```json
-"plug": {"reached": true, "on": true, "read_at": "2026-11-15T19:05:09-06:00"}
-```
-
-| Field | Type | Meaning |
-|---|---|---|
-| `reached` | boolean | Whether this check reached the plug |
-| `on` | boolean, optional | The plug's On/Off state; left out when not reached |
-| `read_at` | string | When the plug was read or switched, in the phone's time zone |
-
-Only Battery Guard's requests carry it, following the rule in `ALERT-API.md` that neither sender carries the other's data. `cellular_status` is unchanged. This object is a proposal; see Q2.
+Nothing new. The server learns about the plug only through `plug_unreachable` (`started`, `reminder`, `recovered`), as today. Battery Guard's `status` request and `cellular_status` are unchanged.
 
 ## 7. On the phone
 
-- The Battery Guard tab gets one line under the status lines: `Plug: reached at 19:05` or `Plug: not reached since 18:55`.
+- The Battery Guard tab gets one line under the status lines: `Plug: reached at 19:05, On` (or `, Off`), or `Plug: not reached since 18:55`. This is where a plug found Off is reported; nothing else is done about it.
 - No new switch. The plug read is part of Battery Guard, on while Battery Guard is on.
 - Wi-Fi cost: one short local exchange with the plug at each check (a few small packets on the home network). No cellular data.
 
-## 8. Questions for you
+## 8. Decisions
 
-- **Q1. How often to read the plug.** At every check (every 5 minutes at your interval; recommended, and the alert comes after about 10 minutes), or at every third check (about every 15 minutes; the alert after about 30 minutes, with a third of the Wi-Fi traffic)?
-- **Q2. The `plug` object in `status`.** Add it (recommended, so the server can show the plug at every check), or leave `status` as it is and rely on `plug_unreachable` alone?
-- **Q3. The plug found Off.** If the plug is reached but reports Off while the battery is between the two levels, that is normal for Battery Guard (it turns the plug off at 85%). Should the app do anything about it? Recommended: no, just report `on: false`.
+| Question | Answer |
+|---|---|
+| How often to read the plug | At every check |
+| A `plug` object in `status` | No: rely on `plug_unreachable` |
+| The plug found Off | Only report it, on the Battery Guard tab |
 
 ## 9. Build order
 
@@ -100,10 +90,9 @@ Only Battery Guard's requests carry it, following the rule in `ALERT-API.md` tha
 |---|---|---|
 | P1 | Measure on the phone, with the app closed, how long a plug read takes inside the alarm receiver | A log line with the time at three checks; decides section 5 |
 | P2 | `AlertPolicy`: a new `PlugRead(reached)` check event; "no switch needed" no longer recovers; the new message | Unit tests first (two misses start, one reach recovers, no switch needed with no read keeps the alert, a switch failure and a read failure share the count) |
-| P3 | The plug read in `GuardRunner.onAlarm`, the line on the Battery Guard tab | On the phone: pull the plug's power, see `plug_unreachable` after two checks; restore it, see `recovered` |
-| P4 | The `plug` object in `status`, `ALERT-API.md` and the receiver in `tools/alert-receiver/` (if Q2 is yes) | The object arrives at your server |
+| P3 | The plug read in `GuardRunner.onAlarm`, the line on the Battery Guard tab, `BATTERY-GUARD.md` and `ALERT-API.md` | On the phone: pull the plug's power, see `plug_unreachable` after two checks; restore it, see `recovered` |
 
 ## 10. Changes to other documents
 
 - `BATTERY-GUARD.md` sections 4, 6 and 7: the plug is read at every check; the recovery rule changes.
-- `ALERT-API.md`: the `plug_unreachable` description and the new message; the `plug` object (if Q2 is yes).
+- `ALERT-API.md`: the `plug_unreachable` description ("the charger plug could not be reached at two checks in a row"; ends when it is reached again) and the new message.
