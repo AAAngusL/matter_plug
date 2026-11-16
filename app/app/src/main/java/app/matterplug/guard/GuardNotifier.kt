@@ -60,6 +60,16 @@ object GuardNotifier {
         }
     }
 
+    /** Removes the notifications of alerts that a switch closed (RECOVERY-SIGNALS.md 2.4). Never throws. */
+    fun cancel(ctx: Context, kinds: List<AlertKind>) {
+        try {
+            val nm = NotificationManagerCompat.from(ctx.applicationContext)
+            for (k in kinds) nm.cancel(CheckDecision.notificationId(k))
+        } catch (e: Exception) {
+            Log.w(TAG, "notification not removed", e)
+        }
+    }
+
     private fun ensureChannel(app: Context) {
         val nm = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(

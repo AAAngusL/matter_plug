@@ -87,6 +87,22 @@ class AlertMessagesTest {
         "Matter Plug: status. Battery 64%, on battery.",
         AlertMessages.text(ev(AlertKind.Status, AlertPhase.Status, battery = 64, plugged = false)))
 
+    // RECOVERY-SIGNALS.md 2.4: one text per switch and alert.
+    @Test fun cancelledTexts() {
+        fun c(kind: AlertKind, by: CancelledBy) =
+            AlertMessages.text(ev(kind, AlertPhase.Cancelled, battery = 64).copy(cancelledBy = by))
+        assertEquals("Matter Plug: Battery Guard was turned off. The plug unreachable alert is closed without a recovery. Battery 64%.",
+            c(AlertKind.PlugUnreachable, CancelledBy.GuardOff))
+        assertEquals("Matter Plug: Battery Guard alerts were turned off. The not charging alert is closed without a recovery. Battery 64%.",
+            c(AlertKind.NotCharging, CancelledBy.AlertsOff))
+        assertEquals("Matter Plug: Battery Guard was turned off. The Battery Guard not working alert is closed without a recovery. Battery 64%.",
+            c(AlertKind.GuardDegraded, CancelledBy.GuardOff))
+        assertEquals("Matter Plug: Cellular Check was turned off. The SMS alert is closed without a recovery. Battery 64%.",
+            c(AlertKind.CellularDown, CancelledBy.CellularOff))
+        assertEquals("Matter Plug: Cellular alerts were turned off. The SMS alert is closed without a recovery. Battery 64%.",
+            c(AlertKind.CellularDown, CancelledBy.CellularAlertsOff))
+    }
+
     @Test fun test() = assertEquals(
         "Matter Plug: test alert.",
         AlertMessages.text(ev(AlertKind.Test, AlertPhase.Test)))

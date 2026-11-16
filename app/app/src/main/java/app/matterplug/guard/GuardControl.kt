@@ -7,18 +7,32 @@ import app.matterplug.cellular.CellularStore
 
 /** Switches Battery Guard off. One place for it, used by the Guard switch and by removing the charger plug. */
 object GuardControl {
-    /** The store clears the waiting list, the alert state and the next time (5.2); the alarm and the flush job are cancelled here. */
+    /**
+     * The store queues cancelled for the open alerts and clears the alert state and the next time (RECOVERY-SIGNALS.md
+     * 2.4); the alarm is cancelled here, and the flush job keeps sending what waits, since no check will.
+     */
     suspend fun disable(ctx: Context) {
-        GuardStore(ctx).update { it.copy(enabled = false) }
+        val store = GuardStore(ctx)
+        val cleared = store.update { it.copy(enabled = false) }
         guarded("cancel") { CheckScheduler.cancel(ctx) }
-        // The store has cleared the waiting list (5.2): the flush job would find nothing to do.
-        guarded("cancel flush job") { FlushJobService.cancel(ctx) }
+        afterSwitch(ctx, store, cleared)
         // Battery Guard's alarm also brought Cellular Check's runs; its own alarm takes over now.
         try {
             if (CellularStore(ctx).readSettings().enabled) CellularRunner.startSoon(ctx)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e("Guard", "cellular alarm not restarted", e)
+        }
+    }
+
+    /** After a switch closed alerts: remove their notifications, and start the flush job if anything waits. */
+    suspend fun afterSwitch(ctx: Context, store: GuardStore, cleared: List<app.matterplug.guard.logic.AlertKind>) {
+        GuardNotifier.cancel(ctx, cleared)
+        try {
+            if (store.readQueue().isNotEmpty()) FlushJobService.schedule(ctx)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Log.e("Guard", "flush job not scheduled", e)
         }
     }
 

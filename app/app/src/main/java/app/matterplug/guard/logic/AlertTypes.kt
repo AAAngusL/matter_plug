@@ -10,7 +10,7 @@ enum class AlertKind(val wire: String) {
 }
 
 enum class AlertPhase(val wire: String) {
-    Started("started"), Reminder("reminder"), Recovered("recovered"), Status("status"), Test("test")
+    Started("started"), Reminder("reminder"), Recovered("recovered"), Cancelled("cancelled"), Status("status"), Test("test")
 }
 
 /** wantedOn: for PlugUnreachable, true if the switch that failed was On (battery low), false if Off (battery high); null when it
@@ -45,4 +45,5 @@ data class AlertEvent(
     val detail: String? = null,
     val nextCheckInMin: Int? = null,    // status reports only
     val cellular: CellularSummary? = null,      // Cellular Check's requests only: cellular_status and its alerts
+    val cancelledBy: CancelledBy? = null,       // cancelled only (RECOVERY-SIGNALS.md 2.4)
 )

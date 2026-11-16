@@ -48,9 +48,9 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
 
     fun disable() {
         viewModelScope.launch {
-            store.update { it.copy(enabled = false) }        // ends the alert and forgets the loopback state
+            val closed = store.update { it.copy(enabled = false) }        // ends the alert and forgets the loopback state
             CellularRunner.stop(getApplication())
-            GuardStore(getApplication()).dropCellularAlerts()    // and its waiting requests, so no stale "started" goes out
+            CellularRunner.closed(getApplication(), closed)      // cancelled, behind the waiting requests (kept)
         }
     }
 
@@ -62,8 +62,7 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
     /** Send cellular alerts. Switching it off drops Cellular Check's waiting alert requests, as Battery Guard's switch does its own. */
     fun setAlerts(on: Boolean) {
         viewModelScope.launch {
-            store.update { it.copy(alertsEnabled = on) }
-            if (!on) GuardStore(getApplication()).dropCellularAlerts()
+            CellularRunner.closed(getApplication(), store.update { it.copy(alertsEnabled = on) })
         }
     }
 

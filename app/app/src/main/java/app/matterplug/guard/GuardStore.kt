@@ -10,7 +10,9 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.matterplug.guard.logic.PlugSighting
+import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertState
+import app.matterplug.guard.logic.SwitchOff
 import app.matterplug.guard.logic.AlertStateCodec
 import app.matterplug.guard.logic.BatteryStatus
 import app.matterplug.guard.logic.Power
@@ -26,7 +28,8 @@ private val Context.guardDataStore: DataStore<Preferences> by preferencesDataSto
 
 /** Battery Guard's own DataStore file ("guard"). Nothing of it is kept in "plugs". */
 class GuardStore(context: Context) {
-    private val store = context.applicationContext.guardDataStore
+    private val app: Context = context.applicationContext
+    private val store = app.guardDataStore
 
     val settings: Flow<GuardSettings> = store.data.map { readSettings(it) }
 
@@ -54,26 +57,36 @@ class GuardStore(context: Context) {
 
     /**
      * Applies [transform] to the stored settings and writes the result (coerced) in one edit, together with the
-     * effects of BATTERY-GUARD.md section 7 "Rules for the alert settings":
-     * alerts true -> false clears the queue; enabled true -> false clears Battery Guard's alerts from the queue (Cellular
-     * Check's stay, DeliveryPlan.keptWhenGuardTurnsOff), resets the alert state and clears next_check_at.
+     * effects of the switches (RECOVERY-SIGNALS.md 2.4, SwitchOff): Battery Guard off or Send alerts off queues one
+     * cancelled request per open alert, behind the requests already waiting, which are kept; either switch off, or
+     * Send alerts back on, clears the alert state. Battery Guard off also clears next_check_at and the plug sighting.
+     * Returns the alerts that were cleared, so the caller can remove their notifications and start the flush job.
      */
-    suspend fun update(transform: (GuardSettings) -> GuardSettings) {
+    suspend fun update(transform: (GuardSettings) -> GuardSettings): List<AlertKind> {
+        var cleared = emptyList<AlertKind>()
         store.edit { p ->
             val old = readSettings(p)
             val new = transform(old).coerced()
             writeSettings(p, new)
-            // Battery Guard's alerts or Battery Guard off: its own waiting requests go; Cellular Check's stay (draft 5).
-            if ((old.alertsEnabled && !new.alertsEnabled) || (old.enabled && !new.enabled)) {
-                val kept = DeliveryPlan.keptWhenGuardTurnsOff(QueueCodec.decode(p[QUEUE]))
-                if (kept.isEmpty()) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(kept)
+            val change = SwitchOff.guard(old, new)
+            if (change.reset) {
+                val active = AlertStateCodec.decode(p[ALERT_STATE]).active
+                cleared = active.map { it.kind }
+                val by = change.cancelledBy
+                if (by != null && active.isNotEmpty()) {
+                    val reading = try { BatteryReader.read(app) } catch (e: Exception) { null }
+                    val bodies = SwitchOff.cancelled(active, by, reading?.level ?: 0,
+                        reading?.power ?: Power(false, BatteryStatus.Unknown), System.currentTimeMillis()).map(HttpAlerter::body)
+                    p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
+                }
+                p.remove(ALERT_STATE)       // default state: no active alerts, both counts 0
             }
             if (old.enabled && !new.enabled) {
-                p.remove(ALERT_STATE)       // default state: no active alerts, both counts 0
                 p.remove(NEXT_CHECK_AT)
                 clearPlug(p)        // a sighting from before is stale once checks stop
             }
         }
+        return cleared
     }
 
     suspend fun readAlertState(): AlertState = AlertStateCodec.decode(store.data.first()[ALERT_STATE])
@@ -95,14 +108,6 @@ class GuardStore(context: Context) {
             if (!guardItems || ((p[ENABLED] ?: false) && (p[ALERTS_ENABLED] ?: false))) {
                 p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
             }
-        }
-    }
-
-    /** Cellular Check switched off: its waiting requests are dropped, Battery Guard's stay. */
-    suspend fun dropCellularAlerts() {
-        store.edit { p ->
-            val rest = DeliveryPlan.withoutCellularAlerts(QueueCodec.decode(p[QUEUE]))
-            if (rest.isEmpty()) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(rest)
         }
     }
 

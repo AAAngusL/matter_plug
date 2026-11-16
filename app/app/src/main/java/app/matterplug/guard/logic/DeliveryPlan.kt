@@ -94,20 +94,6 @@ object DeliveryPlan {
         !addressValid || (!alertsOn && !statusOn)
 
     /** The events that go on the waiting list: Started and Recovered, only when alerts are on. Reminders are not kept. */
-    /**
-     * The waiting list after Battery Guard is switched off (BATTERY-GUARD.md 5.2 clears it): Battery Guard's own alerts
-     * go, Cellular Check's stay, because Cellular Check runs with Battery Guard off.
-     */
-    fun keptWhenGuardTurnsOff(queue: List<String>): List<String> = queue.filter { isCellular(it) }
-
-    /** The waiting list after Cellular Check is switched off: its alert ended, so its waiting requests go too. */
-    fun withoutCellularAlerts(queue: List<String>): List<String> = queue.filterNot { isCellular(it) }
-
-    /** Whether a waiting request belongs to Cellular Check: its body starts with one of Cellular Check's alert types. */
-    private fun isCellular(body: String): Boolean = CELLULAR_KINDS.any { body.startsWith("{\"alert\":\"$it\"") }
-
-    private val CELLULAR_KINDS = listOf("cellular_down", "weak_signal", "cellular_status")
-
     fun toEnqueue(events: List<AlertEvent>, alertsOn: Boolean): List<AlertEvent> =
         if (!alertsOn) emptyList() else events.filter { it.phase == AlertPhase.Started || it.phase == AlertPhase.Recovered }
 

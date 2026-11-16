@@ -18,6 +18,7 @@ import app.matterplug.cellular.logic.LoopbackOutcome
 import app.matterplug.cellular.logic.LoopbackPlan
 import app.matterplug.cellular.logic.LoopbackTrigger
 import app.matterplug.guard.BatteryReader
+import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardNotifier
 import app.matterplug.guard.GuardStore
 import app.matterplug.guard.HttpAlerter
@@ -202,6 +203,27 @@ object CellularRunner {
         Log.i(TAG, "alert: kind=${event.kind.wire} phase=${phase.wire} failed_layer=${summary.failedLayer?.wire}")
         GuardNotifier.post(ctx, listOf(event))
         return event
+    }
+
+    /**
+     * A switch closed the cellular_down alert (RECOVERY-SIGNALS.md 2.4): removes its notification and, when [by] is
+     * set, queues cancelled behind the waiting requests and starts the flush job. Never throws.
+     */
+    suspend fun closed(ctx: Context, closed: CellularStore.Closed) {
+        if (!closed.wasOpen) return
+        try {
+            GuardNotifier.cancel(ctx, listOf(AlertKind.CellularDown))
+            val by = closed.cancelledBy ?: return
+            val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
+            val e = AlertEvent(AlertKind.CellularDown, AlertPhase.Cancelled, battery?.level ?: 0, battery?.power ?: UNREAD_POWER,
+                null, System.currentTimeMillis(), cellular = summaryOf(CellularStore(ctx)), cancelledBy = by)
+            GuardStore(ctx).enqueue(listOf(HttpAlerter.body(e)), guardItems = false)
+            FlushJobService.schedule(ctx)
+            Log.i(TAG, "alert: kind=cellular_down phase=cancelled by=${by.wire}")
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "cancelled not queued", e)
+        }
     }
 
     private suspend fun summaryOf(store: CellularStore): CellularSummary {

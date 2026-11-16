@@ -46,6 +46,16 @@ class AlertJsonTest {
         }
     }
 
+    @Test fun cancelledCarriesCancelledByAfterTime() {
+        val e = sampleEvent.copy(phase = AlertPhase.Cancelled, cancelledBy = CancelledBy.GuardOff)
+        assertEquals(
+            """{"alert":"plug_unreachable","state":"cancelled","message":"m","battery":18,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"t","cancelled_by":"guard_off"}""",
+            AlertJson.encode(e, "m", "t"))
+    }
+
+    @Test fun onlyCancelledHasCancelledBy() =
+        assertFalse(AlertJson.encode(sampleEvent, "m", "t").contains("cancelled_by"))
+
     @Test fun messageIsEscaped() {
         val json = AlertJson.encode(sampleEvent, "a\"b\\c\nd\te", "t")
         assertTrue(json, json.contains(""""message":"a\"b\\c\nd\te","""))

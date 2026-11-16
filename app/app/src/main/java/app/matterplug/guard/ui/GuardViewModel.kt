@@ -262,8 +262,8 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     fun setAlertsEnabled(on: Boolean) {
         if (on && !refuseInvalidAddress()) return
         viewModelScope.launch {
-            store.update { it.copy(alertsEnabled = on) }      // the store clears the queue when turning off
-            if (!on) guarded("cancel flush job") { FlushJobService.cancel(getApplication<Application>()) }
+            // The store queues cancelled for the open alerts and keeps what waits (RECOVERY-SIGNALS.md 2.4).
+            GuardControl.afterSwitch(getApplication(), store, store.update { it.copy(alertsEnabled = on) })
         }
     }
 

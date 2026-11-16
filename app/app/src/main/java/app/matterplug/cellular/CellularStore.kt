@@ -15,6 +15,8 @@ import app.matterplug.cellular.logic.CellularCodec
 import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.cellular.logic.CellularState
 import app.matterplug.cellular.logic.CellularStateCodec
+import app.matterplug.guard.logic.CancelledBy
+import app.matterplug.guard.logic.SwitchOff
 import app.matterplug.cellular.logic.SentLog
 import app.matterplug.cellular.logic.SignalReading
 import app.matterplug.cellular.logic.SignalReadingCodec
@@ -51,8 +53,14 @@ class CellularStore(context: Context) {
 
     suspend fun readSettings(): CellularSettings = readSettings(store.data.first())
 
-    /** Applies [transform] and writes the result, coerced, in one edit. Switching off clears the next run time. */
-    suspend fun update(transform: (CellularSettings) -> CellularSettings) {
+    /**
+     * Applies [transform] and writes the result, coerced, in one edit. Switching off clears the next run time.
+     * The switches' effect on the alert (RECOVERY-SIGNALS.md 2.4, SwitchOff): either switch off, or Send cellular alerts
+     * back on, clears it and restarts its count, so a fault is confirmed again. Returns whether an alert was open and,
+     * when the server was being told about it, which switch closed it: the caller then sends cancelled.
+     */
+    suspend fun update(transform: (CellularSettings) -> CellularSettings): Closed {
+        var closed = Closed(false, null)
         store.edit { p ->
             val old = readSettings(p)
             val new = transform(old).coerced()
@@ -61,14 +69,27 @@ class CellularStore(context: Context) {
             p[SMS_TEST_MINUTES] = new.smsTestMinutes
             p[ALERTS_ENABLED] = new.alertsEnabled
             p[STATUS_ENABLED] = new.statusEnabled
-            if (old.enabled && !new.enabled) {
-                // Like Battery Guard (BATTERY-GUARD.md 5.2): switching off ends the alert and forgets the loopback state.
-                p.remove(NEXT_RUN_AT)
+            val change = SwitchOff.cellular(old, new)
+            if (change.reset) {
+                val open = CellularAlertCodec.decode(p[ALERT]) != null
+                closed = Closed(open, if (open) change.cancelledBy else null)
                 p.remove(ALERT)
+                if (new.enabled) {
+                    val s = CellularStateCodec.decode(p[STATE])
+                    p[STATE] = CellularStateCodec.encode(s.copy(failedInARow = 0, confirmedFault = null))
+                }
+            }
+            if (old.enabled && !new.enabled) {
+                // Like Battery Guard (BATTERY-GUARD.md 5.2): switching off forgets the loopback state.
+                p.remove(NEXT_RUN_AT)
                 p.remove(STATE)
             }
         }
+        return closed
     }
+
+    /** [wasOpen]: the alert was on and is now cleared. [cancelledBy]: send cancelled for it. */
+    data class Closed(val wasOpen: Boolean, val cancelledBy: CancelledBy?)
 
     /** Keeps the results of layers that did not run this time (the SMS layer, when no loopback was due). A null next time removes it. */
     suspend fun recordRun(atMs: Long, results: Map<Layer, LayerResult>, nextAtMs: Long?, signal: SignalReading?) {
