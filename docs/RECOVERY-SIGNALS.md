@@ -1,6 +1,6 @@
 # Reminders and Recovery Signals
 
-Draft 3, 2026-11-16, for review. All three questions are answered (section 4). Nothing here is built yet. It changes `BATTERY-GUARD.md` section 7, `CELLULAR-CHECK.md` section 8 and `ALERT-API.md` sections 4 and 5 once approved.
+Draft 3, 2026-11-16. All three questions are answered (section 4). Built in R1 to R5 (section 5). Nothing here is built yet. It changes `BATTERY-GUARD.md` section 7, `CELLULAR-CHECK.md` section 8 and `ALERT-API.md` sections 4 and 5 once approved.
 
 ## 1. The rule
 

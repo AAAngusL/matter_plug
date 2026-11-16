@@ -129,11 +129,11 @@ data class CellularRun(
 | The first confirmation loopback failed | One more loopback at the next run, 15 minutes later: two failures start the alert |
 | The alert is active and a passive layer still fails | No loopback. Nothing is sent until the passive layers pass again |
 | The alert is active and every passive layer passes again | A loopback at once, to prove the recovery. If it fails, the fault has become one only SMS shows (next row) |
-| The alert is active, every passive layer passes, and the last loopback failed | One loopback a day after the **SMS test time**, until one passes |
+| The alert is active, every passive layer passes, and the last loopback failed | One loopback an hour, just before each reminder, until one passes (`RECOVERY-SIGNALS.md` 2.3) |
 | Every passive layer passes, no alert, after the **SMS test time** (default 10:00) and no loopback passed today | Layer 4 as the **daily loopback** |
 | **Run cellular check now** button | Layers 1–4, whatever the state: the way to re-test by hand |
 
-A day with no fault therefore sends exactly one SMS. A fault the passive layers can see sends three, however long it lasts: two to confirm it, one to prove recovery. A fault only SMS shows sends one a day until it is fixed.
+A day with no fault therefore sends exactly one SMS. A fault the passive layers can see sends three, however long it lasts: two to confirm it, one to prove recovery. A fault only SMS shows sends one an hour until it is fixed.
 
 The same passive fault does not trigger a second pair of confirmations while it lasts. A new pair is sent only after a recovery, or when a different passive layer fails.
 
@@ -169,7 +169,7 @@ A fourth alert joins the three in `BATTERY-GUARD.md` section 7, with the same re
 |---|---|---|
 | **Cellular down** | Two loopbacks in a row fail, 15 minutes apart, whatever triggered them | A loopback passes |
 
-Reminders follow the existing 60-minute rule. Each reminder carries the latest passive readings and the latest loopback result.
+Reminders follow the existing 60-minute rule. Each reminder carries the latest passive readings and the latest loopback result; during a fault only SMS shows, it follows a fresh loopback. Switching Cellular Check or **Send cellular alerts** off ends an open alert with one `cancelled` request (`RECOVERY-SIGNALS.md` 2.4).
 
 ```json
 {
@@ -246,7 +246,7 @@ Test SMS sent: 1 today, 9 in the last 7 days
 |---|---|---|
 | 1 | The gateway software is later changed to forward, answer or count incoming SMS | The `MPCHK` prefix; section 7 says what the gateway must then drop |
 | 2 | Test SMS cost money | One a day when healthy; three per fault the passive layers can see, however long it lasts; most outage confirmations fail on the phone and cost nothing; the count is shown |
-| 2a | A recovery the passive layers cannot see is noticed late | Only for faults only SMS shows: re-tested daily, or by hand with **Run cellular check now** |
+| 2a | A recovery the passive layers cannot see is noticed late | Only for faults only SMS shows: re-tested hourly (`RECOVERY-SIGNALS.md` 2.3), or by hand with **Run cellular check now** |
 | 3 | A brief passive dip sends a needless SMS | Accepted in review: it is one SMS, shown as a warning, not an alert. Signal only fails at 0 bars, which avoids most dips |
 | 4 | Some networks never send delivery reports | A missing report is a warning; the received loopback is the proof |
 | 5 | Registration looks fine but SMS still fails (barred SIM, SMS centre fault) | The daily loopback |

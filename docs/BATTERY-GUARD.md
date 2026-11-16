@@ -239,9 +239,9 @@ The "plug unreachable" alert therefore arrives about one check interval after th
 
 | Alert | Starts when | Ends when |
 |---|---|---|
-| **Not charging** | The battery is at or below the low threshold, the plug was turned on and confirmed, and the phone is still not plugged in 30 seconds later | The phone is plugged in |
+| **Not charging** | The battery is at or below the low threshold, the plug was turned on and confirmed, and the phone is still not plugged in 30 seconds later | The battery takes charge: plugged in, and Android's battery status is charging or full (`RECOVERY-SIGNALS.md` 2.1) |
 | **Plug unreachable** | The plug could not be reached at two checks in a row, by a switch (either direction) or, with no switch needed, by the read-only check (`PLUG-WATCH.md`) | The plug is reached again: a switch succeeds or a read answers. A check with no switch needed no longer ends it |
-| **Battery Guard not working** | A check finds a fault of Battery Guard itself (exact alarms not allowed, battery unreadable, service could not start) at two checks in a row | A check finds none of those faults |
+| **Battery Guard not working** | A check finds a fault of Battery Guard itself (exact alarms not allowed, battery unreadable, service could not start) at two checks in a row | The fault is proved gone: the battery is read, exact alarms are allowed, or the service starts. A check that needs no switch does not try the service, so it does not end that reason (`RECOVERY-SIGNALS.md` 2.2) |
 
 The first condition is not "battery low and not plugged in" at the moment the threshold is reached: that is true for a few seconds in every normal cycle, just before the plug is turned on. The alert is for when turning the plug on did not power the phone.
 
@@ -252,6 +252,7 @@ The first condition is not "battery low and not plugged in" at the moment the th
 | An alert starts | One request at once |
 | The alert is still active | One reminder every 60 minutes, with the current battery level |
 | The alert ends | One "recovered" request |
+| A switch closes the alert | One "cancelled" request (`RECOVERY-SIGNALS.md` 2.4) |
 
 Each alert type is tracked separately. There is no quiet period: a reminder is sent every 60 minutes at any hour. The alert state is stored, so a restart does not send duplicates.
 
@@ -333,12 +334,12 @@ A small Go program for the computer, written as part of this project (build step
 | Action | What happens |
 |---|---|
 | **Send alerts** switched on | An alert address is required. Nothing is sent just because the switch was turned on; alerts are raised from the next check |
-| **Send alerts** switched off | New alerts and reminders stop. No "recovered" request is sent. The list of waiting alerts is cleared. Notifications on the phone continue |
+| **Send alerts** switched off | One "cancelled" request per open alert, after the waiting requests, which are kept and sent. The alert state is cleared. New alerts and reminders stop. Notifications on the phone continue for new faults. Switching it back on clears the alert state again, so a fault still there is confirmed again and sends a new "started" |
 | **Alert address** changed | Waiting alerts are sent to the new address. Alerts that were already delivered are not sent again |
 | **Send test alert** pressed | Works whether or not **Send alerts** is on, as long as the address is valid. It posts a `test` request, shows the response status or the failure, and does not change the alert state or the waiting list |
 | Phone restarted | The alert state, the count of failed checks, the time of the last reminder and the waiting list are restored from storage, so no duplicate alert is sent and reminders keep their hourly spacing |
 | **Send status after every check** switched on or off | Takes effect at the next check. Nothing waiting is cleared. Turning it off stops the reports, and the receiver's silence alarm will then fire; tell the receiver by stopping it, or expect the alarm |
-| **Keep battery between** switched off | There are no checks, so no new alerts or status reports. An alert that is active at that moment is cleared: no "recovered" request is sent, reminders stop, and the list of waiting alerts is emptied |
+| **Keep battery between** switched off | There are no checks, so no new alerts or status reports. Each alert active at that moment ends with one "cancelled" request; the waiting requests are kept and sent first, by the flush job. Reminders stop |
 
 ### Network rules on Android
 
