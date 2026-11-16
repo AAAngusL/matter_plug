@@ -178,6 +178,8 @@ Reminders follow the existing 60-minute rule. Each reminder carries the latest p
   "message": "Matter Plug: SMS service unavailable: not registered (out of service); the test SMS was not sent: no service. Battery 64%.",
   "battery": 64,
   "charging": true,
+  "plugged_in": true,
+  "battery_status": "charging",
   "time": "2026-11-14T10:20:12-05:00",
   "cellular": {
     "trigger": "confirmation",

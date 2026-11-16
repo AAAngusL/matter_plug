@@ -11,6 +11,10 @@ Changes in draft 7, from the second grill session:
 - A high threshold of 100 means "never turn off" (section 4).
 - The receiver is a Go program.
 
+Changes on 2026-11-16:
+
+- `charging` in every request now follows Android's battery status (the battery is taking charge). Two fields are added: `plugged_in`, the old meaning, and `battery_status`. The switching rule and the "not charging" alert still go by plugged in (section 3).
+
 Changes in draft 6, from the design review:
 
 - "Charging" now means the phone is **plugged in** to power, not that the battery is actively charging (section 4).
@@ -62,7 +66,8 @@ It must work unattended, with the app closed and the screen off, and use very li
 |---|---|
 | **Battery Guard** | The feature: keeping the phone's battery inside a band by switching the charger plug |
 | **Charger plug** | The plug that Battery Guard switches; the phone's charger is plugged into it |
-| **Plugged in** | The phone is connected to a power source. This is what the rule means by "charging" |
+| **Plugged in** | The phone is connected to a power source. The switching rule uses this, not whether the battery is charging |
+| **Charging** | Android reports that the battery is taking charge (its battery status). A plugged-in phone can be not charging: full, or held at a charge limit such as Samsung's 85% "Protect battery" |
 | **Low threshold** | Battery percentage at or below which the charger plug is turned on |
 | **High threshold** | Battery percentage at or above which the charger plug is turned off |
 | **Band** | The range between the two thresholds, where Battery Guard does nothing |
@@ -83,7 +88,8 @@ It must work unattended, with the app closed and the screen off, and use very li
 | How the battery is watched | A scheduled check at the check interval; no always-running service | The app is not running between checks, so it uses almost no battery, and there is no service for the phone to kill |
 | What a check costs | Wake, read the battery level, schedule the next check, exit; plus one small request if status reports are on | Most checks find the battery inside the band and do nothing else |
 | When the Matter library is loaded | Only in a check that needs a switch | Loading it starts network discovery, which is the expensive part |
-| What "charging" means | The phone is plugged in to power | Independent of any charge limit the phone applies to itself |
+| What the switching rule reads | Whether the phone is plugged in to power, not whether the battery is charging | Independent of any charge limit the phone applies to itself: at 84% under an 85% limit the phone is plugged in but not charging, and must not count as on battery |
+| What `charging` reports | Android's own battery status, with `plugged_in` and `battery_status` beside it (`ALERT-API.md` section 3) | The receiver sees what `dumpsys battery` shows, and can still tell "on power" from "taking charge" |
 | What triggers a switch | Battery level and plugged-in state together (section 4) | Makes every check safe to repeat and avoids pointless commands |
 | Manual use of the plug | The on-screen toggle always works; Battery Guard overrides it at the thresholds | The gateway's uptime comes first. To keep the plug off, switch Battery Guard off |
 | Check interval | One drop-down list, 5/10/15/30/60 minutes, default 15, for every check | One setting is easier to understand; the overshoot above the high threshold (section 4) is set by it |
@@ -261,6 +267,8 @@ Each alert type is tracked separately. There is no quiet period: a reminder is s
   "message": "Matter Plug: battery 18%, not charging. The charger plug cannot be reached.",
   "battery": 18,
   "charging": false,
+  "plugged_in": false,
+  "battery_status": "discharging",
   "time": "2026-11-11T09:47:12-05:00"
 }
 ```
@@ -271,7 +279,9 @@ Each alert type is tracked separately. There is no quiet period: a reminder is s
 | `state` | `started`, `reminder`, `recovered`, `status`, or `test` |
 | `message` | A ready-to-display sentence (the texts below) |
 | `battery` | Battery percentage when the alert was raised |
-| `charging` | Whether the phone was plugged in |
+| `charging` | Whether the battery was taking charge (Android's battery status is charging) |
+| `plugged_in` | Whether the phone was plugged in to power |
+| `battery_status` | Android's battery status: `charging`, `discharging`, `not_charging`, `full` or `unknown` |
 | `time` | When the event happened, with the UTC offset. This matters when a request is delivered late |
 | `next_check_in_min` | Only in a status report: minutes until the next check, so the receiver knows when to expect the next one |
 
@@ -288,8 +298,8 @@ Each alert type is tracked separately. There is no quiet period: a reminder is s
 | Plug unreachable, high | `Matter Plug: battery 87%. The charger plug cannot be reached to turn it off.` |
 | Battery Guard not working | `Matter Plug: Battery Guard is not working: exact alarms not allowed. Battery 18%.` (the reason is one of `exact alarms not allowed`, `battery unreadable`, `service could not start`) |
 | Reminder | The same text, starting `Matter Plug (reminder):` |
-| Recovered | `Matter Plug: recovered. Battery 24%, charging.` |
-| Status report | `Matter Plug: status. Battery 64%, plugged in.` or `... on battery.` |
+| Recovered | `Matter Plug: recovered. Battery 24%, charging.` (the power words as in the status report) |
+| Status report | `Matter Plug: status. Battery 64%, charging.`, `... plugged in, full.`, `... plugged in, not charging.`, `... plugged in, discharging.`, `... plugged in.` (status unknown) or `... on battery.` |
 
 ### Status reports
 
@@ -388,7 +398,7 @@ A "Battery Guard" section on the Charger plug's screen. On any other plug the se
 
 Below the controls:
 
-- Status: "Last check 21:40: battery 64%, plugged in. Next check 21:55." and "Last switch: off at 87%, 21:10."
+- Status: "Last check 21:40: battery 64%, charging. Next check 21:55." The power words are those of the status report: "charging", "plugged in, not charging", "on battery" and so on. and "Last switch: off at 87%, 21:10."
 - Alert state: "No active alerts" or "Plug unreachable since 20:15, last alert sent 21:15."
 - Delivery: "Last alert delivered 21:15" or "Last alert failed 21:15 (no connection). 2 waiting."
 - Test result: shown next to the test button, for example "200 OK" or "no connection". The button works with **Send alerts** off.

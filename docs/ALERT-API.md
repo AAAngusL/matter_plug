@@ -1,6 +1,6 @@
 # Alert API: Requests the Phone Sends
 
-For anyone programming the server at the **alert address**. It lists every request the app sends, from Battery Guard and from Cellular Check: each type, each field, and which fields are optional. It describes the app as built on 2026-11-14, in the same commit as this document (signal strength step S3). One type, `weak_signal`, is designed but not built yet; it is listed at the end so the server can be ready for it.
+For anyone programming the server at the **alert address**. It lists every request the app sends, from Battery Guard and from Cellular Check: each type, each field, and which fields are optional. It describes the app as built on 2026-11-14, in the same commit as this document (signal strength step S3), with the charging fields of 2026-11-16: `charging` now follows Android's battery status, and `plugged_in` carries its old meaning (section 3). One type, `weak_signal`, is designed but not built yet; it is listed at the end so the server can be ready for it.
 
 ## 1. Transport
 
@@ -40,7 +40,9 @@ With both features on and both status switches on, a server receives **two statu
 | `state` | string | yes | `started`, `reminder`, `recovered`, `status` or `test` |
 | `message` | string | yes | A ready-to-display sentence in English (texts in section 5). Do not parse it: every value in it is also in a field |
 | `battery` | integer 0–100 | yes | Battery percentage when the event happened. `0` when the battery could not be read |
-| `charging` | boolean | yes | Whether the phone is plugged in to power (not whether the battery is actually charging) |
+| `charging` | boolean | yes | Whether the battery is taking charge: Android reports its battery status as charging (`battery_status` is `charging`). `false` when the phone is plugged in but the battery is full, held at a charge limit, or not charging for another reason |
+| `plugged_in` | boolean | yes | Whether the phone is connected to power (AC, USB, wireless or dock), whether or not the battery takes charge. Battery Guard switches the plug by this |
+| `battery_status` | string | yes | Android's battery status, as `adb shell dumpsys battery` shows it: `charging`, `discharging`, `not_charging`, `full` or `unknown`. `unknown` also when the battery could not be read at that moment |
 | `time` | string | yes | When the event happened, ISO 8601 with the phone's UTC offset, whole seconds, e.g. `2026-11-14T20:10:50-06:00`. Use it, not the arrival time: queued requests arrive late |
 
 ### Extra fields
@@ -110,11 +112,20 @@ What a server must allow for:
 After every Battery Guard check, with **Send status after every check** on.
 
 ```json
-{"alert":"status","state":"status","message":"Matter Plug: status. Battery 84%, plugged in.",
- "battery":84,"charging":true,"time":"2026-11-14T20:10:50-06:00","next_check_in_min":15}
+{"alert":"status","state":"status","message":"Matter Plug: status. Battery 84%, plugged in, not charging.",
+ "battery":84,"charging":false,"plugged_in":true,"battery_status":"not_charging","time":"2026-11-14T20:10:50-06:00","next_check_in_min":15}
 ```
 
-Message: `Matter Plug: status. Battery <n>%, plugged in.` or `… on battery.`
+Message: `Matter Plug: status. Battery <n>%, <power>.` where `<power>` is:
+
+| `plugged_in` | `battery_status` | `<power>` |
+|---|---|---|
+| `false` | any | `on battery` |
+| `true` | `charging` | `charging` |
+| `true` | `full` | `plugged in, full` |
+| `true` | `not_charging` | `plugged in, not charging` |
+| `true` | `discharging` | `plugged in, discharging` |
+| `true` | `unknown` | `plugged in` |
 
 #### `not_charging` (states `started`, `reminder`, `recovered`)
 
@@ -124,7 +135,7 @@ The battery was at or below the low threshold, the charger plug was switched on 
 |---|---|
 | `started` | `Matter Plug: battery 18%, not charging. The plug is on. Check the charger and cable.` |
 | `reminder` | `Matter Plug (reminder): battery 18%, not charging. The plug is on. Check the charger and cable.` |
-| `recovered` | `Matter Plug: recovered. Battery 24%, charging.` (or `not charging.`) |
+| `recovered` | `Matter Plug: recovered. Battery 24%, <power>.` (`<power>` as in `status`) |
 
 #### `plug_unreachable` (states `started`, `reminder`, `recovered`)
 
@@ -136,7 +147,7 @@ The charger plug could not be reached at two checks in a row: by a switch, or, w
 | `started`, needed off | `Matter Plug: battery 87%. The charger plug cannot be reached to turn it off.` |
 | `started`, no switch needed | `Matter Plug: battery 72%. The charger plug cannot be reached.` |
 | `reminder` | The same text, starting `Matter Plug (reminder): ` |
-| `recovered` | `Matter Plug: recovered. Battery <n>%, charging.` (or `not charging.`) |
+| `recovered` | `Matter Plug: recovered. Battery <n>%, <power>.` (`<power>` as in `status`) |
 
 #### `guard_degraded` (states `started`, `reminder`, `recovered`)
 
@@ -146,14 +157,14 @@ Battery Guard found a fault of its own at two checks in a row. Ends at the first
 |---|---|
 | `started` | `Matter Plug: Battery Guard is not working: <reason>. Battery <n>%.` where `<reason>` is `exact alarms not allowed`, `battery unreadable` or `service could not start` |
 | `reminder` | The same text, starting `Matter Plug (reminder): ` |
-| `recovered` | `Matter Plug: recovered. Battery <n>%, charging.` (or `not charging.`) |
+| `recovered` | `Matter Plug: recovered. Battery <n>%, <power>.` (`<power>` as in `status`) |
 
 #### `test` (state `test`)
 
 Sent when **Send test alert** is tapped, whatever the switches. Never kept or retried.
 
 ```json
-{"alert":"test","state":"test","message":"Matter Plug: test alert.","battery":84,"charging":true,"time":"2026-11-14T20:15:02-06:00"}
+{"alert":"test","state":"test","message":"Matter Plug: test alert.","battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-14T20:15:02-06:00"}
 ```
 
 #### Reminders
@@ -169,7 +180,7 @@ After every cellular run, with **Send cellular status after every check** on, wh
 ```json
 {"alert":"cellular_status","state":"status",
  "message":"Matter Plug: cellular status: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
- "battery":84,"charging":true,"time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
+ "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
  "cellular":{"trigger":"daily","sim":"pass","registration":"pass","signal":"pass","sms":"pass",
              "signal_detail":"LTE, RSRP -97 dBm, RSRQ -11 dB, SINR 8 dB",
              "signal_reading":{"rat":"lte","level":3,"rsrp_dbm":-97,"rsrq_db":-11,"sinr_db":8,"read_at":"2026-11-14T20:10:50-06:00"}}}
@@ -191,7 +202,7 @@ Two test SMS in a row failed, whatever triggered them. Ends when a test SMS pass
 ```json
 {"alert":"cellular_down","state":"started",
  "message":"Matter Plug: SMS service unavailable: SIM absent; the test SMS was not sent: no default sms app (code 32). Battery 84%.",
- "battery":84,"charging":true,"time":"2026-11-14T19:42:10-06:00",
+ "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-14T19:42:10-06:00",
  "cellular":{"trigger":"manual","failed_layer":"sim","reason":"SIM absent","sim":"fail","registration":"skipped",
              "signal":"skipped","sms":"fail","sms_reason":"not sent: no default sms app (code 32)","signal_detail":"none"}}
 ```

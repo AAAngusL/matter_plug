@@ -138,7 +138,7 @@ Sent at every cellular run while Cellular Check is on and **Send cellular status
 ```json
 {"alert":"cellular_status","state":"status",
  "message":"Matter Plug: cellular status: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
- "battery":84,"charging":true,"time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
+ "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
  "cellular":{"sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE, RSRP -97 dBm, …",
              "signal_reading":{"rat":"lte","level":3,"rsrp_dbm":-97,"rsrq_db":-11,"sinr_db":8,"read_at":"2026-11-14T20:10:50-06:00"}}}
 ```
