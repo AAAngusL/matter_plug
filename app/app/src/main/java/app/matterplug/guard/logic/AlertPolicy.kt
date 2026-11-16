@@ -27,18 +27,23 @@ object AlertPolicy {
             out += AlertEvent(k, AlertPhase.Recovered, battery, pluggedIn, a.wantedOn, nowMs, a.detail)
         }
 
+        fun reached() {
+            failed = 0
+            recover(AlertKind.PlugUnreachable)
+        }
+        /** A switch failure and a missed read share one count and one alert; [wantedOn] is null for a read. */
+        fun missed(wantedOn: Boolean?) {
+            failed += 1
+            if (failed >= FAILS_BEFORE_ALERT && !isActive(AlertKind.PlugUnreachable)) start(AlertKind.PlugUnreachable, wantedOn)
+        }
+
         for (e in checkEvents) {
             when (e) {
-                CheckEvent.NoSwitchNeeded, is CheckEvent.SwitchConfirmed -> {
-                    failed = 0
-                    recover(AlertKind.PlugUnreachable)
-                }
-                is CheckEvent.SwitchFailed -> {
-                    failed += 1
-                    if (failed >= FAILS_BEFORE_ALERT && !isActive(AlertKind.PlugUnreachable)) {
-                        start(AlertKind.PlugUnreachable, e.wantedOn)
-                    }
-                }
+                // PLUG-WATCH.md section 4: only reaching the plug ends the alert; no switch needed says nothing about it.
+                CheckEvent.NoSwitchNeeded -> {}
+                is CheckEvent.SwitchConfirmed -> reached()
+                is CheckEvent.SwitchFailed -> missed(e.wantedOn)
+                is CheckEvent.PlugRead -> if (e.reached) reached() else missed(null)
                 is CheckEvent.PowerWait -> {
                     if (!e.pluggedIn && !isActive(AlertKind.NotCharging)) start(AlertKind.NotCharging, null)
                 }

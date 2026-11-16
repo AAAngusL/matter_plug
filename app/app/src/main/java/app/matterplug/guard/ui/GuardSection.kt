@@ -341,7 +341,11 @@ private fun StatusLineText(line: StatusLine) {
         is StatusLine.Alert -> when (line.kind) {
             AlertKind.NotCharging -> stringResource(R.string.guard_alert_not_charging, line.sinceTime, line.lastSentTime)
             AlertKind.PlugUnreachable -> stringResource(
-                if (line.wantedOn == false) R.string.guard_alert_unreachable_off else R.string.guard_alert_unreachable_on,
+                when (line.wantedOn) {
+                    false -> R.string.guard_alert_unreachable_off
+                    true -> R.string.guard_alert_unreachable_on
+                    null -> R.string.guard_alert_unreachable_read      // started from a plug read (PLUG-WATCH.md)
+                },
                 line.sinceTime, line.lastSentTime,
             )
             AlertKind.GuardDegraded -> stringResource(

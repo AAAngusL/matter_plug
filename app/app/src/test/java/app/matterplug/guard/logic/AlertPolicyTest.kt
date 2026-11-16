@@ -59,20 +59,70 @@ class AlertPolicyTest {
         assertEquals(0, r.state.failedChecks)
     }
 
-    // 4
-    @Test fun scenario4_recoveryByNoSwitchNeeded() {
+    // 4 (PLUG-WATCH.md section 4): a check with no switch needed did not reach the plug, so it is not a recovery
+    @Test fun scenario4_noSwitchNeededDoesNotRecover() {
         val r = step(unreachableActive(), listOf(CheckEvent.NoSwitchNeeded), 10, battery = 40)
+        assertTrue(r.events.isEmpty())
+        assertEquals(listOf(AlertKind.PlugUnreachable), r.state.active.map { it.kind })
+        assertEquals(2, r.state.failedChecks)
+    }
+
+    // 5
+    @Test fun scenario5_failureReachedFailureDoesNotStart() {
+        val r = step(AlertState(), listOf(fail, reached, fail), 0)
+        assertEquals(1, r.state.failedChecks)
+        assertTrue(r.events.isEmpty())
+        assertTrue(r.state.active.isEmpty())
+    }
+
+    private val reached = CheckEvent.PlugRead(true)
+    private val missed = CheckEvent.PlugRead(false)
+
+    // P1 (PLUG-WATCH.md section 4): two missed reads start the alert, with no wanted switch
+    @Test fun plugRead_twoMissesStartTheAlert() {
+        val r1 = step(AlertState(), listOf(CheckEvent.NoSwitchNeeded, missed), 0, battery = 72)
+        assertTrue(r1.events.isEmpty())
+        assertEquals(1, r1.state.failedChecks)
+        val r2 = step(r1.state, listOf(CheckEvent.NoSwitchNeeded, missed), 5, battery = 72)
+        val e = r2.events.single()
+        assertEquals(AlertKind.PlugUnreachable to AlertPhase.Started, e.kind to e.phase)
+        assertEquals(null, e.wantedOn)
+        assertEquals(null, r2.state.active.single().wantedOn)
+        assertEquals("Matter Plug: battery 72%. The charger plug cannot be reached.", AlertMessages.text(e))
+    }
+
+    @Test fun plugRead_reachedRecovers() {
+        var r = step(AlertState(), listOf(missed), 0)
+        r = step(r.state, listOf(missed), 5)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded, reached), 10, battery = 72)
         assertEquals(listOf(AlertKind.PlugUnreachable to AlertPhase.Recovered), r.events.phases())
         assertTrue(r.state.active.isEmpty())
         assertEquals(0, r.state.failedChecks)
     }
 
-    // 5
-    @Test fun scenario5_failureNoneFailureDoesNotStart() {
-        val r = step(AlertState(), listOf(fail, CheckEvent.NoSwitchNeeded, fail), 0)
-        assertEquals(1, r.state.failedChecks)
+    @Test fun plugRead_aMissAndASwitchFailureShareTheCount() {
+        var r = step(AlertState(), listOf(missed), 0, battery = 21)
+        r = step(r.state, listOf(fail), 5, battery = 20)
+        assertEquals(listOf(AlertKind.PlugUnreachable to AlertPhase.Started), r.events.phases())
+        assertEquals(true, r.events.single().wantedOn)
+    }
+
+    @Test fun plugRead_oneAlertWhenAReadAlertMeetsASwitchFailure() {
+        var r = step(AlertState(), listOf(missed), 0, battery = 72)
+        r = step(r.state, listOf(missed), 5, battery = 72)
+        r = step(r.state, listOf(fail), 10, battery = 20)
         assertTrue(r.events.isEmpty())
-        assertTrue(r.state.active.isEmpty())
+        assertEquals(1, r.state.active.size)
+        assertEquals(3, r.state.failedChecks)
+    }
+
+    @Test fun plugRead_reachedResetsAFirstMiss() {
+        var r = step(AlertState(), listOf(missed), 0)
+        r = step(r.state, listOf(reached), 5)
+        assertEquals(0, r.state.failedChecks)
+        r = step(r.state, listOf(missed), 10)
+        assertTrue(r.events.isEmpty())
+        assertEquals(1, r.state.failedChecks)
     }
 
     private val notCharging = listOf(CheckEvent.SwitchConfirmed(true), CheckEvent.PowerWait(false))
@@ -238,8 +288,8 @@ class AlertPolicyTest {
         // Degraded recovers alone.
         r = step(r.state, listOf(fail), 63)
         assertEquals(listOf(AlertKind.GuardDegraded to AlertPhase.Recovered), r.events.phases())
-        // PlugUnreachable recovers alone.
-        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 64)
+        // PlugUnreachable recovers alone, when the plug is reached.
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded, reached), 64)
         assertEquals(listOf(AlertKind.PlugUnreachable to AlertPhase.Recovered), r.events.phases())
         assertEquals(listOf(AlertKind.NotCharging), r.state.active.map { it.kind })
         // NotCharging recovers alone.

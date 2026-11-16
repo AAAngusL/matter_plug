@@ -13,7 +13,8 @@ enum class AlertPhase(val wire: String) {
     Started("started"), Reminder("reminder"), Recovered("recovered"), Status("status"), Test("test")
 }
 
-/** wantedOn: for PlugUnreachable, true if the switch that failed was On (battery low), false if Off (battery high); null otherwise.
+/** wantedOn: for PlugUnreachable, true if the switch that failed was On (battery low), false if Off (battery high); null when it
+ *  started from a plug read with no switch wanted (PLUG-WATCH.md), and for other kinds.
  *  detail: for GuardDegraded, the reason ("exact alarms not allowed", "battery unreadable", "service could not start"); null otherwise. */
 data class ActiveAlert(
     val kind: AlertKind, val startedAtMs: Long, val lastSentAtMs: Long,
@@ -29,6 +30,7 @@ data class AlertState(
 /** What one check observed, in order. A switch On that is confirmed is followed by a PowerWait. */
 sealed interface CheckEvent {
     data object NoSwitchNeeded : CheckEvent
+    data class PlugRead(val reached: Boolean) : CheckEvent             // PLUG-WATCH.md: a read-only check of the charger plug
     data class SwitchConfirmed(val on: Boolean) : CheckEvent
     data class SwitchFailed(val wantedOn: Boolean) : CheckEvent      // not reached, or not confirmed
     data class PowerWait(val pluggedIn: Boolean) : CheckEvent         // result of the 30-second wait

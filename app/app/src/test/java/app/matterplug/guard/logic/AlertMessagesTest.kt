@@ -22,6 +22,15 @@ class AlertMessagesTest {
         "Matter Plug: battery 87%. The charger plug cannot be reached to turn it off.",
         AlertMessages.text(ev(AlertKind.PlugUnreachable, AlertPhase.Started, battery = 87, plugged = true, wantedOn = false)))
 
+    // PLUG-WATCH.md section 4: started from a plug read, no switch wanted; the phone may be charging from another source
+    @Test fun unreachableNoSwitchWanted() = assertEquals(
+        "Matter Plug: battery 72%. The charger plug cannot be reached.",
+        AlertMessages.text(ev(AlertKind.PlugUnreachable, AlertPhase.Started, battery = 72, plugged = true, wantedOn = null)))
+
+    @Test fun unreachableNoSwitchWantedReminder() = assertEquals(
+        "Matter Plug (reminder): battery 72%. The charger plug cannot be reached.",
+        AlertMessages.text(ev(AlertKind.PlugUnreachable, AlertPhase.Reminder, battery = 72, wantedOn = null)))
+
     @Test fun guardNotWorkingExactAlarms() = assertEquals(
         "Matter Plug: Battery Guard is not working: exact alarms not allowed. Battery 18%.",
         AlertMessages.text(ev(AlertKind.GuardDegraded, AlertPhase.Started, detail = "exact alarms not allowed")))

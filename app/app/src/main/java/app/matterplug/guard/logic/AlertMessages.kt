@@ -15,8 +15,11 @@ object AlertMessages {
     private fun body(e: AlertEvent): String = when (e.kind) {
         AlertKind.NotCharging -> "Matter Plug: battery ${e.battery}%, not charging. The plug is on. Check the charger and cable."
         AlertKind.PlugUnreachable ->
-            if (e.wantedOn == false) "Matter Plug: battery ${e.battery}%. The charger plug cannot be reached to turn it off."
-            else "Matter Plug: battery ${e.battery}%, not charging. The charger plug cannot be reached."
+            when (e.wantedOn) {
+                false -> "Matter Plug: battery ${e.battery}%. The charger plug cannot be reached to turn it off."
+                true -> "Matter Plug: battery ${e.battery}%, not charging. The charger plug cannot be reached."
+                null -> "Matter Plug: battery ${e.battery}%. The charger plug cannot be reached."     // from a plug read
+            }
         AlertKind.GuardDegraded -> "Matter Plug: Battery Guard is not working: ${e.detail ?: "unknown fault"}. Battery ${e.battery}%."
         AlertKind.CellularDown -> e.cellular?.let { CellularReport.downText(it, e.battery) } ?: "Matter Plug: SMS is not working. Battery ${e.battery}%."
         AlertKind.Status, AlertKind.Test, AlertKind.CellularStatus -> "Matter Plug: test alert."   // not reached: Status and Test use their phase's text above
