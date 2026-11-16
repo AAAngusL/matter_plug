@@ -30,6 +30,7 @@ data class AlertState(
 /** What one check observed, in order. A switch On that is confirmed is followed by a PowerWait. */
 sealed interface CheckEvent {
     data object NoSwitchNeeded : CheckEvent
+    data object NoPlug : CheckEvent                                   // no charger plug to watch: nothing can be unreachable
     data class PlugRead(val reached: Boolean) : CheckEvent             // PLUG-WATCH.md: a read-only check of the charger plug
     data class SwitchConfirmed(val on: Boolean) : CheckEvent
     data class SwitchFailed(val wantedOn: Boolean) : CheckEvent      // not reached, or not confirmed

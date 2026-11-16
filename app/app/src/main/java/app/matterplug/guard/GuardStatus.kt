@@ -1,6 +1,7 @@
 package app.matterplug.guard
 
 import app.matterplug.guard.logic.AlertState
+import app.matterplug.guard.logic.PlugSighting
 
 /** Everything the settings screen shows under the controls. Null means "never recorded". */
 data class GuardStatus(
@@ -17,4 +18,5 @@ data class GuardStatus(
     val lastRunError: String? = null,
     val queueSize: Int = 0,
     val alertState: AlertState = AlertState(),   // added to the document's list: the alert state line needs it
+    val plug: PlugSighting = PlugSighting(),     // PLUG-WATCH.md section 7
 )

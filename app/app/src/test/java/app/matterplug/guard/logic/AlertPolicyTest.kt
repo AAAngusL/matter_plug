@@ -91,6 +91,14 @@ class AlertPolicyTest {
         assertEquals("Matter Plug: battery 72%. The charger plug cannot be reached.", AlertMessages.text(e))
     }
 
+    // No charger plug (unpaired or removed): nothing to reach, so an active alert ends and the count resets
+    @Test fun noPlug_recoversTheAlert() {
+        val r = step(unreachableActive(), listOf(CheckEvent.NoSwitchNeeded, CheckEvent.NoPlug), 10, battery = 40)
+        assertEquals(listOf(AlertKind.PlugUnreachable to AlertPhase.Recovered), r.events.phases())
+        assertTrue(r.state.active.isEmpty())
+        assertEquals(0, r.state.failedChecks)
+    }
+
     @Test fun plugRead_reachedRecovers() {
         var r = step(AlertState(), listOf(missed), 0)
         r = step(r.state, listOf(missed), 5)

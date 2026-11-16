@@ -15,6 +15,8 @@ sealed interface StatusLine {
     data class LastCheck(val time: String, val level: Int?, val pluggedIn: Boolean?, val nextTime: String?) : StatusLine
     data class LastSwitch(val on: Boolean, val level: Int, val time: String) : StatusLine
     data object NoAlerts : StatusLine
+    data class PlugReached(val time: String, val on: Boolean?) : StatusLine      // PLUG-WATCH.md section 7
+    data class PlugMissed(val sinceTime: String) : StatusLine
     /** One per active alert. [detail] only for the third alert; [wantedOn] only for PlugUnreachable. */
     data class Alert(val kind: AlertKind, val sinceTime: String, val lastSentTime: String, val wantedOn: Boolean?, val detail: String?) : StatusLine
     data class DeliveryNone(val waiting: Int) : StatusLine
@@ -47,6 +49,13 @@ object StatusText {
         }
         val swAt = s.lastSwitchAt; val swOn = s.lastSwitchOn; val swLevel = s.lastSwitchLevel
         if (swAt != null && swOn != null && swLevel != null) out += StatusLine.LastSwitch(swOn, swLevel, formatTime(swAt))
+
+        if (enabled) {      // PLUG-WATCH.md section 7: a miss wins over the last reach
+            val p = s.plug
+            val missed = p.missedSince; val reachedAt = p.reachedAt
+            if (missed != null) out += StatusLine.PlugMissed(formatTime(missed))
+            else if (reachedAt != null) out += StatusLine.PlugReached(formatTime(reachedAt), p.on)
+        }
 
         if (s.alertState.active.isEmpty()) out += StatusLine.NoAlerts
         else for (a: ActiveAlert in s.alertState.active) {

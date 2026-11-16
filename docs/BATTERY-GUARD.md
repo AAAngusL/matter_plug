@@ -46,7 +46,7 @@ It must work unattended, with the app closed and the screen off, and use very li
 
 | Earlier decision | Now |
 |---|---|
-| The app talks to the plug only while it is on screen | A scheduled check also talks to the plug, but only when a switch is needed |
+| The app talks to the plug only while it is on screen | A scheduled check also talks to the plug: to switch it when a switch is needed, otherwise a read-only check that it answers (`PLUG-WATCH.md`) |
 | Schedules and automations are a non-goal | This one automation is in scope; general automations are still a non-goal |
 | The app talks only to the plug | The app also sends HTTP requests to one address the user sets, for alerts |
 
@@ -206,6 +206,7 @@ Every case is re-evaluated at the next check, because the rule is safe to repeat
 | Situation | What Battery Guard does | Alert |
 |---|---|---|
 | A switch is needed and the plug cannot be reached | Counts a failed check and tries again at the next check, on both sides of the band | **Plug unreachable**, at the second failed check in a row |
+| No switch is needed and the plug does not answer the read (`PLUG-WATCH.md`) | Counts a failed check, in the same count as a failed switch | **Plug unreachable**, at the second failed check in a row |
 | A command was sent but not confirmed | Treated as "the plug cannot be reached" | As above |
 | Battery low, plug turned on and confirmed, phone still not plugged in 30 seconds later | Sends On again at each later check while the phone is not plugged in | **Not charging**, at once |
 | A check that needs no switch, or a successful switch | Resets the count of failed checks | None |
@@ -233,7 +234,7 @@ The "plug unreachable" alert therefore arrives about one check interval after th
 | Alert | Starts when | Ends when |
 |---|---|---|
 | **Not charging** | The battery is at or below the low threshold, the plug was turned on and confirmed, and the phone is still not plugged in 30 seconds later | The phone is plugged in |
-| **Plug unreachable** | A switch is needed (either direction) and the plug could not be reached at two checks in a row | A switch succeeds, or the rule no longer asks for one |
+| **Plug unreachable** | The plug could not be reached at two checks in a row, by a switch (either direction) or, with no switch needed, by the read-only check (`PLUG-WATCH.md`) | The plug is reached again: a switch succeeds or a read answers. A check with no switch needed no longer ends it |
 | **Battery Guard not working** | A check finds a fault of Battery Guard itself (exact alarms not allowed, battery unreadable, service could not start) at two checks in a row | A check finds none of those faults |
 
 The first condition is not "battery low and not plugged in" at the moment the threshold is reached: that is true for a few seconds in every normal cycle, just before the plug is turned on. The alert is for when turning the plug on did not power the phone.

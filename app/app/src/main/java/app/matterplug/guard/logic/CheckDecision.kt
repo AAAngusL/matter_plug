@@ -9,20 +9,25 @@ object CheckDecision {
      * read. At most ONE Degraded event, because AlertPolicy counts every Degraded event as one faulty check:
      * "service could not start" wins over [fault] when the service was refused.
      */
-    fun alarmEvents(action: GuardAction, batteryRead: Boolean, fault: String?, serviceFailed: Boolean): List<CheckEvent> {
+    fun alarmEvents(
+        action: GuardAction, batteryRead: Boolean, fault: String?, serviceFailed: Boolean, plugReached: Boolean? = null, noPlug: Boolean = false,
+    ): List<CheckEvent> {
         val out = mutableListOf<CheckEvent>()
         if (action == GuardAction.Nothing && batteryRead) out += CheckEvent.NoSwitchNeeded
+        if (noPlug) out += CheckEvent.NoPlug
+        if (plugReached != null) out += CheckEvent.PlugRead(plugReached)       // PLUG-WATCH.md section 4
         val reason = if (serviceFailed) FAULT_SERVICE else fault
         if (reason != null) out += CheckEvent.Degraded(reason)
         return out
     }
 
     /**
-     * True when the check ends here: events are exactly [NoSwitchNeeded], the stored alert state has no failed or
+     * True when the check ends here: events are exactly [NoSwitchNeeded], with or without a plug read that reached the
+     * plug, or a note that there is no plug (PLUG-WATCH.md), the stored alert state has no failed or
      * faulty checks and no active alerts, the waiting list is empty and status reports are off (rule 1, B11).
      */
     fun nothingToDo(settings: GuardSettings, state: AlertState, queueEmpty: Boolean, events: List<CheckEvent>): Boolean =
-        events == listOf<CheckEvent>(CheckEvent.NoSwitchNeeded) &&
+        events.filterNot { it == CheckEvent.PlugRead(true) || it == CheckEvent.NoPlug } == listOf<CheckEvent>(CheckEvent.NoSwitchNeeded) &&
             state.failedChecks == 0 && state.degradedChecks == 0 && state.active.isEmpty() &&
             queueEmpty && !settings.statusEnabled
 

@@ -1,6 +1,7 @@
 package app.matterplug.matter
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import app.matterplug.data.Plug
 import kotlinx.coroutines.CancellationException
@@ -76,20 +77,38 @@ class PlugCommander(context: Context) {
 
     /**
      * G7: reads the plug's OnOff state alone (connect, read, release), for the "turn it on before disabling?" question.
-     * One 8-second limit covers connect and read. Null on any failure or timeout. Does not touch [switchTo].
-     * A cancellation of the caller propagates. A pointer that arrives after the timeout is lost, as in ChipController.connect (V3 note in G4).
+     * One 8-second limit covers everything. A failed first try (for example a remembered session to an address the plug
+     * no longer has after a power cycle) is released and tried once more with what is left of the 8 seconds; the first
+     * try gets at most [FIRST_TRY_MS], so the second always has time. Null on any failure or timeout. Does not touch [switchTo].
+     * A cancellation of the caller propagates.
      */
-    suspend fun readOnOff(plug: Plug, timeoutMs: Long = READ_ONLY_TIMEOUT_MS): Boolean? {
+    suspend fun readOnOff(plug: Plug): Boolean? {
+        val start = SystemClock.elapsedRealtime()
+        for (attempt in 1..2) {
+            val left = READ_ONLY_TIMEOUT_MS - (SystemClock.elapsedRealtime() - start)
+            if (left <= 0) return null
+            val limit = if (attempt == 1) minOf(left, FIRST_TRY_MS) else left
+            val on = readOnOffOnce(plug, limit)
+            if (on != null) {
+                if (attempt == 2) Log.i(TAG, "readOnOff: second try worked after ${SystemClock.elapsedRealtime() - start} ms")
+                return on
+            }
+        }
+        return null
+    }
+
+    /** One connect, read and release within [limitMs]. A pointer that arrives after the timeout is lost, as in ChipController.connect (V3 note in G4). */
+    private suspend fun readOnOffOnce(plug: Plug, limitMs: Long): Boolean? {
         var pointer = 0L
         try {
-            return withTimeoutOrNull(timeoutMs) {
+            return withTimeoutOrNull(limitMs) {
                 pointer = ChipController.connect(context, plug.nodeId)
                 readOnOffAt(plug, pointer)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "readOnOff failed", e)
+            Log.w(TAG, "readOnOff try failed", e)
             return null
         } finally {
             if (pointer != 0L) ChipController.release(pointer)
@@ -108,6 +127,7 @@ class PlugCommander(context: Context) {
         const val INVOKE_TIMEOUT_MS = 10_000L
         const val READ_TIMEOUT_MS = 10_000L
         const val READ_ONLY_TIMEOUT_MS = 8_000L
+        const val FIRST_TRY_MS = 4_000L
         const val ON_OFF_CLUSTER = 0x0006L
         const val ON_OFF_ATTRIBUTE = 0x0000L
         const val CMD_OFF = 0x00L

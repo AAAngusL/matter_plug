@@ -128,12 +128,13 @@ The battery was at or below the low threshold, the charger plug was switched on 
 
 #### `plug_unreachable` (states `started`, `reminder`, `recovered`)
 
-A switch was needed and the charger plug could not be reached at two checks in a row. Ends when a switch succeeds, or none is needed any more.
+The charger plug could not be reached at two checks in a row: by a switch, or, when no switch was needed, by a read-only check of the plug (made at every check since `PLUG-WATCH.md`). Ends when the plug is reached again. `wanted_on` is left out when the alert started from a read.
 
 | State | Message |
 |---|---|
 | `started`, needed on | `Matter Plug: battery 18%, not charging. The charger plug cannot be reached.` |
 | `started`, needed off | `Matter Plug: battery 87%. The charger plug cannot be reached to turn it off.` |
+| `started`, no switch needed | `Matter Plug: battery 72%. The charger plug cannot be reached.` |
 | `reminder` | The same text, starting `Matter Plug (reminder): ` |
 | `recovered` | `Matter Plug: recovered. Battery <n>%, charging.` (or `not charging.`) |
 

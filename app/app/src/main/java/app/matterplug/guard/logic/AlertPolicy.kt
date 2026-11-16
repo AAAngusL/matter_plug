@@ -41,6 +41,8 @@ object AlertPolicy {
             when (e) {
                 // PLUG-WATCH.md section 4: only reaching the plug ends the alert; no switch needed says nothing about it.
                 CheckEvent.NoSwitchNeeded -> {}
+                // No charger plug (unpaired or removed): there is nothing to reach, so end the count and the alert.
+                CheckEvent.NoPlug -> reached()
                 is CheckEvent.SwitchConfirmed -> reached()
                 is CheckEvent.SwitchFailed -> missed(e.wantedOn)
                 is CheckEvent.PlugRead -> if (e.reached) reached() else missed(null)

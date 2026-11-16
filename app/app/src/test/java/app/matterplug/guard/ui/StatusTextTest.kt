@@ -5,6 +5,7 @@ import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertState
 
 import app.matterplug.guard.GuardStatus
+import app.matterplug.guard.logic.PlugSighting
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -54,6 +55,19 @@ class StatusTextTest {
         assertEquals(StatusLine.DeliveryOk("t8", 0), lines(GuardStatus(lastDeliveryOkAt = 8, lastDeliveryFailAt = 6)).last())
         assertEquals(StatusLine.DeliveryNone(3), lines(GuardStatus(queueSize = 3)).last())
     }
+
+    // PLUG-WATCH.md section 7
+    @Test fun plugReachedLine() =
+        assertTrue(lines(GuardStatus(plug = PlugSighting(reachedAt = 7, on = false))).contains(StatusLine.PlugReached("t7", false)))
+    @Test fun plugMissedLineWinsOverTheLastReach() {
+        val l = lines(GuardStatus(plug = PlugSighting(reachedAt = 7, on = true, missedSince = 9)))
+        assertTrue(l.contains(StatusLine.PlugMissed("t9")))
+        assertFalse(l.any { it is StatusLine.PlugReached })
+    }
+    @Test fun noPlugLineBeforeTheFirstRead() =
+        assertFalse(lines(GuardStatus()).any { it is StatusLine.PlugReached || it is StatusLine.PlugMissed })
+    @Test fun noPlugLineWhenDisabled() =
+        assertFalse(lines(GuardStatus(plug = PlugSighting(missedSince = 9)), enabled = false).any { it is StatusLine.PlugMissed })
 
     @Test fun runErrorAndExactAlarmWarning() {
         val l = lines(GuardStatus(lastRunError = "service could not start"), exact = false)

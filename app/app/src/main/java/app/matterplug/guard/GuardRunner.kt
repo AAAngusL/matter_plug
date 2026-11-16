@@ -14,7 +14,6 @@ import app.matterplug.guard.logic.CheckLog
 import app.matterplug.guard.logic.GuardAction
 import app.matterplug.guard.logic.GuardPolicy
 import app.matterplug.guard.logic.GuardSettings
-import app.matterplug.matter.ChipController
 import app.matterplug.matter.PlugCommander
 import app.matterplug.matter.SwitchResult
 import kotlinx.coroutines.CancellationException
@@ -38,7 +37,6 @@ object GuardRunner {
 
     private const val POWER_WAIT_MS = 30_000L
     private const val POWER_POLL_MS = 2_000L
-    private const val PROBE_TIMEOUT_MS = 20_000L     // P1: long enough to see the real time, inside the receiver's limit
 
     /** One run at a time. `work` takes the same lock. */
     private val mutex = Mutex()
@@ -114,7 +112,10 @@ object GuardRunner {
 
             Log.i(TAG, CheckLog.line(reading?.level, plugged, action, fault, intervalMin, nextAt))
 
-            if (action == GuardAction.Nothing) probePlugRead(ctx)      // PLUG-WATCH.md P1: timing only, no alert yet
+            // PLUG-WATCH.md section 4: with no switch to make, a read-only check that the charger plug still answers.
+            val plugCheck: PlugCheck? = if (action == GuardAction.Nothing && reading != null) readPlug(ctx, store) else null
+            val plugReached: Boolean? = (plugCheck as? PlugCheck.Read)?.reached
+            val noPlug = plugCheck == PlugCheck.None
 
             var serviceFailed = false
             if (action != GuardAction.Nothing) {
@@ -123,7 +124,7 @@ object GuardRunner {
                 serviceFailed = true
                 Log.w(TAG, CheckLog.line(reading?.level, plugged, action, CheckDecision.FAULT_SERVICE, intervalMin, nextAt))
             }
-            val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed)
+            val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugReached, noPlug)
             val clean = fault == null && !serviceFailed && nextAt != null
             val queueEmpty = store.readQueue().isEmpty()
             if (CheckDecision.nothingToDo(settings, store.readAlertState(), queueEmpty, events)) {
@@ -162,7 +163,15 @@ object GuardRunner {
                 val decided = GuardPolicy.decide(r.level, r.pluggedIn, settings)
                 action = decided
                 outcome = when (decided) {
-                    GuardAction.Nothing -> { events += CheckEvent.NoSwitchNeeded; "no switch needed" }
+                    GuardAction.Nothing -> {
+                        events += CheckEvent.NoSwitchNeeded
+                        when (val c = readPlug(ctx, store)) {      // PLUG-WATCH.md section 4: also when the service ran
+                            PlugCheck.None -> events += CheckEvent.NoPlug
+                            PlugCheck.Unknown -> {}
+                            is PlugCheck.Read -> events += CheckEvent.PlugRead(c.reached)
+                        }
+                        "no switch needed"
+                    }
                     GuardAction.TurnOn, GuardAction.TurnOff -> doSwitch(ctx, store, decided == GuardAction.TurnOn, r.level, events)
                 }
             }
@@ -185,21 +194,41 @@ object GuardRunner {
     }
 
     /**
-     * PLUG-WATCH.md unit P1, temporary: how long a plug read takes inside the alarm receiver, with the Matter library
-     * started cold when the app is closed. Logs only; P3 replaces it with the real read and its alert.
+     * PLUG-WATCH.md section 5: connect, read On/Off, release, within PlugCommander's 8-second limit, and record it for the
+     * Battery Guard tab. Never throws except for cancellation.
      */
-    private suspend fun probePlugRead(ctx: Context) {
+    private suspend fun readPlug(ctx: Context, store: GuardStore): PlugCheck {
+        val plug = try { PlugRepository(ctx).charger() } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.w(TAG, "charger plug unreadable", e)
+            return PlugCheck.Unknown
+        } ?: run {
+            try { store.clearPlugSighting() } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "clearPlugSighting failed", e)
+            }
+            return PlugCheck.None
+        }
+        val t0 = SystemClock.elapsedRealtime()
+        val on: Boolean? = PlugCommander(ctx).readOnOff(plug)
+        Log.i(TAG, "plug read: ${on?.let { if (it) "on" else "off" } ?: "not reached"} in ${SystemClock.elapsedRealtime() - t0} ms")
+        recordPlugSafely(store, on != null, on)
+        return PlugCheck.Read(on != null)
+    }
+
+    /** [None]: no charger plug, so nothing to watch. [Unknown]: the lookup failed, so say nothing about the plug. */
+    private sealed interface PlugCheck {
+        data object None : PlugCheck
+        data object Unknown : PlugCheck
+        data class Read(val reached: Boolean) : PlugCheck
+    }
+
+    private suspend fun recordPlugSafely(store: GuardStore, reached: Boolean, on: Boolean?) {
         try {
-            val plug = PlugRepository(ctx).charger() ?: run { Log.i(TAG, "plug probe: no charger plug"); return }
-            val t0 = SystemClock.elapsedRealtime()
-            ChipController.get(ctx)
-            val t1 = SystemClock.elapsedRealtime()
-            val on = PlugCommander(ctx).readOnOff(plug, timeoutMs = PROBE_TIMEOUT_MS)
-            val t2 = SystemClock.elapsedRealtime()
-            Log.i(TAG, "plug probe: init_ms=${t1 - t0} read_ms=${t2 - t1} total_ms=${t2 - t0} result=${on?.let { if (it) "on" else "off" } ?: "not reached"}")
+            store.recordPlug(reached, on, System.currentTimeMillis())
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.w(TAG, "plug probe failed", e)
+            Log.e(TAG, "recordPlug failed", e)
         }
     }
 
@@ -259,6 +288,7 @@ object GuardRunner {
         return when (result) {
             is SwitchResult.Confirmed -> {
                 store.recordSwitch(System.currentTimeMillis(), on, level)
+                recordPlugSafely(store, reached = true, on = on)
                 Log.i(TAG, "switch $what confirmed at $level%")
                 events += CheckEvent.SwitchConfirmed(on)
                 if (on) {
@@ -270,11 +300,13 @@ object GuardRunner {
             }
             is SwitchResult.NotReached -> {
                 Log.w(TAG, "switch $what failed: ${result.reason}")
+                recordPlugSafely(store, reached = false, on = null)
                 events += CheckEvent.SwitchFailed(on)
                 "switch $what NotReached(${result.reason})"
             }
             is SwitchResult.Unconfirmed -> {
                 Log.w(TAG, "switch $what unconfirmed: read-back differs")
+                recordPlugSafely(store, reached = true, on = null)      // the plug accepted the command, so it was reached; its state is unknown
                 events += CheckEvent.SwitchFailed(on)
                 "switch $what Unconfirmed"
             }

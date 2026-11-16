@@ -338,6 +338,12 @@ private fun StatusLineText(line: StatusLine) {
             stringResource(if (line.on) R.string.guard_switch_on else R.string.guard_switch_off), line.level, line.time,
         )
         StatusLine.NoAlerts -> stringResource(R.string.guard_alerts_none)
+        is StatusLine.PlugReached -> when (line.on) {
+            true -> stringResource(R.string.guard_plug_reached_on, line.time)
+            false -> stringResource(R.string.guard_plug_reached_off, line.time)
+            null -> stringResource(R.string.guard_plug_reached, line.time)
+        }
+        is StatusLine.PlugMissed -> stringResource(R.string.guard_plug_missed, line.sinceTime)
         is StatusLine.Alert -> when (line.kind) {
             AlertKind.NotCharging -> stringResource(R.string.guard_alert_not_charging, line.sinceTime, line.lastSentTime)
             AlertKind.PlugUnreachable -> stringResource(

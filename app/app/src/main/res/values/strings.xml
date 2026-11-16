@@ -138,6 +138,10 @@
     <string name="guard_alert_not_charging">Not charging since %1$s, last alert sent %2$s.</string>
     <string name="guard_alert_unreachable_on">Plug unreachable (to turn it on) since %1$s, last alert sent %2$s.</string>
     <string name="guard_alert_unreachable_off">Plug unreachable (to turn it off) since %1$s, last alert sent %2$s.</string>
+    <string name="guard_plug_reached_on">Plug: reached at %1$s, On.</string>
+    <string name="guard_plug_reached_off">Plug: reached at %1$s, Off.</string>
+    <string name="guard_plug_reached">Plug: reached at %1$s.</string>
+    <string name="guard_plug_missed">Plug: not reached since %1$s.</string>
     <string name="guard_alert_unreachable_read">Plug unreachable since %1$s, last alert sent %2$s.</string>
     <string name="guard_alert_degraded">Battery Guard not working (%1$s) since %2$s, last alert sent %3$s.</string>
     <string name="guard_alert_other">Alert since %1$s, last alert sent %2$s.</string>

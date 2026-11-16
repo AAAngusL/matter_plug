@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.matterplug.guard.logic.PlugSighting
 import app.matterplug.guard.logic.AlertState
 import app.matterplug.guard.logic.AlertStateCodec
 import app.matterplug.guard.logic.DeliveryPlan
@@ -40,6 +41,7 @@ class GuardStore(context: Context) {
             lastDeliveryFailAt = p[LAST_DELIVERY_FAIL_AT],
             lastDeliveryError = p[LAST_DELIVERY_ERROR],
             lastRunError = p[LAST_RUN_ERROR],
+            plug = PlugSighting(p[PLUG_REACHED_AT], p[PLUG_ON], p[PLUG_MISSED_SINCE]),
             queueSize = QueueCodec.decode(p[QUEUE]).size,
             alertState = AlertStateCodec.decode(p[ALERT_STATE]),
         )
@@ -66,6 +68,7 @@ class GuardStore(context: Context) {
             if (old.enabled && !new.enabled) {
                 p.remove(ALERT_STATE)       // default state: no active alerts, both counts 0
                 p.remove(NEXT_CHECK_AT)
+                clearPlug(p)        // a sighting from before is stale once checks stop
             }
         }
     }
@@ -118,6 +121,24 @@ class GuardStore(context: Context) {
             putOrRemove(p, LAST_LEVEL, level)
             putOrRemove(p, LAST_PLUGGED, pluggedIn)
             putOrRemove(p, NEXT_CHECK_AT, nextAtMs)
+        }
+    }
+
+    private fun clearPlug(p: androidx.datastore.preferences.core.MutablePreferences) {
+        p.remove(PLUG_REACHED_AT); p.remove(PLUG_ON); p.remove(PLUG_MISSED_SINCE)
+    }
+
+    /** No charger plug (unpaired or changed): what was learnt about the old one is dropped. */
+    suspend fun clearPlugSighting() { store.edit { clearPlug(it) } }
+
+    /** PLUG-WATCH.md section 7: [on] is the plug's state when reached (null if unknown); ignored when not reached. */
+    suspend fun recordPlug(reached: Boolean, on: Boolean?, atMs: Long) {
+        store.edit { p ->
+            val old = PlugSighting(p[PLUG_REACHED_AT], p[PLUG_ON], p[PLUG_MISSED_SINCE])
+            val new = if (reached) old.reached(on, atMs) else old.missed(atMs)
+            putOrRemove(p, PLUG_REACHED_AT, new.reachedAt)
+            putOrRemove(p, PLUG_ON, new.on)
+            putOrRemove(p, PLUG_MISSED_SINCE, new.missedSince)
         }
     }
 
@@ -195,6 +216,9 @@ class GuardStore(context: Context) {
         val LAST_SWITCH_AT = longPreferencesKey("last_switch_at")
         val LAST_SWITCH_ON = booleanPreferencesKey("last_switch_on")
         val LAST_SWITCH_LEVEL = intPreferencesKey("last_switch_level")
+        val PLUG_REACHED_AT = longPreferencesKey("plug_reached_at")
+        val PLUG_ON = booleanPreferencesKey("plug_on")
+        val PLUG_MISSED_SINCE = longPreferencesKey("plug_missed_since")
         val LAST_DELIVERY_OK_AT = longPreferencesKey("last_delivery_ok_at")
         val LAST_DELIVERY_FAIL_AT = longPreferencesKey("last_delivery_fail_at")
         val LAST_DELIVERY_ERROR = stringPreferencesKey("last_delivery_error")
