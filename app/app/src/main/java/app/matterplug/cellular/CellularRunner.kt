@@ -138,7 +138,8 @@ object CellularRunner {
         store.writeState(state)
         Log.i(TAG, CellularLog.line(results) + " next_in_min=$intervalMin")
         store.recordRun(now, results, nextAt, reading.lte)
-        val alert = alertStep(ctx, store, state.down, now)               // reminders while down
+        // Reminders while down; during a test the test's end sends it instead (RECOVERY-SIGNALS.md 2.3).
+        val alert = if (LoopbackPlan.reminderWaits(state)) null else alertStep(ctx, store, state.down, now)
         // Cellular Check's own status report, whether Battery Guard is on or off (draft 5): its own switch decides.
         val status = if (settings.statusEnabled) statusReport(ctx, store, intervalMin, now) else null
         return Outgoing(alert, status, switchesOf(settings))
@@ -172,7 +173,9 @@ object CellularRunner {
             store.writeState(LoopbackPlan.released(store.readState()))
             store.recordLayer(Layer.Sms, LayerResult.Fail("${trigger.wire}: test SMS could not run"))
             Log.w(TAG, "loopback could not run: released, not counted")
-            return null
+            // The run held its reminder back for this test: send it now, so a test that cannot run never mutes reminders.
+            if (!store.readSettings().enabled) return null
+            return alertStep(ctx, store, store.readState().down, System.currentTimeMillis())
         }
         val result = LoopbackJudge.result(trigger, outcome)
         val state = LoopbackPlan.finished(store.readState(), trigger, LoopbackJudge.passed(outcome), System.currentTimeMillis())

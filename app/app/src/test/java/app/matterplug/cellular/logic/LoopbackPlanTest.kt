@@ -90,12 +90,33 @@ class LoopbackPlanTest {
         assertTrue(d.state.down)
     }
 
-    @Test fun smsOnlyFaultIsRetestedOnceADayUntilItPasses() {
+    // RECOVERY-SIGNALS.md 2.3: a fault only SMS shows is re-tested every hour, once per reminder, until a test passes.
+    @Test fun smsOnlyFaultIsRetestedEveryHourUntilItPasses() {
         val fixed = LocalDateTime.of(2026, 11, 16, 9, 0)
-        val d = simulate(morning, runs = 96 * 3, loopbackPasses = { t -> t.isAfter(fixed) })   // 3 days
-        // day 1: daily + retry (alert starts); day 2: one retest, fails; day 3: one retest, passes
-        assertEquals(4, d.sms)
+        val times = mutableListOf<LocalDateTime>()
+        val d = simulate(morning, runs = 96 * 3, loopbackPasses = { t -> times += t; t.isAfter(fixed) })   // 3 days
+        // day 1: daily at 10:00 + retry at 10:15 (alert starts); then one re-test an hour from 11:15 until 09:15 on day 3
+        assertEquals(listOf(LoopbackTrigger.Daily, LoopbackTrigger.Daily), d.triggers.take(2))
+        assertTrue(d.triggers.drop(2).all { it == LoopbackTrigger.Recovery })
+        assertEquals(LocalDateTime.of(2026, 11, 14, 11, 15), times[2])
+        assertTrue(times.drop(2).zipWithNext().all { (a, b) -> java.time.Duration.between(a, b).toMinutes() == 60L })
+        assertEquals(LocalDateTime.of(2026, 11, 16, 9, 15), times.last())
+        assertEquals(2 + 47, d.sms)
         assertFalse(d.state.down)
+    }
+
+    @Test fun smsOnlyRetestWaitsAnHourAfterTheLastTest() {
+        val down = CellularState(failedInARow = 2, lastTrigger = LoopbackTrigger.Daily, lastLoopbackAt = 0L)
+        assertEquals(null, LoopbackPlan.next(down, null, 59 * 60_000L, zone, testTime))
+        assertEquals(LoopbackTrigger.Recovery, LoopbackPlan.next(down, null, 60 * 60_000L, zone, testTime))
+    }
+
+    // The reminder waits for the re-test: it goes out when the test finishes, as a reminder or as recovered.
+    @Test fun reminderWaitsWhileATestRunsDuringTheAlert() {
+        val down = CellularState(failedInARow = 2)
+        assertTrue(LoopbackPlan.reminderWaits(LoopbackPlan.started(down, LoopbackTrigger.Recovery, null, 0L)))
+        assertFalse(LoopbackPlan.reminderWaits(down))
+        assertFalse(LoopbackPlan.reminderWaits(LoopbackPlan.started(CellularState(), LoopbackTrigger.Daily, null, 0L)))
     }
 
     @Test fun noSecondLoopbackWhileOneIsWaiting() {

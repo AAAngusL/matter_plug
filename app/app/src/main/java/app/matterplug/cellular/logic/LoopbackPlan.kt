@@ -46,8 +46,16 @@ object LoopbackPlan {
         }
         if (s.down && s.confirmedFault != null) return LoopbackTrigger.Recovery
         if (s.failedInARow == 1) return s.lastTrigger ?: LoopbackTrigger.Daily      // second of the pair
+        // A fault only SMS shows: re-tested once an hour, before each reminder (RECOVERY-SIGNALS.md 2.3).
+        if (s.down) return if (now - (s.lastLoopbackAt ?: Long.MIN_VALUE / 2) >= RETEST_MS) LoopbackTrigger.Recovery else null
         return if (dailyDue(s, now, zone, testTime)) LoopbackTrigger.Daily else null
     }
+
+    /**
+     * True while a test runs during the alert: the run's reminder waits for it, and the test's end sends the reminder
+     * or the recovered alert (RECOVERY-SIGNALS.md 2.3), so a reminder always follows a fresh test.
+     */
+    fun reminderWaits(s: CellularState): Boolean = s.inProgress && s.down
 
     fun started(s: CellularState, trigger: LoopbackTrigger, failedLayer: Layer?, at: Long): CellularState = s.copy(
         inProgress = true,
@@ -83,15 +91,14 @@ object LoopbackPlan {
 
     private const val STALE_MS = 10 * 60_000L
 
-    /**
-     * After today's test time: while healthy, when no loopback has passed today; during a fault only SMS shows, when
-     * no loopback has run since today's test time.
-     */
+    /** The re-test spacing during a fault only SMS shows: the reminder spacing, so each reminder follows a test. */
+    const val RETEST_MS = CellularAlertPolicy.REMINDER_MS
+
+    /** After today's test time, when no loopback has passed today. Only while healthy: a fault is re-tested hourly. */
     private fun dailyDue(s: CellularState, now: Long, zone: ZoneId, testTime: LocalTime): Boolean {
         val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
         val testAt = today.atTime(testTime).atZone(zone).toInstant().toEpochMilli()
         if (now < testAt) return false
-        return if (s.down) (s.lastLoopbackAt ?: Long.MIN_VALUE) < testAt
-        else (s.lastPassAt ?: Long.MIN_VALUE) < today.atStartOfDay(zone).toInstant().toEpochMilli()
+        return (s.lastPassAt ?: Long.MIN_VALUE) < today.atStartOfDay(zone).toInstant().toEpochMilli()
     }
 }
