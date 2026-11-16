@@ -13,7 +13,7 @@ object AlertMessages {
     }
 
     private fun body(e: AlertEvent): String = when (e.kind) {
-        AlertKind.NotCharging -> "Matter Plug: battery ${e.battery}%, not charging. The plug is on. Check the charger and cable."
+        AlertKind.NotCharging -> "Matter Plug: battery ${e.battery}%, ${e.power.words.wire}. The plug is on. Check the charger and cable."
         AlertKind.PlugUnreachable ->
             when (e.wantedOn) {
                 false -> "Matter Plug: battery ${e.battery}%. The charger plug cannot be reached to turn it off."

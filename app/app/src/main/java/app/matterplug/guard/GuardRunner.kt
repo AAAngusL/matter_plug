@@ -158,7 +158,8 @@ object GuardRunner {
         try {
             val r: BatteryReading? = safeRead(ctx)       // B5: the service reads for itself
             reading = r
-            val events = mutableListOf<CheckEvent>()
+            // The service is running: proof that it can start (RECOVERY-SIGNALS.md 2.2).
+            val events = mutableListOf<CheckEvent>(CheckEvent.ServiceStarted)
             if (r == null) {
                 outcome = "battery unreadable"
                 noteError(store, CheckLog.FAULT_BATTERY_UNREADABLE)

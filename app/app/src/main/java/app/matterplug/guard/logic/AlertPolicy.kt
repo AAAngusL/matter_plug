@@ -13,6 +13,7 @@ object AlertPolicy {
         var failed = state.failedChecks
         var degraded = state.degradedChecks
         var sawDegraded = false
+        var serviceStarted = false
         val active = state.active.toMutableList()
         val out = mutableListOf<AlertEvent>()
 
@@ -49,20 +50,27 @@ object AlertPolicy {
                 is CheckEvent.PowerWait -> {
                     if (!e.pluggedIn && !isActive(AlertKind.NotCharging)) start(AlertKind.NotCharging, null)
                 }
+                CheckEvent.ServiceStarted -> serviceStarted = true
                 is CheckEvent.Degraded -> {
                     sawDegraded = true
                     degraded += 1
-                    if (degraded >= FAILS_BEFORE_ALERT && !isActive(AlertKind.GuardDegraded)) {
-                        start(AlertKind.GuardDegraded, null, e.reason)
-                    }
+                    val i = active.indexOfFirst { it.kind == AlertKind.GuardDegraded }
+                    if (i >= 0) active[i] = active[i].copy(detail = e.reason)     // the reason changed: the next reminder names it
+                    else if (degraded >= FAILS_BEFORE_ALERT) start(AlertKind.GuardDegraded, null, e.reason)
                 }
             }
         }
+        // RECOVERY-SIGNALS.md 2.2: each reason needs its own proof. Battery and exact alarms are checked at every check;
+        // the service only when one was started, so a check that did not try says nothing about it.
         if (!sawDegraded) {
             degraded = 0
-            recover(AlertKind.GuardDegraded)
+            val a = active.firstOrNull { it.kind == AlertKind.GuardDegraded }
+            if (a != null && (a.detail != CheckDecision.FAULT_SERVICE || serviceStarted)) recover(AlertKind.GuardDegraded)
         }
-        if (power.pluggedIn) recover(AlertKind.NotCharging)
+        // RECOVERY-SIGNALS.md 2.1: plugged in, and the battery taking charge (or full).
+        if (power.pluggedIn && (power.status == BatteryStatus.Charging || power.status == BatteryStatus.Full)) {
+            recover(AlertKind.NotCharging)
+        }
 
         // Reminders: an alert started in this call has lastSentAtMs = now, so it is not reminded.
         for (i in active.indices) {

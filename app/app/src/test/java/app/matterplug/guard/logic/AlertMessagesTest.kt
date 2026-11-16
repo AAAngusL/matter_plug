@@ -12,8 +12,13 @@ class AlertMessagesTest {
     ) = AlertEvent(kind, phase, battery, Power(plugged, status), wantedOn, 0L, detail)
 
     @Test fun notCharging() = assertEquals(
-        "Matter Plug: battery 18%, not charging. The plug is on. Check the charger and cable.",
+        "Matter Plug: battery 18%, on battery. The plug is on. Check the charger and cable.",
         AlertMessages.text(ev(AlertKind.NotCharging, AlertPhase.Started)))
+
+    // RECOVERY-SIGNALS.md 2.1: the alert stays on while plugged in but not taking charge, and says so.
+    @Test fun notChargingWhilePluggedIn() = assertEquals(
+        "Matter Plug (reminder): battery 18%, plugged in, not charging. The plug is on. Check the charger and cable.",
+        AlertMessages.text(ev(AlertKind.NotCharging, AlertPhase.Reminder, plugged = true, status = BatteryStatus.NotCharging)))
 
     @Test fun unreachableLow() = assertEquals(
         "Matter Plug: battery 18%, not charging. The charger plug cannot be reached.",
@@ -47,7 +52,7 @@ class AlertMessagesTest {
     @Test fun reminderStartsWithReminderPrefix() {
         val t = AlertMessages.text(ev(AlertKind.NotCharging, AlertPhase.Reminder))
         assertTrue(t, t.startsWith("Matter Plug (reminder): "))
-        assertEquals("Matter Plug (reminder): battery 18%, not charging. The plug is on. Check the charger and cable.", t)
+        assertEquals("Matter Plug (reminder): battery 18%, on battery. The plug is on. Check the charger and cable.", t)
     }
 
     @Test fun reminderOfGuardCarriesReason() = assertEquals(

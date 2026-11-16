@@ -36,6 +36,7 @@ sealed interface CheckEvent {
     data class SwitchFailed(val wantedOn: Boolean) : CheckEvent      // not reached, or not confirmed
     data class PowerWait(val pluggedIn: Boolean) : CheckEvent         // result of the 30-second wait
     data class Degraded(val reason: String) : CheckEvent              // a fault of Battery Guard itself
+    data object ServiceStarted : CheckEvent                            // the switching service ran: proof it can start
 }
 
 data class AlertEvent(

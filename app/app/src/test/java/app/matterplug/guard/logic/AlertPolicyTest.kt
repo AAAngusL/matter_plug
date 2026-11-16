@@ -157,6 +157,30 @@ class AlertPolicyTest {
         assertTrue(r.state.active.isEmpty())
     }
 
+    // RECOVERY-SIGNALS.md 2.1: plugged in is not enough; the battery must take charge.
+    @Test fun notCharging_pluggedInButNotTakingChargeStaysAndReminds() {
+        var r = step(AlertState(), notCharging, 0)
+        for (s in listOf(BatteryStatus.NotCharging, BatteryStatus.Discharging, BatteryStatus.Unknown)) {
+            r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 15, battery = 19, plugged = true, status = s)
+            assertTrue("status $s", r.events.isEmpty())
+            assertEquals(listOf(AlertKind.NotCharging), r.state.active.map { it.kind })
+        }
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 60, battery = 18, plugged = true, status = BatteryStatus.NotCharging)
+        assertEquals(listOf(AlertKind.NotCharging to AlertPhase.Reminder), r.events.phases())
+    }
+
+    @Test fun notCharging_fullEndsIt() {
+        var r = step(AlertState(), notCharging, 0)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 15, plugged = true, status = BatteryStatus.Full)
+        assertEquals(listOf(AlertKind.NotCharging to AlertPhase.Recovered), r.events.phases())
+    }
+
+    @Test fun notCharging_chargingWhileUnpluggedDoesNotEndIt() {
+        var r = step(AlertState(), notCharging, 0)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 15, plugged = false, status = BatteryStatus.Charging)
+        assertTrue(r.events.isEmpty())
+    }
+
     // 8
     @Test fun scenario8_powerWaitPluggedGivesNoEvents() {
         val r = step(AlertState(), listOf(CheckEvent.SwitchConfirmed(true), CheckEvent.PowerWait(true)), 0, plugged = true)
@@ -181,7 +205,7 @@ class AlertPolicyTest {
         assertEquals(listOf(AlertKind.PlugUnreachable to AlertPhase.Recovered), r.events.phases())
         assertEquals(listOf(AlertKind.NotCharging), r.state.active.map { it.kind })
         // NotCharging recovers later.
-        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 70, plugged = true)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 70, plugged = true, status = BatteryStatus.Charging)
         assertEquals(listOf(AlertKind.NotCharging to AlertPhase.Recovered), r.events.phases())
         assertTrue(r.state.active.isEmpty())
     }
@@ -261,6 +285,51 @@ class AlertPolicyTest {
         assertTrue(r.state.active.isEmpty())
     }
 
+    // RECOVERY-SIGNALS.md 2.2: only a service that starts ends "service could not start".
+    private val svc = CheckDecision.FAULT_SERVICE
+
+    @Test fun degraded_serviceAlertNotEndedByACheckThatDidNotTry() {
+        var r = step(AlertState(), degraded(svc), 0)
+        r = step(r.state, degraded(svc), 5)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 10)
+        assertTrue(r.events.isEmpty())
+        assertEquals(listOf(AlertKind.GuardDegraded), r.state.active.map { it.kind })
+        assertEquals(0, r.state.degradedChecks)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 65)
+        assertEquals(listOf(AlertKind.GuardDegraded to AlertPhase.Reminder), r.events.phases())
+    }
+
+    @Test fun degraded_serviceAlertEndsWhenTheServiceStarts() {
+        var r = step(AlertState(), degraded(svc), 0)
+        r = step(r.state, degraded(svc), 5)
+        r = step(r.state, listOf(CheckEvent.ServiceStarted, CheckEvent.SwitchConfirmed(true), CheckEvent.PowerWait(true)), 10, plugged = true)
+        assertEquals(listOf(AlertKind.GuardDegraded to AlertPhase.Recovered), r.events.phases())
+        assertEquals(svc, r.events.single().detail)
+    }
+
+    @Test fun degraded_serviceStartedWithAnotherFaultKeepsTheAlertWithTheNewReason() {
+        var r = step(AlertState(), degraded(svc), 0)
+        r = step(r.state, degraded(svc), 5)
+        r = step(r.state, listOf(CheckEvent.ServiceStarted, CheckEvent.Degraded("battery unreadable")), 10)
+        assertTrue(r.events.isEmpty())
+        assertEquals("battery unreadable", r.state.active.single().detail)
+        r = step(r.state, listOf(CheckEvent.Degraded("battery unreadable")), 65)     // started at 5: reminder due at 65
+        assertEquals("battery unreadable", r.events.single().detail)
+        assertEquals(AlertPhase.Reminder, r.events.single().phase)
+        // The battery is read again: that reason is proved gone, so the alert ends.
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 70)
+        assertEquals(listOf(AlertKind.GuardDegraded to AlertPhase.Recovered), r.events.phases())
+    }
+
+    @Test fun degraded_otherReasonsEndAtTheFirstCheckWithoutThem() {
+        for (reason in listOf("battery unreadable", "exact alarms not allowed")) {
+            var r = step(AlertState(), degraded(reason), 0)
+            r = step(r.state, degraded(reason), 5)
+            r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 10)
+            assertEquals(reason, listOf(AlertKind.GuardDegraded to AlertPhase.Recovered), r.events.phases())
+        }
+    }
+
     // 15
     @Test fun scenario15_degradedNoneDegradedDoesNotStart() {
         var r = step(AlertState(), degraded("x"), 0)
@@ -302,7 +371,7 @@ class AlertPolicyTest {
         assertEquals(listOf(AlertKind.PlugUnreachable to AlertPhase.Recovered), r.events.phases())
         assertEquals(listOf(AlertKind.NotCharging), r.state.active.map { it.kind })
         // NotCharging recovers alone.
-        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 65, plugged = true)
+        r = step(r.state, listOf(CheckEvent.NoSwitchNeeded), 65, plugged = true, status = BatteryStatus.Charging)
         assertEquals(listOf(AlertKind.NotCharging to AlertPhase.Recovered), r.events.phases())
         assertTrue(r.state.active.isEmpty())
     }
