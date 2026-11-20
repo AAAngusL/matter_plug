@@ -1,6 +1,16 @@
 # Alert API: Requests the Phone Sends
 
-For anyone programming the server at the **alert address**. It lists every request the app sends, from Battery Guard and from Cellular Check: each type, each field, and which fields are optional. It describes the app as built on 2026-11-16 (commit `a35bb35`). One type, `weak_signal`, is designed but not built yet; it is listed at the end so the server can be ready for it.
+For anyone programming the server at the **alert address**. It lists every request the app sends, from Battery Guard, Cellular Check and Fixed IP: each type, each field, and which fields are optional. It describes the app as built on 2026-11-16 (commit `a35bb35`). One type, `weak_signal`, is designed but not built yet; it is listed at the end so the server can be ready for it.
+
+## 0a. Changes on 2026-11-19: Fixed IP
+
+| # | Change | What the server must do |
+|---|---|---|
+| 1 | **A new type, `ip_drift`,** with states `started`, `reminder`, `recovered` and `cancelled`, sent when the phone's Wi-Fi address (or gateway) is no longer the one the user pinned, or the phone has had no Wi-Fi for 1 minute | Accept the new `alert` value; show or store it (section 5, Fixed IP) |
+| 2 | **A new object, `ip`,** in every `ip_drift` request except `cancelled`: `pinned`, `current` (absent when the phone has no address), `ssid`, `reason` (`address_changed`, `gateway_changed`, `no_wifi`) and `sms` (`sent` or `failed`) | Ignore it if not needed (section 3) |
+| 3 | **A new `cancelled_by` value, `ip_off`,** when Fixed IP is switched off or the network is unpinned with an alert open | Treat it like the other `cancelled` values |
+| 4 | **A `no_wifi` request arrives late.** The alert address is usually on the home network, so the phone cannot reach it while Wi-Fi is down: the `started` waits and arrives, followed by `recovered`, once Wi-Fi is back. The same event is also sent by SMS, to the numbers the user set, before the request | Use `time`, not the arrival time, for when it began |
+| 5 | **Fixed IP sends no status report.** Only `ip_drift` | Nothing |
 
 ## 0. Changes on 2026-11-16: what the server must change
 
@@ -34,14 +44,15 @@ Send `2xx` only once the request is stored. A request that the phone counts as n
 
 ## 2. Who sends what
 
-Two senders in the same app. They share the alert address and token (set in Battery Guard's section) and nothing else.
+Three senders in the same app. They share the alert address and token (set in Battery Guard's section) and nothing else.
 
 | Sender | Types | Sent while | Switched by |
 |---|---|---|---|
 | Battery Guard | `status`, `not_charging`, `plug_unreachable`, `guard_degraded`, `test` | Battery Guard is on (`test` at any time, by its button) | **Send alerts** and **Send status after every check**, in Battery Guard's section |
 | Cellular Check | `cellular_status`, `cellular_down` (later `weak_signal`) | Cellular Check is on, whether Battery Guard is on or off | **Send cellular alerts** and **Send cellular status after every check**, on the Cellular Check screen |
+| Fixed IP | `ip_drift` | Fixed IP is on, whether Battery Guard is on or off | The one **Watch the Wi-Fi address** switch, on the Fixed IP screen. No status report |
 
-Neither sender carries the other's data: only Cellular Check's requests have the `cellular` object.
+No sender carries another's data: only Cellular Check's requests have the `cellular` object and only Fixed IP's have the `ip` object.
 
 With both features on and both status switches on, a server receives **two status requests per check**, a `status` and a `cellular_status`, normally within a second of each other.
 
@@ -64,9 +75,10 @@ With both features on and both status switches on, a server receives **two statu
 
 | Field | Type | Present in | Meaning |
 |---|---|---|---|
-| `cancelled_by` | string | `cancelled` | The switch that closed the alert: `guard_off` (Keep battery between), `alerts_off` (Send alerts), `cellular_off` (Check cellular service) or `cellular_alerts_off` (Send cellular alerts) |
+| `cancelled_by` | string | `cancelled` | The switch that closed the alert: `guard_off` (Keep battery between), `alerts_off` (Send alerts), `cellular_off` (Check cellular service) `cellular_alerts_off` (Send cellular alerts) or `ip_off` (Watch the Wi-Fi address, also when the network is unpinned) |
 | `next_check_in_min` | integer | `status`, `cellular_status` | Minutes until the next check (5, 10, 15, 30 or 60). If no further request arrives well after that, the phone has gone silent |
 | `cellular` | object | `cellular_status`, `cellular_down` | Cellular Check's results (below) |
+| `ip` | object | `ip_drift` except `cancelled` | Fixed IP's result: `pinned` (the address the user pinned), `current` (the address now; absent when the phone has none), `ssid` (the pinned network's name), `reason` (`address_changed`, `gateway_changed` or `no_wifi`) and `sms` (`sent` or `failed`: whether the SMS for this step went out) |
 
 No other fields are sent. Treat an unknown field as something to ignore, not an error: later versions may add fields.
 
@@ -236,6 +248,30 @@ Two test SMS in a row failed, whatever triggered them. Ends when a test SMS pass
              "signal":"skipped","sms":"fail","sms_reason":"not sent: no default sms app (code 32)","signal_detail":"none"}}
 ```
 
+### Fixed IP
+
+#### `ip_drift` (states `started`, `reminder`, `recovered`, `cancelled`)
+
+The phone's Wi-Fi address (or its gateway) is not the one the user pinned, or the phone has had no Wi-Fi for 1 minute. `started` follows at once for a changed address and gateway, and after 1 minute without Wi-Fi (3 minutes after a boot, plus that minute). Ends only when a reading matches the pinned address again; turning Fixed IP off or unpinning ends it with `cancelled` and no recovery. The same event is also sent by SMS to the numbers the user set, before this request.
+
+| State | When | Message |
+|---|---|---|
+| `started` | `address_changed` | `Matter Plug: the phone's Wi-Fi address changed from <pinned> to <current>. The dialer may not reach it.` |
+| `started` | `gateway_changed` | `Matter Plug: the phone's Wi-Fi gateway changed. Its address is <current>. The dialer may not reach it.` |
+| `started` | `no_wifi` | `Matter Plug: the phone has had no Wi-Fi for 1 minute. The dialer cannot reach it.` |
+| `reminder` | Every 60 minutes while on | The started text, starting `Matter Plug (reminder): ` |
+| `recovered` | A reading matches the pinned address | `Matter Plug: the phone's Wi-Fi address is back at <pinned>.` |
+| `cancelled` | Switch off or unpin | The usual cancelled text; no `ip` object |
+
+**A `no_wifi` request arrives late.** The alert address is usually on the home network, so the phone cannot reach it while Wi-Fi is down. The `started` is kept in the waiting list and arrives, followed by `recovered`, once Wi-Fi is back. Use the SMS, or the `time` field, to know when it began.
+
+```json
+{"alert":"ip_drift","state":"started",
+ "message":"Matter Plug: the phone's Wi-Fi address changed from 192.168.1.37 to 192.168.1.52. The dialer may not reach it.",
+ "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-19T21:30:10-06:00",
+ "ip":{"pinned":"192.168.1.37","current":"192.168.1.52","ssid":"Home","reason":"address_changed","sms":"sent"}}
+```
+
 ### `weak_signal` (designed, not built yet)
 
 Planned as step S4 of `docs/SIGNAL-STRENGTH.md`. Not sent by the current app. When built:
@@ -294,6 +330,10 @@ How to make the phone send each request. Times assume a 5-minute **Check every**
 | `cellular_down` `recovered` | Turn airplane mode off | At the next run: a test SMS runs at once and passes |
 | `cellular_down`, SMS-only fault, hourly re-test | Set a wrong **Own number** (the test SMS never comes back), then wait | `started` after the daily test and its retry fail; then a test SMS and a `reminder` every 60 minutes. Put the right number back: `recovered` at the next hourly test |
 | `cancelled`, `cellular_alerts_off` / `cellular_off` | During `cellular_down`, turn **Send cellular alerts** off, or Cellular Check off | At once |
+| `ip_drift` `started`, `no_wifi` | Fixed IP on, then turn Wi-Fi off for more than 1 minute (3 minutes after a reboot, plus that minute) | The SMS at 1 minute. The request is held until Wi-Fi is back, then arrives with its original `time` |
+| `ip_drift` `recovered` | Turn Wi-Fi back on | At the next read after Wi-Fi returns, within seconds; one recovery SMS too |
+| `ip_drift` `started`, `address_changed` | Give the phone another address (a static address in Android's Wi-Fi settings, or a changed router reservation) | At once, with the SMS |
+| `cancelled`, `ip_off` | During an `ip_drift`, switch **Watch the Wi-Fi address** off | At once (behind any waiting requests); no SMS |
 | `not_charging` | With the battery at or below 50% (**Turn on** goes up to 50%): pull the charger cable out of the phone, then set **Turn on** just above the current battery. The next check turns the plug on and finds the phone not plugged in 30 s later | `started` about 30 s after that check. Plug the cable back in: `recovered` at the next check where the battery charges. Set **Turn on** back afterwards |
 | `guard_degraded` | Not practical on Android 13 and later | — |
 

@@ -40,5 +40,6 @@ object CheckDecision {
         AlertKind.Test -> 4205
         AlertKind.CellularDown -> 4206
         AlertKind.CellularStatus -> 4207
+        AlertKind.IpDrift -> 4208
     }
 }

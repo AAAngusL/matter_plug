@@ -8,17 +8,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
 import android.provider.Telephony
-import android.telephony.SmsManager
 import android.telephony.SmsMessage
-import android.telephony.SubscriptionManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import app.matterplug.cellular.logic.DeliveryStatus
 import app.matterplug.cellular.logic.LoopbackJudge
 import app.matterplug.cellular.logic.LoopbackOutcome
 import app.matterplug.cellular.logic.SentStatus
+import app.matterplug.sms.SmsSupport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -49,7 +47,7 @@ object LoopbackSender {
         val sentReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
                 if (i.getStringExtra(EXTRA_TOKEN) != token) return
-                sent.complete(if (resultCode == Activity.RESULT_OK) SentStatus.Ok else SentStatus.Error(resultCode, codeName(resultCode)))
+                sent.complete(if (resultCode == Activity.RESULT_OK) SentStatus.Ok else SentStatus.Error(resultCode, SmsSupport.resultName(resultCode)))
             }
         }
         val deliveredReceiver = object : BroadcastReceiver() {
@@ -74,7 +72,7 @@ object LoopbackSender {
         try {
             // An exception here (permission revoked, a bad number) is the app's problem, not proof that SMS is down: it is
             // passed up, and the service releases the loopback without counting it.
-            smsManager(ctx).sendTextMessage(number, null, LoopbackJudge.body(token),
+            SmsSupport.smsManager(ctx).sendTextMessage(number, null, LoopbackJudge.body(token),
                 pending(ctx, ACTION_SENT, token, 0), pending(ctx, ACTION_DELIVERED, token, 1))
             val start = System.currentTimeMillis()
             val sentStatus = withTimeoutOrNull(SENT_TIMEOUT_MS) { sent.await() } ?: SentStatus.NoAnswer
@@ -93,16 +91,6 @@ object LoopbackSender {
         }
     }
 
-    /** The name of the SmsManager RESULT_* constant with this value, so an unusual failure is readable; null if none. */
-    private fun codeName(code: Int): String? = try {
-        SmsManager::class.java.fields.firstOrNull {
-            it.name.startsWith("RESULT_") && it.type == Int::class.javaPrimitiveType &&
-                java.lang.reflect.Modifier.isStatic(it.modifiers) && it.getInt(null) == code
-        }?.name
-    } catch (e: Exception) {
-        null
-    }
-
     /**
      * Mutable, because the system adds the delivery report ("pdu", "format") to it; aimed at this app only. Each loopback
      * gets its own request code, so a late report for an earlier test SMS keeps that SMS's token instead of being
@@ -112,18 +100,6 @@ object LoopbackSender {
         ctx, (token.hashCode() and 0x3fffffff) * 2 + kind, Intent(action).setPackage(ctx.packageName).putExtra(EXTRA_TOKEN, token),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
     )
-
-    /** The default SMS subscription's SmsManager, or the default one when there is none. */
-    @Suppress("DEPRECATION")
-    private fun smsManager(ctx: Context): SmsManager {
-        val subId = SubscriptionManager.getDefaultSmsSubscriptionId()
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val base = ctx.getSystemService(SmsManager::class.java)
-            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) base.createForSubscriptionId(subId) else base
-        } else {
-            if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) SmsManager.getSmsManagerForSubscriptionId(subId) else SmsManager.getDefault()
-        }
-    }
 
     private const val EXTRA_TOKEN = "token"
 }

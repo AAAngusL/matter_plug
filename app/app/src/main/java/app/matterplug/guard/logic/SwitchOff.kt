@@ -8,6 +8,7 @@ enum class CancelledBy(val wire: String, val phrase: String) {
     AlertsOff("alerts_off", "Battery Guard alerts were turned off"),
     CellularOff("cellular_off", "Cellular Check was turned off"),
     CellularAlertsOff("cellular_alerts_off", "Cellular alerts were turned off"),
+    IpOff("ip_off", "Fixed IP was turned off"),
 }
 
 /** What a change of a feature's switches does to its alerts. */

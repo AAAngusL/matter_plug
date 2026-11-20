@@ -7,6 +7,8 @@ import android.util.Log
 import app.matterplug.alarm.runAsync
 import app.matterplug.cellular.CellularScheduler
 import app.matterplug.cellular.CellularStore
+import app.matterplug.fixedip.IpStore
+import app.matterplug.fixedip.IpWatchService
 
 /**
  * After a restart, an app update or a change of the exact-alarm permission (5.8): if Battery Guard is on, schedule the
@@ -32,6 +34,10 @@ class BootReceiver : BroadcastReceiver() {
             val cellular = CellularStore(app).readSettings().enabled
             Log.i(TAG, "boot: cellular=$cellular")
             if (cellular) CellularScheduler.alarm.scheduleIn(app, FIRST_CHECK_MS)
+            // Fixed IP: its service holds the Wi-Fi callback and the boot grace, so it starts again after a restart or an update.
+            val fixedIp = IpStore(app).readSettings().enabled
+            Log.i(TAG, "boot: fixedIp=$fixedIp")
+            if (fixedIp) IpWatchService.start(app)
         }
     }
 

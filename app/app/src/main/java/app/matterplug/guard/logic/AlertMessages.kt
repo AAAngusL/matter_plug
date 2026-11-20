@@ -1,11 +1,12 @@
 package app.matterplug.guard.logic
 
 import app.matterplug.cellular.logic.CellularReport
+import app.matterplug.fixedip.logic.IpReport
 
 /** Fixed wire text. */
 object AlertMessages {
     fun text(e: AlertEvent): String = when (e.phase) {
-        AlertPhase.Recovered -> if (e.kind == AlertKind.CellularDown) CellularReport.recoveredText(e.battery) else "Matter Plug: recovered. Battery ${e.battery}%, ${e.power.words.wire}."
+        AlertPhase.Recovered -> if (e.kind == AlertKind.IpDrift) IpReport.text(e.phase, e.ip) else if (e.kind == AlertKind.CellularDown) CellularReport.recoveredText(e.battery) else "Matter Plug: recovered. Battery ${e.battery}%, ${e.power.words.wire}."
         AlertPhase.Test -> "Matter Plug: test alert."
         AlertPhase.Cancelled -> "Matter Plug: ${e.cancelledBy?.phrase ?: "An alert switch was turned off"}. " +
             "The ${alertName(e.kind)} alert is closed without a recovery. Battery ${e.battery}%."
@@ -19,6 +20,7 @@ object AlertMessages {
         AlertKind.PlugUnreachable -> "plug unreachable"
         AlertKind.GuardDegraded -> "Battery Guard not working"
         AlertKind.CellularDown -> "SMS"
+        AlertKind.IpDrift -> "Wi-Fi address"
         AlertKind.Status, AlertKind.Test, AlertKind.CellularStatus -> k.wire       // never cancelled
     }
 
@@ -31,6 +33,7 @@ object AlertMessages {
                 null -> "Matter Plug: battery ${e.battery}%. The charger plug cannot be reached."     // from a plug read
             }
         AlertKind.GuardDegraded -> "Matter Plug: Battery Guard is not working: ${e.detail ?: "unknown fault"}. Battery ${e.battery}%."
+        AlertKind.IpDrift -> IpReport.text(e.phase, e.ip)
         AlertKind.CellularDown -> e.cellular?.let { CellularReport.downText(it, e.battery) } ?: "Matter Plug: SMS is not working. Battery ${e.battery}%."
         AlertKind.Status, AlertKind.Test, AlertKind.CellularStatus -> "Matter Plug: test alert."   // not reached: Status and Test use their phase's text above
     }

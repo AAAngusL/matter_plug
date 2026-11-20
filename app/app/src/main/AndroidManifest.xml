@@ -7,7 +7,9 @@
     <!-- Android 9 to 11 -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!-- Android 9 to 11 for Bluetooth scanning; every version for Fixed IP, because Android shows the Wi-Fi name only to an app that may see
+         the location (docs/FIXED-IP.md section 9). Pairing still asks for it only on Android 9 to 11. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Android 12 and above -->
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
@@ -70,6 +72,11 @@
             android:name=".cellular.LoopbackService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- Fixed IP: the resident service that watches the Wi-Fi address while its switch is on (F4) -->
+        <service
+            android:name=".fixedip.IpWatchService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".guard.ActionService"
             android:exported="false"

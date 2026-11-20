@@ -49,7 +49,15 @@ object CellularScheduler {
 
 /** Receives Cellular Check's own alarm. */
 class CellularReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) = runAsync(context, "Cellular", "run") { CellularRunner.run(it) }
+    override fun onReceive(context: Context, intent: Intent) = runAsync(context, "Cellular", "run") {
+        CellularRunner.run(it)
+        try {
+            app.matterplug.fixedip.IpRunner.onChain(it)      // Fixed IP's backstop rides this chain while Battery Guard is off
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("Cellular", "fixed ip read failed", e)
+        }
+    }
 }
 
 /**
