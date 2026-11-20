@@ -72,7 +72,7 @@ The time between **Checks**. One value, whether or not the **Device** is **Plugg
 _Avoid_: frequency, polling rate
 
 **Alert**:
-A message sent when **Battery Guard** cannot keep the battery in the **Band** or cannot do its job (the phone is not charging after the plug was turned on, the plug cannot be reached, or Battery Guard itself is faulty), or when **Cellular Check** finds that SMS does not work.
+A message sent when **Battery Guard** cannot keep the battery in the **Band** or cannot do its job (the phone is not charging after the plug was turned on, the plug cannot be reached, or Battery Guard itself is faulty), when **Cellular Check** finds that SMS does not work, or when **Fixed IP** finds that the **Device**'s Wi-Fi address changed or its Wi-Fi is lost.
 _Avoid_: warning, notification (a notification is only how an alert shows on the phone)
 
 **Alert address**:
@@ -94,6 +94,22 @@ _Avoid_: watchdog, timeout
 **Cellular Check**:
 The feature that proves the **Device** can still send and receive SMS: it reads the **Passive layers** at every **Check** and confirms with a **Loopback SMS**.
 _Avoid_: signal check, network monitor
+
+**Fixed IP**:
+The feature that keeps the **Device**'s Wi-Fi address from changing under the dialer that finds it by that address: the user pins the current address and reserves it on the router, and the app watches it and alerts by SMS and by the **Alert address** on a **Drift** or a lost Wi-Fi.
+_Avoid_: static IP (the app cannot set one)
+
+**Pinned address**:
+The Wi-Fi address, gateway, network name and MAC the user chose to keep. One network only.
+_Avoid_: locked address, saved IP
+
+**Drift**:
+The **Device** is on the pinned network but its address (or gateway) is not the pinned one.
+_Avoid_: change, mismatch
+
+**IP alert number**:
+The phone number that receives **Fixed IP**'s SMS, with an optional backup number that receives the same SMS.
+_Avoid_: own number (that is Cellular Check's, for its loopback)
 
 **Layer**:
 One thing that can fail on its own in **Cellular Check**: SIM, registration, signal, or SMS. A failed layer marks the layers that need it as skipped.
