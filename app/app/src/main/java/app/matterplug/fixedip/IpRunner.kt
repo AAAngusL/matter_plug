@@ -117,7 +117,7 @@ object IpRunner {
     suspend fun onChain(ctx: Context) {
         val settings = IpStore(ctx).readSettings()
         if (!settings.enabled) return
-        IpWatchService.start(ctx)
+        if (!IpWatchService.start(ctx)) Log.w(TAG, "watch service not restarted; this read is all that runs until it can start")
         evaluate(ctx)
     }
 }

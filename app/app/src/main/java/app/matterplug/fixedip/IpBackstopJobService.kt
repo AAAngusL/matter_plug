@@ -29,7 +29,8 @@ class IpBackstopJobService : JobService() {
         val app = applicationContext
         running.set(scope.launch {
             try {
-                IpRunner.onChain(app)
+                // A job left behind (the switch was turned off while the process was ending, or the data was cleared) ends itself.
+                if (!IpStore(app).readSettings().enabled) cancel(app) else IpRunner.onChain(app)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
