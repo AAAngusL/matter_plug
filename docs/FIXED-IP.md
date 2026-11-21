@@ -170,7 +170,8 @@ Android lets an idle app have only about one exact alarm per 9 minutes (`Cellula
 | **The 1-minute wait and the boot grace** | Timers inside the service. The wait start is stored (`noWifiSince`), so a process that is ended mid-wait resumes it. While a wait is pending the service holds a partial wake lock, because a timer does not run while the CPU sleeps; otherwise it holds one only for each read |
 | **Own periodic read** | At Battery Guard's **Check every** value, best effort (it does not run while the CPU sleeps) |
 | **The two alarm chains** | `CheckReceiver` (Battery Guard) and `CellularReceiver` (Cellular Check, while Battery Guard is off) call `IpRunner.onChain`: a guaranteed read, and the service started again if Android ended it |
-| **After boot** | `BootReceiver` starts the service; so does opening the app |
+| **The backstop job** | `IpBackstopJobService`, a persisted periodic job (id 7002, every 15 minutes, Android's shortest), scheduled while the switch is on and cancelled when it is turned off or the network is unpinned. It calls `IpRunner.onChain`: the service started again if Android ended it, and one read, so a lost Wi-Fi or a drift is found even where no alarm chain runs (Battery Guard and Cellular Check both off). It does not survive "Force stop" in Android's settings, which cancels every job of the app until it is opened again; the screen and a reboot bring it back |
+| **After boot** | `BootReceiver` starts the service and schedules the job again; so does opening the app |
 | **Check now** button | One read, shows the result |
 
 A service started from a receiver in the background needs the app on the battery-optimisation allowlist: the SM-G780F has it (`dumpsys deviceidle whitelist`), and the existing alarm chains are exempt anyway. If **both** Battery Guard and Cellular Check are off and Android ends the service, only a restart of the phone, an update, or opening the app starts it again (risks, section 13).

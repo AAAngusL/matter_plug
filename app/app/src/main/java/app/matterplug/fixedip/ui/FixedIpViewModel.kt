@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import app.matterplug.fixedip.IpBackstopJobService
 import app.matterplug.fixedip.IpReader
 import app.matterplug.fixedip.IpRunner
 import app.matterplug.fixedip.IpWatchService
@@ -62,7 +63,10 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
             val s = store.readSettings()
             _smsText.value = s.smsNumber
             _backupText.value = s.backupNumber
-            if (s.enabled) IpWatchService.start(getApplication())      // opening the app starts the watch again if Android ended it
+            if (s.enabled) {      // opening the app starts the watch again if Android ended it, and makes sure the backstop job is there
+                IpWatchService.start(getApplication())
+                IpBackstopJobService.schedule(getApplication())
+            }
         }
         checkNow()
     }
@@ -106,7 +110,14 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val closed = store.update { if (on && !it.canEnable) it else it.copy(enabled = on) }
             val enabled = store.readSettings().enabled
-            if (enabled) IpWatchService.start(getApplication()) else { IpWatchService.stop(getApplication()); IpRunner.closed(getApplication(), closed) }
+            if (enabled) {
+                IpWatchService.start(getApplication())
+                IpBackstopJobService.schedule(getApplication())
+            } else {
+                IpWatchService.stop(getApplication())
+                IpBackstopJobService.cancel(getApplication())
+                IpRunner.closed(getApplication(), closed)
+            }
         }
     }
 
@@ -115,6 +126,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val closed = store.update { it.copy(pinned = null, enabled = false) }
             IpWatchService.stop(getApplication())
+            IpBackstopJobService.cancel(getApplication())
             IpRunner.closed(getApplication(), closed, CancelledBy.IpUnpinned)
             _guide.value = false
             _problem.value = null
