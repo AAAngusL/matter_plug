@@ -1,6 +1,6 @@
 # Console Heartbeat: Design
 
-Status: draft 2. H1 built on 2026-11-21 (logic, store, hook, switch, picker); the unit tests pass. T8 verified on the SM-G780F (2026-11-20): with the console unreachable (wrong port), the 1st missed check sent nothing, the 2nd sent one start SMS to both numbers; a wrong path (HTTP 404) counted as a miss too; with the right address the next check sent one recovery SMS and the count went to 0. Not yet run: T6 and T7 on the phone. It reuses Battery Guard's delivery code (`HttpAlerter`, `GuardStore`) and Fixed IP's SMS sender (`IpSms`) and numbers.
+Status: draft 2. H1 built on 2026-11-21 (logic, store, hook, switch, picker); the unit tests pass. T8 verified on the SM-G780F (2026-11-20): with the console unreachable (wrong port), the 1st missed check sent nothing, the 2nd sent one start SMS to both numbers; a wrong path (HTTP 404) counted as a miss too; with the right address the next check sent one recovery SMS and the count went to 0. The user confirmed that both numbers received the start and the recovery SMS. Not yet run: T6 and T7 on the phone. It reuses Battery Guard's delivery code (`HttpAlerter`, `GuardStore`) and Fixed IP's SMS sender (`IpSms`) and numbers.
 
 Changes in draft 2, from the grilling review of draft 1 (12 decisions, all in section 5):
 
