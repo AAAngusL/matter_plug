@@ -1,0 +1,156 @@
+plug_unreachable Started low
+  json: {"alert":"plug_unreachable","state":"started","message":"Matter Plug: cannot reach charger plug to turn it on. Battery 42%.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: cannot reach charger plug to turn it on. Battery 42%.
+plug_unreachable Started high
+  json: {"alert":"plug_unreachable","state":"started","message":"Matter Plug: cannot reach charger plug to turn it off. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: cannot reach charger plug to turn it off. Battery 42%.
+plug_unreachable Started unknown
+  json: {"alert":"plug_unreachable","state":"started","message":"Matter Plug: cannot reach charger plug. Battery 42%.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: cannot reach charger plug. Battery 42%.
+not_charging Started
+  json: {"alert":"not_charging","state":"started","message":"Matter Plug: not charging though plug is on. Check charger and cable. Battery 42%.","battery":42,"charging":false,"plugged_in":true,"battery_status":"not_charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: not charging though plug is on. Check charger and cable. Battery 42%.
+guard_degraded Started
+  json: {"alert":"guard_degraded","state":"started","message":"Matter Plug: Battery Guard stopped: service could not start. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: Battery Guard stopped: service could not start. Battery 42%.
+cellular_down Started
+  json: {"alert":"cellular_down","state":"started","message":"Matter Plug: SMS not working, signal fine: not tested. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: SMS not working, signal fine: not tested. Battery 42%.
+ip_drift Started full
+  json: {"alert":"ip_drift","state":"started","message":"Matter Plug: IP changed from 192.168.1.37 to 192.168.1.52. Dialer may lose it. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","ip":{"pinned":"192.168.1.37","current":"192.168.1.52","ssid":"Home","reason":"address_changed","sms":"sent"}}
+  text: Matter Plug: IP changed from 192.168.1.37 to 192.168.1.52. Dialer may lose it. Battery 42%.
+ip_drift Started nocurrent
+  json: {"alert":"ip_drift","state":"started","message":"Matter Plug: no Wi-Fi for 1 minute. Dialer cannot reach it. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","ip":{"pinned":"192.168.1.37","ssid":"Home","reason":"no_wifi","sms":"failed"}}
+  text: Matter Plug: no Wi-Fi for 1 minute. Dialer cannot reach it. Battery 42%.
+plug_unreachable Reminder low
+  json: {"alert":"plug_unreachable","state":"reminder","message":"Reminder: cannot reach charger plug to turn it on. Battery 42%.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z"}
+  text: Reminder: cannot reach charger plug to turn it on. Battery 42%.
+plug_unreachable Reminder high
+  json: {"alert":"plug_unreachable","state":"reminder","message":"Reminder: cannot reach charger plug to turn it off. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Reminder: cannot reach charger plug to turn it off. Battery 42%.
+plug_unreachable Reminder unknown
+  json: {"alert":"plug_unreachable","state":"reminder","message":"Reminder: cannot reach charger plug. Battery 42%.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z"}
+  text: Reminder: cannot reach charger plug. Battery 42%.
+not_charging Reminder
+  json: {"alert":"not_charging","state":"reminder","message":"Reminder: not charging though plug is on. Check charger and cable. Battery 42%.","battery":42,"charging":false,"plugged_in":true,"battery_status":"not_charging","time":"2026-11-18T11:06:40Z"}
+  text: Reminder: not charging though plug is on. Check charger and cable. Battery 42%.
+guard_degraded Reminder
+  json: {"alert":"guard_degraded","state":"reminder","message":"Reminder: Battery Guard stopped: service could not start. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Reminder: Battery Guard stopped: service could not start. Battery 42%.
+cellular_down Reminder
+  json: {"alert":"cellular_down","state":"reminder","message":"Reminder: SMS not working, signal fine: not tested. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Reminder: SMS not working, signal fine: not tested. Battery 42%.
+ip_drift Reminder full
+  json: {"alert":"ip_drift","state":"reminder","message":"Reminder: IP changed from 192.168.1.37 to 192.168.1.52. Dialer may lose it. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","ip":{"pinned":"192.168.1.37","current":"192.168.1.52","ssid":"Home","reason":"address_changed","sms":"sent"}}
+  text: Reminder: IP changed from 192.168.1.37 to 192.168.1.52. Dialer may lose it. Battery 42%.
+ip_drift Reminder nocurrent
+  json: {"alert":"ip_drift","state":"reminder","message":"Reminder: no Wi-Fi for 1 minute. Dialer cannot reach it. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","ip":{"pinned":"192.168.1.37","ssid":"Home","reason":"no_wifi","sms":"failed"}}
+  text: Reminder: no Wi-Fi for 1 minute. Dialer cannot reach it. Battery 42%.
+plug_unreachable Recovered low
+  json: {"alert":"plug_unreachable","state":"recovered","message":"Matter Plug: charger plug reachable again. Battery 42%.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: charger plug reachable again. Battery 42%.
+plug_unreachable Recovered high
+  json: {"alert":"plug_unreachable","state":"recovered","message":"Matter Plug: charger plug reachable again. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: charger plug reachable again. Battery 42%.
+plug_unreachable Recovered unknown
+  json: {"alert":"plug_unreachable","state":"recovered","message":"Matter Plug: charger plug reachable again. Battery 42%.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: charger plug reachable again. Battery 42%.
+not_charging Recovered
+  json: {"alert":"not_charging","state":"recovered","message":"Matter Plug: charging again. Battery 42%.","battery":42,"charging":false,"plugged_in":true,"battery_status":"not_charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: charging again. Battery 42%.
+guard_degraded Recovered
+  json: {"alert":"guard_degraded","state":"recovered","message":"Matter Plug: Battery Guard working again. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: Battery Guard working again. Battery 42%.
+cellular_down Recovered
+  json: {"alert":"cellular_down","state":"recovered","message":"Matter Plug: SMS works again. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: SMS works again. Battery 42%.
+ip_drift Recovered full
+  json: {"alert":"ip_drift","state":"recovered","message":"Matter Plug: IP is back at 192.168.1.37. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","ip":{"pinned":"192.168.1.37","current":"192.168.1.52","ssid":"Home","reason":"address_changed","sms":"sent"}}
+  text: Matter Plug: IP is back at 192.168.1.37. Battery 42%.
+ip_drift Recovered nocurrent
+  json: {"alert":"ip_drift","state":"recovered","message":"Matter Plug: IP is back at 192.168.1.37. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","ip":{"pinned":"192.168.1.37","ssid":"Home","reason":"no_wifi","sms":"failed"}}
+  text: Matter Plug: IP is back at 192.168.1.37. Battery 42%.
+cancelled guard_off plug
+  json: {"alert":"plug_unreachable","state":"cancelled","message":"Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"guard_off"}
+  text: Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled guard_off cellular
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"guard_off"}
+  text: Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled guard_off cellular summary
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"guard_off","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled guard_off ip
+  json: {"alert":"ip_drift","state":"cancelled","message":"Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"guard_off"}
+  text: Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled alerts_off plug
+  json: {"alert":"plug_unreachable","state":"cancelled","message":"Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"alerts_off"}
+  text: Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled alerts_off cellular
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"alerts_off"}
+  text: Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled alerts_off cellular summary
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"alerts_off","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled alerts_off ip
+  json: {"alert":"ip_drift","state":"cancelled","message":"Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"alerts_off"}
+  text: Matter Plug: Battery Guard alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_off plug
+  json: {"alert":"plug_unreachable","state":"cancelled","message":"Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_off"}
+  text: Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_off cellular
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_off"}
+  text: Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_off cellular summary
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_off","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_off ip
+  json: {"alert":"ip_drift","state":"cancelled","message":"Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_off"}
+  text: Matter Plug: Cellular Check turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_alerts_off plug
+  json: {"alert":"plug_unreachable","state":"cancelled","message":"Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_alerts_off"}
+  text: Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_alerts_off cellular
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_alerts_off"}
+  text: Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_alerts_off cellular summary
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_alerts_off","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled cellular_alerts_off ip
+  json: {"alert":"ip_drift","state":"cancelled","message":"Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"cellular_alerts_off"}
+  text: Matter Plug: Cellular alerts turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_off plug
+  json: {"alert":"plug_unreachable","state":"cancelled","message":"Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_off"}
+  text: Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_off cellular
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_off"}
+  text: Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_off cellular summary
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_off","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_off ip
+  json: {"alert":"ip_drift","state":"cancelled","message":"Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_off"}
+  text: Matter Plug: Fixed IP turned off. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_unpinned plug
+  json: {"alert":"plug_unreachable","state":"cancelled","message":"Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_unpinned"}
+  text: Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_unpinned cellular
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_unpinned"}
+  text: Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_unpinned cellular summary
+  json: {"alert":"cellular_down","state":"cancelled","message":"Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_unpinned","cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.
+cancelled ip_unpinned ip
+  json: {"alert":"ip_drift","state":"cancelled","message":"Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","cancelled_by":"ip_unpinned"}
+  text: Matter Plug: Fixed IP network unpinned. Open alert closed; problem may remain. Battery 42%.
+status
+  json: {"alert":"status","state":"status","message":"Matter Plug: status. Battery 42%, charging.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","next_check_in_min":5}
+  text: Matter Plug: status. Battery 42%, charging.
+status on battery
+  json: {"alert":"status","state":"status","message":"Matter Plug: status. Battery 42%, on battery.","battery":42,"charging":false,"plugged_in":false,"battery_status":"discharging","time":"2026-11-18T11:06:40Z","next_check_in_min":15}
+  text: Matter Plug: status. Battery 42%, on battery.
+cellular_status
+  json: {"alert":"cellular_status","state":"status","message":"Matter Plug: cellular: SIM pass, registered pass, signal pass, SMS pass. Battery 42%.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z","next_check_in_min":5,"cellular":{"trigger":"manual","sim":"pass","registration":"pass","signal":"pass","sms":"pass","signal_detail":"LTE"}}
+  text: Matter Plug: cellular: SIM pass, registered pass, signal pass, SMS pass. Battery 42%.
+test
+  json: {"alert":"test","state":"test","message":"Matter Plug: test alert.","battery":42,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-18T11:06:40Z"}
+  text: Matter Plug: test alert.

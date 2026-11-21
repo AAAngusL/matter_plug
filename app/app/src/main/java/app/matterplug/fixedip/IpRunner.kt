@@ -8,8 +8,8 @@ import app.matterplug.fixedip.logic.IpReport
 import app.matterplug.fixedip.logic.IpState
 import app.matterplug.fixedip.logic.IpSummary
 import app.matterplug.fixedip.logic.IpVerdict
-import app.matterplug.fixedip.logic.SmsOutcome
-import app.matterplug.fixedip.logic.SmsResult
+import app.matterplug.sms.SmsOutcome
+import app.matterplug.sms.AlertSms
 import app.matterplug.guard.BatteryReader
 import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardNotifier
@@ -78,18 +78,16 @@ object IpRunner {
         // The battery is read first: the SMS carries it, and the SMS and the request's message say the same thing.
         val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { if (e is CancellationException) throw e; null }
         val sms = if (phase == AlertPhase.Reminder) (store.readLastSms()?.outcome ?: SmsOutcome.Failed)
-        else sendSms(ctx, store, settings.recipients, IpReport.text(phase, base, battery?.level ?: 0), now)
-        val event = AlertEvent(AlertKind.IpDrift, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now, ip = base.copy(sms = sms))
+        else sendSms(ctx, store, settings.recipients, IpReport.text(phase, base, battery?.level ?: 0))
+        val event = AlertEvent(AlertKind.IpDrift, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now, extra = base.copy(sms = sms))
         GuardNotifier.post(ctx, listOf(event))
         return Outcome(event, nextAt)
     }
 
     /** One SMS to every number, recorded for the screen. The reminder never sends one (section 7). */
-    private suspend fun sendSms(ctx: Context, store: IpStore, numbers: List<String>, text: String, now: Long): SmsOutcome {
-        val sent = IpSms.send(ctx, numbers, text)
-        val outcome = SmsResult.outcome(sent.accepted)
-        store.recordSms(now, outcome, if (outcome == SmsOutcome.Failed) sent.failure else null)
-        Log.i(TAG, "sms: numbers=${numbers.size} outcome=${outcome.wire} failure=${sent.failure}")
+    private suspend fun sendSms(ctx: Context, store: IpStore, numbers: List<String>, text: String): SmsOutcome {
+        val (outcome, failure) = AlertSms.sendAndRecord(ctx, numbers, text, store::recordSms)
+        Log.i(TAG, "sms: numbers=${numbers.size} outcome=${outcome.wire} failure=$failure")
         return outcome
     }
 
@@ -113,11 +111,25 @@ object IpRunner {
         }
     }
 
-    /** The backstop the two alarm chains call: a read, and the service started again if it has died. */
-    suspend fun onChain(ctx: Context) {
+    /**
+     * Whether the phone cannot reach the LAN: Fixed IP is on and reads no Wi-Fi, or another network than the pinned one. That is Fixed IP's
+     * alert, so the console heartbeat does not count a failed push then. False when Fixed IP is off: the app cannot tell, so it counts.
+     */
+    suspend fun phoneOffline(ctx: Context): Boolean {
+        val store = IpStore(ctx)
+        val settings = store.readSettings()
+        val pinned = settings.pinned
+        if (!settings.enabled || pinned == null) return false
+        val now = System.currentTimeMillis()
+        val state = IpVerdict.judge(pinned, IpReader.read(ctx), store.readNoWifiSince(), now - SystemClock.elapsedRealtime(), now)
+        return state is IpState.NoWifi || state is IpState.OtherNetwork
+    }
+
+    /** What a check, or the backstop job, does for Fixed IP: a read, and the watch service started again if Android ended it. */
+    suspend fun readAndRestartWatch(ctx: Context) {
         val settings = IpStore(ctx).readSettings()
         if (!settings.enabled) return
-        if (!IpWatchService.start(ctx)) Log.w(TAG, "watch service not restarted; this read is all that runs until it can start")
+        if (!IpWatch.enable(ctx)) Log.w(TAG, "watch service not restarted; this read is all that runs until it can start")
         evaluate(ctx)
     }
 }

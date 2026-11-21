@@ -1,4 +1,7 @@
-package app.matterplug.fixedip.logic
+package app.matterplug.sms
+
+/** Whether an alert SMS reached any number, as the wire and the screen name it. */
+enum class SmsOutcome(val wire: String) { Sent("sent"), Failed("failed") }
 
 /** Judges one alert SMS sent to several numbers (docs/FIXED-IP.md section 6). Pure, so it is unit-tested. */
 object SmsResult {

@@ -56,7 +56,7 @@ class CellularReportTest {
     )
 
     private fun event(phase: AlertPhase, s: CellularSummary) =
-        AlertEvent(AlertKind.CellularDown, phase, 64, Power(true, BatteryStatus.Charging), null, 0L, cellular = s)
+        AlertEvent(AlertKind.CellularDown, phase, 64, Power(true, BatteryStatus.Charging), null, 0L, extra = s)
 
     @Test fun aPassiveFaultNamesTheFirstFailedLayerAndTheSmsResult() {
         val s = CellularReport.summary(airplane, LoopbackTrigger.Confirmation)
@@ -118,7 +118,7 @@ class CellularStatusReportTest {
     )
     private fun report(results: Map<Layer, LayerResult>) =
         AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, 84, Power(true, BatteryStatus.Charging), null, 0L, nextCheckInMin = 15,
-            cellular = CellularReport.summary(results, LoopbackTrigger.Daily))
+            extra = CellularReport.summary(results, LoopbackTrigger.Daily))
 
     @Test fun itsTypeIsCellularStatus() = assertTrue(
         AlertJson.encode(report(healthy), "m", "t").startsWith("""{"alert":"cellular_status","state":"status","message":"m","battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"t","next_check_in_min":15,"cellular":{"""),

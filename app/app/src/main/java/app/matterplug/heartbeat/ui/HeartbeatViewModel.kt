@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.matterplug.fixedip.IpStore
-import app.matterplug.fixedip.logic.SmsResult
+import app.matterplug.sms.SmsResult
 import app.matterplug.guard.GuardStore
 import app.matterplug.heartbeat.HeartbeatStore
 import app.matterplug.heartbeat.logic.HeartbeatSettings

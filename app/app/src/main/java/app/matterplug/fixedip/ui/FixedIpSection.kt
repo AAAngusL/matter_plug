@@ -48,9 +48,11 @@ import app.matterplug.fixedip.logic.DriftReason
 import app.matterplug.fixedip.logic.FixedIpSettings
 import app.matterplug.fixedip.logic.IpFormat
 import app.matterplug.fixedip.logic.IpState
-import app.matterplug.fixedip.IpSms
+import app.matterplug.sms.AlertSms
+import app.matterplug.ui.LabeledSwitch
+import app.matterplug.ui.LastSmsLine
+import app.matterplug.ui.rememberSmsPermissionRequest
 import app.matterplug.fixedip.logic.PinnedNetwork
-import app.matterplug.fixedip.logic.SmsOutcome
 import java.util.Date
 
 /** Fixed IP, the third tab under the plug switch (docs/FIXED-IP.md section 10). F3: reads, pins, guides and keeps the numbers; the watch is F4. */
@@ -69,9 +71,8 @@ fun FixedIpSection(modifier: Modifier = Modifier, viewModel: FixedIpViewModel = 
     }
     val lastSms by viewModel.lastSms.collectAsStateWithLifecycle()
     var smsDenied by remember { mutableStateOf(false) }
-    val switchLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        // The notification permission is asked for too (Android 13+), but only SMS is needed: without it the watch cannot alert.
-        val sms = result[Manifest.permission.SEND_SMS] ?: IpSms.canSend(context)
+    // The notification permission is asked for too (Android 13+), but only SMS is needed: without it the watch cannot alert.
+    val askSms = rememberSmsPermissionRequest(if (Build.VERSION.SDK_INT >= 33) listOf(Manifest.permission.POST_NOTIFICATIONS) else emptyList()) { sms ->
         smsDenied = !sms
         if (sms) viewModel.setEnabled(true)
     }
@@ -114,28 +115,17 @@ fun FixedIpSection(modifier: Modifier = Modifier, viewModel: FixedIpViewModel = 
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.fixedip_switch), modifier = Modifier.weight(1f))
-            Switch(checked = cfg.enabled, onCheckedChange = { on ->
-                when {
-                    !on -> viewModel.setEnabled(false)
-                    !cfg.canEnable -> smsDenied = false
-                    IpSms.canSend(context) -> viewModel.setEnabled(true)
-                    else -> switchLauncher.launch(buildList {
-                        add(Manifest.permission.SEND_SMS)
-                        if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
-                    }.toTypedArray())
-                }
-            })
+        LabeledSwitch(stringResource(R.string.fixedip_switch), cfg.enabled) { on ->
+            when {
+                !on -> viewModel.setEnabled(false)
+                !cfg.canEnable -> smsDenied = false
+                AlertSms.canSend(context) -> viewModel.setEnabled(true)
+                else -> askSms()
+            }
         }
         if (!cfg.canEnable && !cfg.enabled) Text(stringResource(R.string.fixedip_need_setup), style = MaterialTheme.typography.bodySmall)
         if (smsDenied) Text(stringResource(R.string.fixedip_sms_denied), color = MaterialTheme.colorScheme.error)
-        lastSms?.let {
-            val text = stringResource(if (it.outcome == SmsOutcome.Sent) R.string.fixedip_last_sms_sent else R.string.fixedip_last_sms_failed,
-                timeFormat.format(Date(it.atMs)), it.detail.orEmpty())
-            Text(text, style = MaterialTheme.typography.bodySmall,
-                color = if (it.outcome == SmsOutcome.Sent) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
-        }
+        LastSmsLine(lastSms)
 
         OutlinedTextField(
             value = smsText, onValueChange = viewModel::setSmsNumber, singleLine = true, modifier = Modifier.fillMaxWidth(),

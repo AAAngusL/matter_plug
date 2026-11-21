@@ -14,7 +14,6 @@ import app.matterplug.guard.logic.DeliveryPlan
 import app.matterplug.guard.logic.PostResult
 import app.matterplug.guard.logic.Power
 import app.matterplug.guard.logic.authorizationHeader
-import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.guard.logic.resultForCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -129,11 +128,11 @@ object HttpAlerter {
      */
     data class SenderSwitches(val alertsOn: Boolean, val statusOn: Boolean)
 
+    /** Returns the first push this call made, or null when it made none: what the console heartbeat (docs/CONSOLE-HEARTBEAT.md) learns from a check. */
     suspend fun deliver(
         ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
-        cellular: SenderSwitches? = null, heartbeat: Boolean = false,
-    ) {
-        // The first push this call makes, for the heartbeat of docs/CONSOLE-HEARTBEAT.md: only a check's own delivery passes heartbeat = true.
+        cellular: SenderSwitches? = null,
+    ): PostResult? {
         val first = AtomicReference<PostResult?>(null)
         try {
             deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, cellular, first)
@@ -141,7 +140,7 @@ object HttpAlerter {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
         }
-        if (heartbeat) HeartbeatRunner.afterCheck(ctx, first.get())
+        return first.get()
     }
 
     private suspend fun deliverInner(

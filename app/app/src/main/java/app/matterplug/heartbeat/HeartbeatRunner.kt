@@ -1,19 +1,16 @@
 package app.matterplug.heartbeat
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.Log
-import app.matterplug.fixedip.IpReader
-import app.matterplug.fixedip.IpSms
+import app.matterplug.fixedip.IpRunner
 import app.matterplug.fixedip.IpStore
-import app.matterplug.fixedip.logic.IpState
-import app.matterplug.fixedip.logic.IpVerdict
-import app.matterplug.fixedip.logic.SmsOutcome
-import app.matterplug.fixedip.logic.SmsResult
 import app.matterplug.guard.logic.PostResult
 import app.matterplug.heartbeat.logic.Heartbeat
+import app.matterplug.heartbeat.logic.HeartbeatDue
 import app.matterplug.heartbeat.logic.HeartbeatSms
 import app.matterplug.heartbeat.logic.Observation
+import app.matterplug.sms.AlertSms
+import app.matterplug.sms.SmsOutcome
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -27,17 +24,11 @@ object HeartbeatRunner {
         try {
             val store = HeartbeatStore(ctx)
             if (!store.readSettings().enabled) return
-            val offline = firstPush != null && !firstPush.delivered && phoneOffline(ctx)
+            val offline = firstPush != null && !firstPush.delivered && IpRunner.phoneOffline(ctx)
             val obs = Heartbeat.observe(firstPush?.delivered, offline)
-            val (sms, limit) = store.apply(obs) ?: return
-            Log.i(TAG, "check: obs=$obs sms=${sms?.name}")
-            if (sms == null) return
-            val numbers = IpStore(ctx).readSettings().recipients
-            val sent = IpSms.send(ctx, numbers, Heartbeat.text(sms, limit))
-            val outcome = SmsResult.outcome(sent.accepted)
-            store.recordSms(System.currentTimeMillis(), outcome, if (outcome == SmsOutcome.Failed) sent.failure else null)
-            Log.i(TAG, "sms: ${sms.name} numbers=${numbers.size} accepted=${sent.accepted.count { it }} failure=${sent.failure}")
-            if (sms == HeartbeatSms.Start && outcome == SmsOutcome.Failed) store.startNotSent()      // the next missed check tries again
+            val due = store.apply(obs)
+            Log.i(TAG, "check: obs=$obs sms=${(due as? HeartbeatDue.Send)?.sms?.name}")
+            if (due is HeartbeatDue.Send) send(ctx, store, due)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "heartbeat failed", e)
@@ -45,16 +36,13 @@ object HeartbeatRunner {
     }
 
     /**
-     * Section 3: when Fixed IP is on, a phone with no Wi-Fi, or on another network than the pinned one, cannot reach the console, and that
-     * is Fixed IP's alert, not this one. With Fixed IP off the app cannot tell, so the failure counts.
+     * Sends the SMS to the Fixed IP numbers and records the result for the screen. A start SMS that reaches no number closes the alert
+     * again, so the next missed check sends it again; a failed recovery SMS is not repeated (the alert is already closed).
      */
-    private suspend fun phoneOffline(ctx: Context): Boolean {
-        val ip = IpStore(ctx)
-        val settings = ip.readSettings()
-        val pinned = settings.pinned
-        if (!settings.enabled || pinned == null) return false
-        val now = System.currentTimeMillis()
-        val state = IpVerdict.judge(pinned, IpReader.read(ctx), ip.readNoWifiSince(), now - SystemClock.elapsedRealtime(), now)
-        return state is IpState.NoWifi || state is IpState.OtherNetwork
+    private suspend fun send(ctx: Context, store: HeartbeatStore, due: HeartbeatDue.Send) {
+        val numbers = IpStore(ctx).readSettings().recipients
+        val (outcome, failure) = AlertSms.sendAndRecord(ctx, numbers, Heartbeat.text(due.sms, due.limit), store::recordSms)
+        Log.i(TAG, "sms: ${due.sms.name} numbers=${numbers.size} outcome=${outcome.wire} failure=$failure")
+        if (due.sms == HeartbeatSms.Start && outcome == SmsOutcome.Failed) store.startNotSent()
     }
 }

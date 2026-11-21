@@ -196,8 +196,8 @@
     <string name="fixedip_switch">Watch the Wi-Fi address</string>
     <string name="fixedip_need_setup">Pin a network and enter a valid IP alert number first.</string>
     <string name="fixedip_sms_denied">Sending SMS is needed to alert you. Allow it, then switch on again.</string>
-    <string name="fixedip_last_sms_sent">Last SMS: sent at %1$s</string>
-    <string name="fixedip_last_sms_failed">Last SMS: failed at %1$s (%2$s)</string>
+    <string name="sms_last_sent">Last SMS: sent at %1$s</string>
+    <string name="sms_last_failed">Last SMS: failed at %1$s (%2$s)</string>
     <string name="fixedip_channel_watch">Fixed IP watch</string>
     <string name="fixedip_watching_text">Watching the Wi-Fi address</string>
     <string name="fixedip_alert_title_down">Wi-Fi address problem</string>

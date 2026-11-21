@@ -15,6 +15,12 @@ data class HeartbeatState(val missed: Int = 0, val down: Boolean = false)
 
 enum class HeartbeatSms { Start, Recovery }
 
+/** What one check asks of the heartbeat's caller: nothing (the switch is off, or nothing is due), or an SMS to send. */
+sealed interface HeartbeatDue {
+    data object Nothing : HeartbeatDue
+    data class Send(val sms: HeartbeatSms, val limit: Int) : HeartbeatDue
+}
+
 data class HeartbeatSettings(val enabled: Boolean = false, val limit: Int = DEFAULT_LIMIT) {
     companion object {
         val LIMITS = listOf(2, 3, 5)

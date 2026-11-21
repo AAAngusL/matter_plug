@@ -1,5 +1,6 @@
 package app.matterplug.fixedip.logic
 
+import app.matterplug.sms.SmsOutcome
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertJson
 import app.matterplug.guard.logic.AlertKind
@@ -17,7 +18,7 @@ class IpReportTest {
     private val power = Power(true, BatteryStatus.Charging)
 
     private fun event(phase: AlertPhase, s: IpSummary? = drift, by: CancelledBy? = null) =
-        AlertEvent(AlertKind.IpDrift, phase, 80, power, null, 0, cancelledBy = by, ip = s)
+        AlertEvent(AlertKind.IpDrift, phase, 80, power, null, 0, cancelledBy = by, extra = s)
 
     @Test fun jsonHasEveryKnownField() = assertEquals(
         """{"pinned":"192.168.1.37","current":"192.168.1.52","ssid":"Home","reason":"address_changed","sms":"sent"}""", IpReport.json(drift))

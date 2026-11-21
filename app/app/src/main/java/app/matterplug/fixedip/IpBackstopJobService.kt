@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * The backstop of Fixed IP's watch for when Battery Guard and Cellular Check are both off, so no alarm chain calls [IpRunner.onChain]
+ * The backstop of Fixed IP's watch for when Battery Guard and Cellular Check are both off, so no alarm chain calls [IpRunner.readAndRestartWatch]
  * (docs/FIXED-IP.md section 8). A persisted periodic job, every 15 minutes (Android's shortest): it starts the watch service again if
  * Android ended it, and takes one read itself, so a lost Wi-Fi or a drift is still found when the service cannot be restarted.
  * It does not outlive "Force stop" in Android's settings: that cancels every job of the app until it is opened again.
@@ -30,7 +30,7 @@ class IpBackstopJobService : JobService() {
         running.set(scope.launch {
             try {
                 // A job left behind (the switch was turned off while the process was ending, or the data was cleared) ends itself.
-                if (!IpStore(app).readSettings().enabled) cancel(app) else IpRunner.onChain(app)
+                if (!IpStore(app).readSettings().enabled) cancel(app) else IpRunner.readAndRestartWatch(app)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

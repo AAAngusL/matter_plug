@@ -10,10 +10,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import app.matterplug.heartbeat.logic.Heartbeat
 import app.matterplug.heartbeat.logic.HeartbeatSettings
-import app.matterplug.heartbeat.logic.HeartbeatSms
+import app.matterplug.heartbeat.logic.HeartbeatDue
 import app.matterplug.heartbeat.logic.HeartbeatState
-import app.matterplug.fixedip.logic.SmsOutcome
-import app.matterplug.fixedip.logic.SmsResult
+import app.matterplug.sms.SmsOutcome
+import app.matterplug.sms.SmsResult
 import app.matterplug.heartbeat.logic.Observation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -59,16 +59,16 @@ class HeartbeatStore(context: Context) {
      * One check, in one edit so two checks cannot lose each other's count: moves the state on and returns what to send, with the
      * limit it was judged by. A switch that is off changes nothing.
      */
-    suspend fun apply(obs: Observation): Pair<HeartbeatSms?, Int>? {
-        var result: Pair<HeartbeatSms?, Int>? = null
+    suspend fun apply(obs: Observation): HeartbeatDue {
+        var due: HeartbeatDue = HeartbeatDue.Nothing
         store.edit { p ->
             val s = read(p)
             if (!s.enabled) return@edit
             val (state, sms) = Heartbeat.step(Heartbeat.decode(p[STATE]), obs, s.limit)
             p[STATE] = Heartbeat.encode(state)
-            result = sms to s.limit
+            if (sms != null) due = HeartbeatDue.Send(sms, s.limit)
         }
-        return result
+        return due
     }
 
     private fun read(p: Preferences) = HeartbeatSettings(p[ENABLED] ?: false, HeartbeatSettings.validLimit(p[LIMIT]))

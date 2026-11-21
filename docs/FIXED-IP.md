@@ -169,7 +169,7 @@ Android lets an idle app have only about one exact alarm per 9 minutes (`Cellula
 | **`IpWatchService`** | A foreground service of type `connectedDevice`, running while the Fixed IP switch is on, with a permanent low-priority notification "Watching the Wi-Fi address". It holds an ordinary `NetworkCallback` for Wi-Fi: `onAvailable`, `onLost` and `onLinkPropertiesChanged` each trigger one read (events in a row are one read) |
 | **The 1-minute wait and the boot grace** | Timers inside the service. The wait start is stored (`noWifiSince`), so a process that is ended mid-wait resumes it. While a wait is pending the service holds a partial wake lock, because a timer does not run while the CPU sleeps; otherwise it holds one only for each read |
 | **Own periodic read** | At Battery Guard's **Check every** value, best effort (it does not run while the CPU sleeps) |
-| **The two alarm chains** | `CheckReceiver` (Battery Guard) and `CellularReceiver` (Cellular Check, while Battery Guard is off) call `IpRunner.onChain`: a guaranteed read, and the service started again if Android ended it |
+| **The two alarm chains** | `CheckReceiver` (Battery Guard) and `CellularReceiver` (Cellular Check, while Battery Guard is off) call `CheckChain.run`, whose steps (the cellular run, then `IpRunner.readAndRestartWatch`) each fail alone: a guaranteed read, and the service started again if Android ended it. `IpWatch.enable` and `disable` are the one place that starts or stops the watch and its backstop job |
 | **The backstop job** | `IpBackstopJobService`, a persisted periodic job (id 7002, every 15 minutes, Android's shortest), scheduled while the switch is on and cancelled when it is turned off or the network is unpinned. It calls `IpRunner.onChain`: the service started again if Android ended it, and one read, so a lost Wi-Fi or a drift is found even where no alarm chain runs (Battery Guard and Cellular Check both off). It does not survive "Force stop" in Android's settings, which cancels every job of the app until it is opened again; the screen and a reboot bring it back |
 | **After boot** | `BootReceiver` starts the service and schedules the job again; so does opening the app |
 | **Check now** button | One read, shows the result |
@@ -221,7 +221,9 @@ Last SMS           sent 14:02, address changed
 | `fixedip/IpReader.kt` | Reads `LinkProperties`, `WifiInfo` and the MAC into a `LinkReading` |
 | `fixedip/IpWatchService.kt` | The resident service: the Wi-Fi callback and the timers |
 | `fixedip/IpRunner.kt` | One read: judge, move the alert on, send the SMS then the HTTP request; the cancel on switch-off |
-| `fixedip/IpSms.kt` | Sends the alert SMS to every number, in parallel, through `sms/SmsSupport` (the `SmsManager` choice, now shared with Cellular Check's loopback) |
+| `sms/AlertSms.kt` | Sends an alert SMS to every number, in parallel, through `sms/SmsSupport` (the `SmsManager` choice, shared with Cellular Check's loopback), and records the result (`sendAndRecord`); used by Fixed IP and the console heartbeat. `SmsResult` and `SmsOutcome` live beside it in `sms/` |
+| `fixedip/IpWatch.kt` | Turns the watch on (backstop job, then service) and off |
+| `ui/Controls.kt` | The switch row, the SMS-permission request and the Last SMS line shared by Battery Guard, Fixed IP and the heartbeat screens |
 | `fixedip/IpStore.kt` | DataStore, same pattern as `CellularStore` |
 | `fixedip/ui/FixedIpScreen.kt`, `FixedIpViewModel.kt` | The screen and the guide |
 

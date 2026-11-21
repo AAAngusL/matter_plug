@@ -1,5 +1,8 @@
 package app.matterplug.cellular.logic
 
+import app.matterplug.guard.logic.CancelledBy
+import app.matterplug.guard.logic.SwitchOff
+
 import java.time.LocalTime
 
 /**
@@ -30,3 +33,7 @@ data class CellularSettings(
         const val MIN_DIGITS = 7
     }
 }
+
+/** What a change of Cellular Check's switches does to its open alert. */
+fun CellularSettings.switchOff(new: CellularSettings): SwitchOff.Change =
+    SwitchOff.change(enabled, new.enabled, alertsEnabled, new.alertsEnabled, CancelledBy.CellularOff, CancelledBy.CellularAlertsOff)

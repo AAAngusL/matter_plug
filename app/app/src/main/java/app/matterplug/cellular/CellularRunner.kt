@@ -6,6 +6,8 @@ import android.content.Intent
 import android.util.Log
 import app.matterplug.alarm.ExactAlarm
 import app.matterplug.alarm.runAsync
+import app.matterplug.guard.CheckChain
+import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.cellular.logic.CellularAlertPolicy
 import app.matterplug.cellular.logic.CellularLog
 import app.matterplug.cellular.logic.CellularReport
@@ -47,16 +49,10 @@ object CellularScheduler {
     val alarm = ExactAlarm(requestCode = 2, receiver = CellularReceiver::class.java, tag = "Cellular")
 }
 
-/** Receives Cellular Check's own alarm. */
+/** Receives Cellular Check's own alarm: the features' steps, with no Battery Guard check (it is off; see [CheckChain]). */
 class CellularReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) = runAsync(context, "Cellular", "run") {
-        CellularRunner.run(it)
-        try {
-            app.matterplug.fixedip.IpRunner.onChain(it)      // Fixed IP's backstop rides this chain while Battery Guard is off
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e("Cellular", "fixed ip read failed", e)
-        }
+        CheckChain.run(it, withGuard = false)
     }
 }
 
@@ -80,10 +76,12 @@ object CellularRunner {
     suspend fun run(ctx: Context) {
         val out = mutex.withLock { runLocked(ctx) } ?: return
         if (out.alert != null || out.status != null) {
-            // Battery Guard's own check carries the heartbeat when it is on; this run is a check of its own only when it is off.
+            val firstPush = HttpAlerter.deliver(ctx, GuardStore(ctx), listOfNotNull(out.alert), status = out.status,
+                budgetMs = RECEIVER_BUDGET_MS, cellular = out.switches)
+            // Battery Guard's own check carries the console heartbeat when it is on (its stored switch, not which receiver fired: Run now
+            // and a fresh install fire this one too); this run is a check of its own only when it is off.
             val guardOn = try { GuardStore(ctx).readSettings().enabled } catch (e: Exception) { if (e is CancellationException) throw e; true }
-            HttpAlerter.deliver(ctx, GuardStore(ctx), listOfNotNull(out.alert), status = out.status,
-                budgetMs = RECEIVER_BUDGET_MS, cellular = out.switches, heartbeat = !guardOn)
+            if (!guardOn) HeartbeatRunner.afterCheck(ctx, firstPush)
         }
     }
 
@@ -162,7 +160,7 @@ object CellularRunner {
     private suspend fun statusReport(ctx: Context, store: CellularStore, intervalMin: Int, now: Long): AlertEvent {
         val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
         return AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now,
-            nextCheckInMin = intervalMin, cellular = summaryOf(store))
+            nextCheckInMin = intervalMin, extra = summaryOf(store))
     }
 
     /**
@@ -209,7 +207,7 @@ object CellularRunner {
         val summary = summaryOf(store)
         val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
         val event = AlertEvent(AlertKind.CellularDown, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now,
-            cellular = summary)
+            extra = summary)
         Log.i(TAG, "alert: kind=${event.kind.wire} phase=${phase.wire} failed_layer=${summary.failedLayer?.wire}")
         GuardNotifier.post(ctx, listOf(event))
         return event
@@ -226,7 +224,7 @@ object CellularRunner {
             val by = closed.cancelledBy ?: return
             val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
             val e = AlertEvent(AlertKind.CellularDown, AlertPhase.Cancelled, battery?.level ?: 0, battery?.power ?: UNREAD_POWER,
-                null, System.currentTimeMillis(), cellular = summaryOf(CellularStore(ctx)), cancelledBy = by)
+                null, System.currentTimeMillis(), extra = summaryOf(CellularStore(ctx)), cancelledBy = by)
             GuardStore(ctx).enqueue(listOf(HttpAlerter.body(e)), guardItems = false)
             FlushJobService.schedule(ctx)
             Log.i(TAG, "alert: kind=cellular_down phase=cancelled by=${by.wire}")

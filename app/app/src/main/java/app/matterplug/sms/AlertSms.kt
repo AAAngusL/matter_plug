@@ -1,4 +1,4 @@
-package app.matterplug.fixedip
+package app.matterplug.sms
 
 import android.Manifest
 import android.app.Activity
@@ -10,19 +10,18 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
-import app.matterplug.sms.SmsSupport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 /**
- * Sends the alert SMS (docs/FIXED-IP.md section 6): the same text to every number, one message each, in parallel, so a slow
+ * Sends an alert SMS (docs/FIXED-IP.md section 6, docs/CONSOLE-HEARTBEAT.md section 4): the same text to every number, one message each, in parallel, so a slow
  * or failed send to one number never holds back or stops another. Only SEND_SMS is needed.
  */
-object IpSms {
-    private const val TAG = "FixedIp"
-    private const val ACTION_SENT = "app.matterplug.fixedip.SMS_SENT"
+object AlertSms {
+    private const val TAG = "Sms"
+    private const val ACTION_SENT = "app.matterplug.sms.SMS_SENT"
     private const val SENT_TIMEOUT_MS = 30_000L
     private const val EXTRA_TOKEN = "token"
     private const val EXTRA_INDEX = "index"
@@ -72,4 +71,17 @@ object IpSms {
             .putExtra(EXTRA_TOKEN, token).putExtra(EXTRA_INDEX, index),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+
+    /**
+     * [send], then judge the result and hand it to [record] (the caller's store, for its "Last SMS" line). Returns the outcome and the first
+     * failure's reason; the caller logs it under its own tag.
+     */
+    suspend fun sendAndRecord(
+        ctx: Context, numbers: List<String>, text: String, record: suspend (atMs: Long, outcome: SmsOutcome, detail: String?) -> Unit,
+    ): Pair<SmsOutcome, String?> {
+        val sent = send(ctx, numbers, text)
+        val outcome = SmsResult.outcome(sent.accepted)
+        record(System.currentTimeMillis(), outcome, if (outcome == SmsOutcome.Failed) sent.failure else null)
+        return outcome to sent.failure
+    }
 }

@@ -43,20 +43,6 @@ sealed interface TestState {
     data class Done(val outcome: TestOutcome) : TestState
 }
 
-/** Where "switch Battery Guard off" stands (BATTERY-GUARD.md section 4, "Manual use of the plug"). */
-sealed interface DisableState {
-    /** Nothing going on. */
-    data object Idle : DisableState
-    /** Reading the plug's state; the switch is disabled meanwhile. */
-    data object Reading : DisableState
-    /** The plug is off: the dialog is shown. */
-    data object AskTurnOn : DisableState
-    /** "Turn on" was chosen and the plug is being switched on. */
-    data object TurningOn : DisableState
-    /** "Turn on" did not work; Battery Guard stays on. */
-    data object TurnOnFailed : DisableState
-}
-
 /**
  * G2/G3: the settings, and the alarm that follows them: on -> check in 1 s, off -> alarm cancelled, a changed
  * threshold or interval while on -> check in 1 s (B3). G6 adds the alert settings rules, the flush job and the test button.
@@ -89,13 +75,13 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     private val _testState = MutableStateFlow<TestState>(TestState.Idle)
     val testState: StateFlow<TestState> = _testState
 
-    private val _disableState = MutableStateFlow<DisableState>(DisableState.Idle)
-    val disableState: StateFlow<DisableState> = _disableState
+    private val disable = DisableFlow(application, viewModelScope)
+    val disableState: StateFlow<DisableState> = disable.state
+
+    private val prompts = PermissionPromptQueue(application, store, viewModelScope)
 
     /** The permission prompt the screen should launch next; the screen calls [promptConsumed] as it launches it. */
-    private val _prompt = MutableStateFlow<PermissionPrompt?>(null)
-    val prompt: StateFlow<PermissionPrompt?> = _prompt
-    private var pendingPrompts: List<PermissionPrompt> = emptyList()
+    val prompt: StateFlow<PermissionPrompt?> = prompts.prompt
 
     private var flushJob: Job? = null
     private var addressTouched = false
@@ -116,129 +102,31 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setEnabled(on: Boolean) {
-        if (on) enable() else requestDisable()
+        if (on) enable() else disable.request()
     }
 
     private fun enable() {
         if (hasPlug.value != true) return                    // B10: refused without a plug
-        if (_disableState.value != DisableState.Idle && _disableState.value != DisableState.TurnOnFailed) return
-        _disableState.value = DisableState.Idle
+        if (!disable.canStart) return
+        disable.reset()
         viewModelScope.launch {
             store.update { it.copy(enabled = true) }
             // The check itself records the next time, so nothing stale is left in the store.
             rearm()
             // 5.9: the prompts never block the switch; they come after it has been turned on.
-            queuePrompts()
+            prompts.queue()
         }
-    }
-
-    /** Works out which prompts are due (each is asked once, 5.9) and starts with the first. */
-    private suspend fun queuePrompts() {
-        try {
-            val app = getApplication<Application>()
-            pendingPrompts = PermissionPrompts.due(
-                sdkInt = Build.VERSION.SDK_INT,
-                notificationsGranted = GuardPermissions.notificationsGranted(app),
-                askedNotifications = store.readAskedNotifications(),
-                exemptionHeld = GuardPermissions.ignoringBatteryOptimizations(app),
-                askedExemption = store.readAskedExemption(),
-            )
-            showNextPrompt()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e("Guard", "permission prompts failed", e)
-        }
-    }
-
-    private suspend fun showNextPrompt() {
-        val next = pendingPrompts.firstOrNull()
-        pendingPrompts = pendingPrompts.drop(1)
-        when (next) {
-            PermissionPrompt.Notifications -> store.markAskedNotifications()
-            PermissionPrompt.Exemption -> store.markAskedExemption()
-            null -> {}
-        }
-        _prompt.value = next
     }
 
     /** The screen has taken the prompt and is launching it; clearing it here means a rotation does not launch it twice. */
-    fun promptConsumed() { _prompt.value = null }
+    fun promptConsumed() = prompts.consumed()
 
     /** The screen's launcher has returned (granted or not) or the intent was started: go on to the next prompt, if any. */
-    fun promptDone() {
-        viewModelScope.launch {
-            try { showNextPrompt() } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e("Guard", "next prompt failed", e)
-            }
-        }
-    }
+    fun promptDone() = prompts.done()
 
-    /**
-     * Switch off. First reads the plug (8 s limit, [PlugCommander.readOnOff]); when it is off, the dialog asks
-     * ([needsTurnOnDialog]); when it is on or could not be read, Battery Guard is simply disabled.
-     */
-    private fun requestDisable() {
-        val state = _disableState.value
-        if (state != DisableState.Idle && state != DisableState.TurnOnFailed) return    // a read is running: ignore a second tap
-        _disableState.value = DisableState.Reading
-        viewModelScope.launch {
-            try {
-                val plug = PlugRepository(getApplication<Application>()).charger()
-                val isOn: Boolean? = if (plug == null) null else PlugCommander(getApplication<Application>()).readOnOff(plug)
-                Log.i("Guard", "disable: plug state ${isOn ?: "unknown"}")
-                if (PermissionPrompts.needsTurnOnDialog(isOn)) {
-                    _disableState.value = DisableState.AskTurnOn
-                } else {
-                    disableNow()
-                    _disableState.value = DisableState.Idle
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) { _disableState.value = DisableState.Idle; throw e }
-                Log.e("Guard", "disable failed", e)
-                _disableState.value = DisableState.Idle
-            }
-        }
-    }
-
-    /** Dialog: "Turn on". Switches the plug on, then disables. If the plug cannot be switched on, Battery Guard stays on. */
-    fun disableTurnOn() {
-        if (_disableState.value != DisableState.AskTurnOn) return
-        _disableState.value = DisableState.TurningOn
-        viewModelScope.launch {
-            try {
-                val app = getApplication<Application>()
-                val plug = PlugRepository(app).charger()
-                val result = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(app).switchTo(plug, true)
-                Log.i("Guard", "disable: turn on -> $result")
-                if (result is SwitchResult.Confirmed) {
-                    disableNow()
-                    _disableState.value = DisableState.Idle
-                } else {
-                    _disableState.value = DisableState.TurnOnFailed
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) { _disableState.value = DisableState.Idle; throw e }
-                Log.e("Guard", "turn on before disabling failed", e)
-                _disableState.value = DisableState.TurnOnFailed
-            }
-        }
-    }
-
-    /** Dialog: "Leave off". */
-    fun disableLeaveOff() {
-        if (_disableState.value != DisableState.AskTurnOn) return
-        viewModelScope.launch {
-            try { disableNow() } finally { _disableState.value = DisableState.Idle }
-        }
-    }
-
-    /** Dialog: "Cancel" (or dismissed). Battery Guard stays on and the switch stays on. */
-    fun disableCancel() {
-        if (_disableState.value == DisableState.AskTurnOn || _disableState.value == DisableState.TurnOnFailed) _disableState.value = DisableState.Idle
-    }
-
-    private suspend fun disableNow() = GuardControl.disable(getApplication<Application>())
+    fun disableTurnOn() = disable.turnOn()
+    fun disableLeaveOff() = disable.leaveOff()
+    fun disableCancel() = disable.cancel()
 
     fun setLow(value: Int) { updateAndRearm { it.copy(low = value) } }
     fun setHigh(value: Int) { updateAndRearm { it.copy(high = value) } }

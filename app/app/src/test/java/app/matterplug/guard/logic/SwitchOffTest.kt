@@ -1,6 +1,7 @@
 package app.matterplug.guard.logic
 
 import app.matterplug.cellular.logic.CellularSettings
+import app.matterplug.cellular.logic.switchOff
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -46,14 +47,14 @@ class SwitchOffTest {
     private val cOn = CellularSettings(enabled = true, alertsEnabled = true)
 
     @Test fun cellularSwitches() {
-        assertEquals(CancelledBy.CellularOff, SwitchOff.cellular(cOn, cOn.copy(enabled = false)).cancelledBy)
-        assertEquals(CancelledBy.CellularAlertsOff, SwitchOff.cellular(cOn, cOn.copy(alertsEnabled = false)).cancelledBy)
-        assertEquals(CancelledBy.CellularOff, SwitchOff.cellular(cOn, cOn.copy(enabled = false, alertsEnabled = false)).cancelledBy)
-        val back = SwitchOff.cellular(cOn.copy(alertsEnabled = false), cOn)
+        assertEquals(CancelledBy.CellularOff, cOn.switchOff(cOn.copy(enabled = false)).cancelledBy)
+        assertEquals(CancelledBy.CellularAlertsOff, cOn.switchOff(cOn.copy(alertsEnabled = false)).cancelledBy)
+        assertEquals(CancelledBy.CellularOff, cOn.switchOff(cOn.copy(enabled = false, alertsEnabled = false)).cancelledBy)
+        val back = cOn.copy(alertsEnabled = false).switchOff(cOn)
         assertNull(back.cancelledBy)
         assertTrue(back.reset)
-        assertNull(SwitchOff.cellular(cOn.copy(alertsEnabled = false), CellularSettings()).cancelledBy)
-        assertFalse(SwitchOff.cellular(cOn, cOn.copy(ownNumber = "1")).reset)
+        assertNull(cOn.copy(alertsEnabled = false).switchOff(CellularSettings()).cancelledBy)
+        assertFalse(cOn.switchOff(cOn.copy(ownNumber = "1")).reset)
     }
 
     @Test fun oneCancelledPerOpenAlert() {

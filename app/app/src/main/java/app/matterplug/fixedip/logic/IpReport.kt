@@ -1,13 +1,17 @@
 package app.matterplug.fixedip.logic
 
+import app.matterplug.sms.SmsOutcome
+import app.matterplug.guard.logic.AlertEvent
+import app.matterplug.guard.logic.AlertExtra
 import app.matterplug.guard.logic.AlertJson
 import app.matterplug.guard.logic.AlertPhase
 
-/** Whether the SMS for this step went out. Known before the HTTP request is built, because the SMS is sent first (docs/FIXED-IP.md section 7). */
-enum class SmsOutcome(val wire: String) { Sent("sent"), Failed("failed") }
-
 /** The `ip` object of an ip_drift request, and the numbers the texts use. [current] is null when there is no Wi-Fi address. */
-data class IpSummary(val pinned: String, val current: String?, val ssid: String?, val reason: DriftReason, val sms: SmsOutcome)
+data class IpSummary(val pinned: String, val current: String?, val ssid: String?, val reason: DriftReason, val sms: SmsOutcome) : AlertExtra {
+    override val jsonKey: String get() = "ip"
+    override fun json(): String = IpReport.json(this)
+    override fun text(e: AlertEvent): String = IpReport.text(e.phase, this, e.battery)
+}
 
 /** The wire form and the texts of ip_drift. The SMS and the `message` field say the same thing (section 7). */
 object IpReport {

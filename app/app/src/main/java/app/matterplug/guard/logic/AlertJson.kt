@@ -1,8 +1,5 @@
 package app.matterplug.guard.logic
 
-import app.matterplug.cellular.logic.CellularReport
-import app.matterplug.fixedip.logic.IpReport
-
 object AlertJson {
     /** ISO 8601 with the UTC offset and whole seconds, e.g. 2026-11-11T09:47:12-05:00. */
     fun isoTime(atMs: Long, zone: java.time.ZoneId): String =
@@ -11,7 +8,7 @@ object AlertJson {
 
     /**
      * Keys in this order: alert, state, message, battery, charging, plugged_in, battery_status, time, then cancelled_by (cancelled only), then next_check_in_min (status reports),
-     * cellular (Cellular Check's requests) and ip (Fixed IP's requests), each only when it is not null.
+     * and the feature's own object (cellular for Cellular Check, ip for Fixed IP), only when the event has one.
      */
     fun encode(e: AlertEvent, message: String, time: String): String =
         """{"alert":${q(e.kind.wire)},"state":${q(e.phase.wire)},"message":${q(message)},""" +
@@ -19,8 +16,7 @@ object AlertJson {
             """"battery_status":${q(e.power.status.wire)},"time":${q(time)}""" +
             (e.cancelledBy?.let { ""","cancelled_by":${q(it.wire)}""" } ?: "") +
             (e.nextCheckInMin?.let { ""","next_check_in_min":$it""" } ?: "") +
-            (e.cellular?.let { ""","cellular":${CellularReport.json(it)}""" } ?: "") +
-            (e.ip?.let { ""","ip":${IpReport.json(it)}""" } ?: "") + "}"
+            (e.extra?.let { ""","${it.jsonKey}":${it.json()}""" } ?: "") + "}"
 
     /** JSON string with quotes, escaping backslash, quote and control characters. */
     fun q(s: String): String {

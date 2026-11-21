@@ -5,10 +5,9 @@ import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import app.matterplug.fixedip.IpBackstopJobService
+import app.matterplug.fixedip.IpWatch
 import app.matterplug.fixedip.IpReader
 import app.matterplug.fixedip.IpRunner
-import app.matterplug.fixedip.IpWatchService
 import app.matterplug.fixedip.IpStore
 import app.matterplug.fixedip.logic.FixedIpSettings
 import app.matterplug.fixedip.logic.IpFormat
@@ -16,7 +15,7 @@ import app.matterplug.fixedip.logic.IpState
 import app.matterplug.fixedip.logic.IpVerdict
 import app.matterplug.fixedip.logic.LinkReading
 import app.matterplug.fixedip.logic.PinPlan
-import app.matterplug.fixedip.logic.SmsResult
+import app.matterplug.sms.SmsResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -63,10 +62,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
             val s = store.readSettings()
             _smsText.value = s.smsNumber
             _backupText.value = s.backupNumber
-            if (s.enabled) {      // opening the app starts the watch again if Android ended it, and makes sure the backstop job is there
-                IpWatchService.start(getApplication())
-                IpBackstopJobService.schedule(getApplication())
-            }
+            if (s.enabled) IpWatch.enable(getApplication())      // opening the app starts the watch again if Android ended it
         }
         checkNow()
     }
@@ -110,14 +106,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val closed = store.update { if (on && !it.canEnable) it else it.copy(enabled = on) }
             val enabled = store.readSettings().enabled
-            if (enabled) {
-                IpWatchService.start(getApplication())
-                IpBackstopJobService.schedule(getApplication())
-            } else {
-                IpWatchService.stop(getApplication())
-                IpBackstopJobService.cancel(getApplication())
-                IpRunner.closed(getApplication(), closed)
-            }
+            if (enabled) IpWatch.enable(getApplication()) else { IpWatch.disable(getApplication()); IpRunner.closed(getApplication(), closed) }
         }
     }
 
@@ -125,8 +114,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
     fun unpin() {
         viewModelScope.launch {
             val closed = store.update { it.copy(pinned = null, enabled = false) }
-            IpWatchService.stop(getApplication())
-            IpBackstopJobService.cancel(getApplication())
+            IpWatch.disable(getApplication())
             IpRunner.closed(getApplication(), closed, CancelledBy.IpUnpinned)
             _guide.value = false
             _problem.value = null

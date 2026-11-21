@@ -14,6 +14,7 @@ import app.matterplug.cellular.logic.CellularAlertCodec
 import app.matterplug.cellular.logic.CellularCodec
 import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.cellular.logic.CellularState
+import app.matterplug.cellular.logic.switchOff
 import app.matterplug.cellular.logic.CellularStateCodec
 import app.matterplug.guard.logic.CancelledBy
 import app.matterplug.guard.logic.SwitchOff
@@ -69,7 +70,7 @@ class CellularStore(context: Context) {
             p[SMS_TEST_MINUTES] = new.smsTestMinutes
             p[ALERTS_ENABLED] = new.alertsEnabled
             p[STATUS_ENABLED] = new.statusEnabled
-            val change = SwitchOff.cellular(old, new)
+            val change = old.switchOff(new)
             if (change.reset) {
                 val open = CellularAlertCodec.decode(p[ALERT]) != null
                 closed = Closed(open, if (open) change.cancelledBy else null)

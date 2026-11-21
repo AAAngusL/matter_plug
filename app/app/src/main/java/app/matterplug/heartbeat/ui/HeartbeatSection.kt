@@ -1,6 +1,5 @@
 package app.matterplug.heartbeat.ui
 
-import android.text.format.DateFormat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
@@ -28,10 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
-import app.matterplug.fixedip.IpSms
-import app.matterplug.fixedip.logic.SmsOutcome
-import java.util.Date
+import app.matterplug.sms.AlertSms
 import app.matterplug.heartbeat.logic.HeartbeatSettings
+import app.matterplug.ui.LabeledSwitch
+import app.matterplug.ui.LastSmsLine
+import app.matterplug.ui.rememberSmsPermissionRequest
 
 /** The autodialer heartbeat: a switch and the number of missed checks, under the alert address in the Battery Guard tab. */
 @Composable
@@ -41,25 +41,21 @@ fun HeartbeatSection(modifier: Modifier = Modifier, viewModel: HeartbeatViewMode
     val statusOn by viewModel.statusOn.collectAsStateWithLifecycle()
     val lastSms by viewModel.lastSms.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val timeFormat = remember(context) { DateFormat.getTimeFormat(context) }
     var smsDenied by remember { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+    val askSms = rememberSmsPermissionRequest { granted ->
         smsDenied = !granted
         if (granted) viewModel.setEnabled(true)
     }
     val s = settings ?: return
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.heartbeat_switch), modifier = Modifier.weight(1f))
-            Switch(checked = s.enabled, onCheckedChange = { on ->
-                when {
-                    !on -> viewModel.setEnabled(false)
-                    !hasNumber || !statusOn -> smsDenied = false
-                    IpSms.canSend(context) -> viewModel.setEnabled(true)
-                    else -> launcher.launch(Manifest.permission.SEND_SMS)
-                }
-            })
+        LabeledSwitch(stringResource(R.string.heartbeat_switch), s.enabled) { on ->
+            when {
+                !on -> viewModel.setEnabled(false)
+                !hasNumber || !statusOn -> smsDenied = false
+                AlertSms.canSend(context) -> viewModel.setEnabled(true)
+                else -> askSms()
+            }
         }
         Text(stringResource(R.string.heartbeat_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (!statusOn) Text(stringResource(R.string.heartbeat_need_status), style = MaterialTheme.typography.bodySmall,
@@ -67,11 +63,7 @@ fun HeartbeatSection(modifier: Modifier = Modifier, viewModel: HeartbeatViewMode
         if (!hasNumber && !s.enabled) Text(stringResource(R.string.heartbeat_need_number), style = MaterialTheme.typography.bodySmall)
         if (smsDenied) Text(stringResource(R.string.heartbeat_sms_denied), color = MaterialTheme.colorScheme.error)
 
-        lastSms?.let {
-            val ok = it.outcome == SmsOutcome.Sent
-            Text(stringResource(if (ok) R.string.fixedip_last_sms_sent else R.string.fixedip_last_sms_failed, timeFormat.format(Date(it.atMs)), it.detail.orEmpty()),
-                style = MaterialTheme.typography.bodySmall, color = if (ok) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
-        }
+        LastSmsLine(lastSms)
 
         var open by remember { mutableStateOf(false) }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

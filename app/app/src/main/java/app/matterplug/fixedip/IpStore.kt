@@ -13,8 +13,8 @@ import app.matterplug.fixedip.logic.FixedIpSettings
 import app.matterplug.fixedip.logic.IpAlertMemo
 import app.matterplug.fixedip.logic.IpAlertPolicy
 import app.matterplug.fixedip.logic.PinnedNetwork
-import app.matterplug.fixedip.logic.SmsOutcome
-import app.matterplug.fixedip.logic.SmsResult
+import app.matterplug.sms.SmsOutcome
+import app.matterplug.sms.SmsResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map

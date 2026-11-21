@@ -64,6 +64,7 @@ import app.matterplug.guard.logic.PercentInput
 import app.matterplug.guard.logic.PermissionPrompt
 import app.matterplug.guard.logic.tokenOverPlainHttp
 import app.matterplug.heartbeat.ui.HeartbeatSection
+import app.matterplug.ui.LabeledSwitch
 import java.util.Date
 import kotlin.math.roundToInt
 
@@ -122,7 +123,7 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
     )
 
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SwitchRow(
+        LabeledSwitch(
             label = stringResource(R.string.guard_switch),
             checked = s.enabled,
             // Disabled while the plug is being read or switched, so the switch cannot be toggled twice.
@@ -151,8 +152,8 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
 
         IntervalPicker(stringResource(R.string.guard_check_every), s.intervalMin, viewModel::setInterval)
 
-        SwitchRow(stringResource(R.string.guard_send_alerts), s.alertsEnabled, true, viewModel::setAlertsEnabled)
-        SwitchRow(stringResource(R.string.guard_send_status), s.statusEnabled, true, viewModel::setStatusEnabled)
+        LabeledSwitch(stringResource(R.string.guard_send_alerts), s.alertsEnabled, true, viewModel::setAlertsEnabled)
+        LabeledSwitch(stringResource(R.string.guard_send_status), s.statusEnabled, true, viewModel::setStatusEnabled)
         OutlinedTextField(
             value = address,
             onValueChange = viewModel::setAlertAddress,
@@ -248,14 +249,6 @@ private fun errorText(e: DeliveryError.Parsed): String = when (e) {
     DeliveryError.Parsed.Rejected -> stringResource(R.string.guard_err_rejected)
     is DeliveryError.Parsed.Http -> stringResource(R.string.guard_http_status, e.code)
     is DeliveryError.Parsed.Other -> stringResource(R.string.guard_err_other, e.name)
-}
-
-@Composable
-private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
-    }
 }
 
 /**

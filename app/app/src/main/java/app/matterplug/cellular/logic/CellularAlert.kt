@@ -1,5 +1,7 @@
 package app.matterplug.cellular.logic
 
+import app.matterplug.guard.logic.AlertEvent
+import app.matterplug.guard.logic.AlertExtra
 import app.matterplug.guard.logic.AlertMessages
 import app.matterplug.guard.logic.AlertJson
 import app.matterplug.guard.logic.AlertPhase
@@ -47,7 +49,15 @@ data class CellularSummary(
     val smsReason: String?,                  // the SMS layer's failure, without its trigger: "not sent: radio off"
     val signalDetail: String,
     val reading: SignalReading? = null,      // the LTE signal as numbers (docs/SIGNAL-STRENGTH.md); null with no LTE cell
-)
+) : AlertExtra {
+    override val jsonKey: String get() = "cellular"
+    override fun json(): String = CellularReport.json(this)
+    override fun text(e: AlertEvent): String = when (e.phase) {
+        AlertPhase.Status -> CellularReport.statusText(this, e.battery)
+        AlertPhase.Recovered -> CellularReport.recoveredText(e.battery)
+        else -> CellularReport.downText(this, e.battery)
+    }
+}
 
 object CellularReport {
     private val passive = listOf(Layer.Sim, Layer.Registration, Layer.Signal)

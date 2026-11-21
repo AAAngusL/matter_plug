@@ -1,6 +1,6 @@
 # Console Heartbeat: Design
 
-Status: draft 2. H1 built on 2026-11-21 (logic, store, hook, switch, picker); the unit tests pass. T8 verified on the SM-G780F (2026-11-20): with the console unreachable (wrong port), the 1st missed check sent nothing, the 2nd sent one start SMS to both numbers; a wrong path (HTTP 404) counted as a miss too; with the right address the next check sent one recovery SMS and the count went to 0. The user confirmed that both numbers received the start and the recovery SMS. T6 and T7 were not run on the phone; the user accepted them as passed on 2026-11-21 (not observed by the build log). It reuses Battery Guard's delivery code (`HttpAlerter`, `GuardStore`) and Fixed IP's SMS sender (`IpSms`) and numbers.
+Status: draft 2. H1 built on 2026-11-21 (logic, store, hook, switch, picker); the unit tests pass. T8 verified on the SM-G780F (2026-11-20): with the console unreachable (wrong port), the 1st missed check sent nothing, the 2nd sent one start SMS to both numbers; a wrong path (HTTP 404) counted as a miss too; with the right address the next check sent one recovery SMS and the count went to 0. The user confirmed that both numbers received the start and the recovery SMS. T6 and T7 were not run on the phone; the user accepted them as passed on 2026-11-21 (not observed by the build log). It reuses Battery Guard's delivery code (`HttpAlerter`, `GuardStore`) and Fixed IP's SMS sender (`AlertSms`) and numbers.
 
 Changes in draft 2, from the grilling review of draft 1 (12 decisions, all in section 5):
 
@@ -45,7 +45,7 @@ When Fixed IP is off, the app cannot tell a Wi-Fi drop from a dead console and c
 
 ## 4. The SMS
 
-At most 100 characters, as in `MESSAGES.md`. Sent by `IpSms` to both numbers in parallel, over the mobile network, so it works when the console's LAN is down.
+At most 100 characters, as in `MESSAGES.md`. Sent by `AlertSms` to both numbers in parallel, over the mobile network, so it works when the console's LAN is down.
 
 - Start: `Matter Plug: the autodialer has not answered 2 checks. Check it.` (the number follows the setting)
 - Recovery: `Matter Plug: the autodialer answers again.`

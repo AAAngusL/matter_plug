@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import app.matterplug.data.PlugRepository
 import app.matterplug.guard.logic.AlertEvent
+import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
 import app.matterplug.guard.logic.AlertPolicy
@@ -36,9 +37,6 @@ object GuardRunner {
 
     /** Used only when the settings could not be read at all, so the chain of alarms does not end. */
     private const val RETRY_MS = 5 * 60_000L
-
-    private const val POWER_WAIT_MS = 30_000L
-    private const val POWER_POLL_MS = 2_000L
 
     /** One run at a time. `work` takes the same lock. */
     private val mutex = Mutex()
@@ -116,9 +114,9 @@ object GuardRunner {
             Log.i(TAG, CheckLog.line(reading?.level, plugged, action, fault, intervalMin, nextAt))
 
             // PLUG-WATCH.md section 4: with no switch to make, a read-only check that the charger plug still answers.
-            val plugCheck: PlugCheck? = if (action == GuardAction.Nothing && reading != null) readPlug(ctx, store) else null
-            val plugReached: Boolean? = (plugCheck as? PlugCheck.Read)?.reached
-            val noPlug = plugCheck == PlugCheck.None
+            val plugCheck: PlugStep.PlugCheck? = if (action == GuardAction.Nothing && reading != null) PlugStep.readPlug(ctx, store) else null
+            val plugReached: Boolean? = (plugCheck as? PlugStep.PlugCheck.Read)?.reached
+            val noPlug = plugCheck == PlugStep.PlugCheck.None
 
             var serviceFailed = false
             if (action != GuardAction.Nothing) {
@@ -156,7 +154,7 @@ object GuardRunner {
         var action = GuardAction.Nothing
         var outcome = "none"
         try {
-            val r: BatteryReading? = safeRead(ctx)       // B5: the service reads for itself
+            val r: BatteryReading? = PlugStep.safeRead(ctx)       // B5: the service reads for itself
             reading = r
             // The service is running: proof that it can start (RECOVERY-SIGNALS.md 2.2).
             val events = mutableListOf<CheckEvent>(CheckEvent.ServiceStarted)
@@ -169,20 +167,20 @@ object GuardRunner {
                 outcome = when (decided) {
                     GuardAction.Nothing -> {
                         events += CheckEvent.NoSwitchNeeded
-                        when (val c = readPlug(ctx, store)) {      // PLUG-WATCH.md section 4: also when the service ran
-                            PlugCheck.None -> events += CheckEvent.NoPlug
-                            PlugCheck.Unknown -> {}
-                            is PlugCheck.Read -> events += CheckEvent.PlugRead(c.reached)
+                        when (val c = PlugStep.readPlug(ctx, store)) {      // PLUG-WATCH.md section 4: also when the service ran
+                            PlugStep.PlugCheck.None -> events += CheckEvent.NoPlug
+                            PlugStep.PlugCheck.Unknown -> {}
+                            is PlugStep.PlugCheck.Read -> events += CheckEvent.PlugRead(c.reached)
                         }
                         "no switch needed"
                     }
-                    GuardAction.TurnOn, GuardAction.TurnOff -> doSwitch(ctx, store, decided == GuardAction.TurnOn, r.level, events)
+                    GuardAction.TurnOn, GuardAction.TurnOff -> PlugStep.doSwitch(ctx, store, decided == GuardAction.TurnOn, r.level, events)
                 }
             }
             val fault = degradationReason(ctx, r)
             if (fault != null) events += CheckEvent.Degraded(fault)
             // Read AFTER the power wait, so a PowerWait(false) is not followed by a plugged-in state in the same call (G1 note 8).
-            val finalR: BatteryReading? = safeRead(ctx) ?: r
+            val finalR: BatteryReading? = PlugStep.safeRead(ctx) ?: r
             finalReading = finalR
             finish(ctx, settings, finalR, events, budgetMs = 60_000)
             if (fault == null) noteError(store, null)
@@ -197,70 +195,10 @@ object GuardRunner {
         }
     }
 
-    /**
-     * PLUG-WATCH.md section 5: connect, read On/Off, release, within PlugCommander's 8-second limit, and record it for the
-     * Battery Guard tab. Never throws except for cancellation.
-     */
-    private suspend fun readPlug(ctx: Context, store: GuardStore): PlugCheck {
-        val plug = try { PlugRepository(ctx).charger() } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.w(TAG, "charger plug unreadable", e)
-            return PlugCheck.Unknown
-        } ?: run {
-            try { store.clearPlugSighting() } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "clearPlugSighting failed", e)
-            }
-            return PlugCheck.None
-        }
-        val t0 = SystemClock.elapsedRealtime()
-        val on: Boolean? = PlugCommander(ctx).readOnOff(plug)
-        Log.i(TAG, "plug read: ${on?.let { if (it) "on" else "off" } ?: "not reached"} in ${SystemClock.elapsedRealtime() - t0} ms")
-        recordPlugSafely(store, on != null, on)
-        return PlugCheck.Read(on != null)
-    }
-
-    /** [None]: no charger plug, so nothing to watch. [Unknown]: the lookup failed, so say nothing about the plug. */
-    private sealed interface PlugCheck {
-        data object None : PlugCheck
-        data object Unknown : PlugCheck
-        data class Read(val reached: Boolean) : PlugCheck
-    }
-
-    private suspend fun recordPlugSafely(store: GuardStore, reached: Boolean, on: Boolean?) {
-        try {
-            store.recordPlug(reached, on, System.currentTimeMillis())
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e(TAG, "recordPlug failed", e)
-        }
-    }
-
     /** "battery unreadable" when there is no reading, else "exact alarms not allowed" when they are not allowed, else null. */
     private fun degradationReason(ctx: Context, reading: BatteryReading?): String? {
         val exactAllowed = try { CheckScheduler.canScheduleExact(ctx) } catch (e: Exception) { false }
         return CheckLog.degradationReason(reading != null, exactAllowed)
-    }
-
-    private fun safeRead(ctx: Context): BatteryReading? = try {
-        BatteryReader.read(ctx)
-    } catch (e: Exception) {
-        Log.w(TAG, "battery read failed", e)
-        null
-    }
-
-    /**
-     * True as soon as the phone reports plugged in, false after [timeoutMs]. Polls every 2 s with delay(), so it can be
-     * cancelled; 30 s fits inside the service's 120 s limit (connect 25 + command 10 + read-back 10 + this 30).
-     */
-    private suspend fun waitForPower(ctx: Context, timeoutMs: Long): Boolean {
-        val deadline = SystemClock.elapsedRealtime() + timeoutMs
-        while (true) {
-            if (safeRead(ctx)?.pluggedIn == true) return true
-            val left = deadline - SystemClock.elapsedRealtime()
-            if (left <= 0) return false
-            delay(minOf(POWER_POLL_MS, left))
-        }
     }
 
     /**
@@ -282,40 +220,8 @@ object GuardRunner {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
-        HttpAlerter.deliver(ctx, store, result.events, status, budgetMs, heartbeat = true)         // 5.6: never throws, stays inside budgetMs
-    }
-
-    /** Returns the outcome text for the log line. Throws only on cancellation or an unexpected error (the caller logs it). */
-    private suspend fun doSwitch(ctx: Context, store: GuardStore, on: Boolean, level: Int, events: MutableList<CheckEvent>): String {
-        val plug = PlugRepository(ctx).charger()      // B10
-        val result: SwitchResult = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(ctx).switchTo(plug, on)
-        val what = if (on) "on" else "off"
-        return when (result) {
-            is SwitchResult.Confirmed -> {
-                store.recordSwitch(System.currentTimeMillis(), on, level)
-                recordPlugSafely(store, reached = true, on = on)
-                Log.i(TAG, "switch $what confirmed at $level%")
-                events += CheckEvent.SwitchConfirmed(on)
-                if (on) {
-                    val powered = waitForPower(ctx, POWER_WAIT_MS)
-                    Log.i(TAG, "power wait: plugged=$powered")
-                    events += CheckEvent.PowerWait(powered)
-                }
-                "switch $what Confirmed"
-            }
-            is SwitchResult.NotReached -> {
-                Log.w(TAG, "switch $what failed: ${result.reason}")
-                recordPlugSafely(store, reached = false, on = null)
-                events += CheckEvent.SwitchFailed(on)
-                "switch $what NotReached(${result.reason})"
-            }
-            is SwitchResult.Unconfirmed -> {
-                Log.w(TAG, "switch $what unconfirmed: read-back differs")
-                recordPlugSafely(store, reached = true, on = null)      // the plug accepted the command, so it was reached; its state is unknown
-                events += CheckEvent.SwitchFailed(on)
-                "switch $what Unconfirmed"
-            }
-        }
+        val firstPush = HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
+        HeartbeatRunner.afterCheck(ctx, firstPush)      // Battery Guard's check carries the console heartbeat when it is on
     }
 
     /** The interval follows the plugged-in state read AFTER the switch (5.5). Never throws except for cancellation (not possible in NonCancellable). */
@@ -324,7 +230,7 @@ object GuardRunner {
         before: BatteryReading?, finalReading: BatteryReading?, action: GuardAction, outcome: String,
     ) {
         // The final reading of the run when there is one (taken after the power wait), else read again.
-        val after: BatteryReading? = finalReading ?: safeRead(ctx) ?: before
+        val after: BatteryReading? = finalReading ?: PlugStep.safeRead(ctx) ?: before
         val intervalMin = settings.intervalMin
         val nextAt: Long? = try {
             CheckScheduler.scheduleIn(ctx, intervalMin * 60_000L)
