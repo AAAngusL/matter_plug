@@ -8,8 +8,11 @@ import app.matterplug.fixedip.IpSms
 import app.matterplug.fixedip.IpStore
 import app.matterplug.fixedip.logic.IpState
 import app.matterplug.fixedip.logic.IpVerdict
+import app.matterplug.fixedip.logic.SmsOutcome
+import app.matterplug.fixedip.logic.SmsResult
 import app.matterplug.guard.logic.PostResult
 import app.matterplug.heartbeat.logic.Heartbeat
+import app.matterplug.heartbeat.logic.HeartbeatSms
 import app.matterplug.heartbeat.logic.Observation
 import kotlinx.coroutines.CancellationException
 
@@ -31,7 +34,10 @@ object HeartbeatRunner {
             if (sms == null) return
             val numbers = IpStore(ctx).readSettings().recipients
             val sent = IpSms.send(ctx, numbers, Heartbeat.text(sms, limit))
+            val outcome = SmsResult.outcome(sent.accepted)
+            store.recordSms(System.currentTimeMillis(), outcome, if (outcome == SmsOutcome.Failed) sent.failure else null)
             Log.i(TAG, "sms: ${sms.name} numbers=${numbers.size} accepted=${sent.accepted.count { it }} failure=${sent.failure}")
+            if (sms == HeartbeatSms.Start && outcome == SmsOutcome.Failed) store.startNotSent()      // the next missed check tries again
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "heartbeat failed", e)

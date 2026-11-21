@@ -1,6 +1,6 @@
 # Fixed IP: Design
 
-Status: draft 5, for review. F1 to F3 built and verified; F4 built, not yet verified on the phone. Nothing here is built yet. Follows the structure of `CELLULAR-CHECK.md` and reuses Battery Guard's alarm chain, alert requests and receiver, and Cellular Check's SMS sending.
+Status: draft 5. F1 to F4 built and verified on the phone (section 12 lists what was accepted without a run). Follows the structure of `CELLULAR-CHECK.md` and reuses Battery Guard's alarm chain, alert requests and receiver, and Cellular Check's SMS sending.
 
 Changes in draft 5, from the review of F4's plan:
 

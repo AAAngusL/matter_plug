@@ -69,6 +69,15 @@ At most 100 characters, as in `MESSAGES.md`. Sent by `IpSms` to both numbers in 
 
 Also decided: switching the heartbeat off during an alert clears `consoleDown` with no SMS and no request to the server (the console is the thing that is down), and the heartbeat never sends anything to the server.
 
+Added after the first build (2026-11-21):
+
+| # | Decision | Answer |
+|---|---|---|
+| 13 | The heartbeat SMS result | Recorded and shown under the switch as "Last SMS: sent at …" or "failed at … (reason)", as in Fixed IP |
+| 14 | A start SMS that reaches no number | The alert is closed again, so the next missed check sends it again (the count is kept). A failed recovery SMS is not repeated |
+| 15 | The status switch is off | The heartbeat switch cannot be turned on, and a red line says so if the status switch is turned off later |
+| 16 | The word "heartbeat" | A working name in this document and the code; the glossary term is **Console check** (`CONTEXT.md`) |
+
 ## 6. Limits
 
 - It detects only while pushes are attempted. With **Send status after every check** off and no alerts, no push is made, so nothing is learned. The switch depends on the status switch.

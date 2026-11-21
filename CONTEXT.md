@@ -87,6 +87,10 @@ _Avoid_: server, listener
 A short message the **Device** sends after every **Check**, when switched on, to show that **Battery Guard** is alive.
 _Avoid_: heartbeat, ping
 
+**Console check**:
+The feature that tells the user, by SMS, that the autodialer console at the **Alert address** has stopped answering: it counts the **Checks** whose first push failed and sends one SMS at a limit of 2, 3 or 5. Its design document and code call it "heartbeat"; the glossary keeps that word for nothing, because a **Status report** is what shows the **Device** is alive.
+_Avoid_: heartbeat, ping
+
 **Silence alarm**:
 The **Receiver**'s own alarm, raised when it hears nothing from the **Device** for longer than expected.
 _Avoid_: watchdog, timeout

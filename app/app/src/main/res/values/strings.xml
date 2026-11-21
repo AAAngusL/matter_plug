@@ -248,5 +248,6 @@
     <string name="heartbeat_note">Needs \"Send status after every check\". Texts the Fixed IP numbers.</string>
     <string name="heartbeat_need_number">Set the IP alert number in the Fixed IP tab first.</string>
     <string name="heartbeat_sms_denied">The SMS permission is needed to send the text.</string>
+    <string name="heartbeat_need_status">Turn on \"Send status after every check\" first: without it the check sends nothing to the console and learns nothing.</string>
     <string name="heartbeat_limit">Missed checks before the SMS</string>
 </resources>

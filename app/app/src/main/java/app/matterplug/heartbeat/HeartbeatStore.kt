@@ -12,6 +12,8 @@ import app.matterplug.heartbeat.logic.Heartbeat
 import app.matterplug.heartbeat.logic.HeartbeatSettings
 import app.matterplug.heartbeat.logic.HeartbeatSms
 import app.matterplug.heartbeat.logic.HeartbeatState
+import app.matterplug.fixedip.logic.SmsOutcome
+import app.matterplug.fixedip.logic.SmsResult
 import app.matterplug.heartbeat.logic.Observation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -26,6 +28,16 @@ class HeartbeatStore(context: Context) {
     val settings: Flow<HeartbeatSettings> = store.data.map { read(it) }
 
     suspend fun readSettings(): HeartbeatSettings = read(store.data.first())
+
+    /** The last heartbeat SMS, for the screen; null before the first one. */
+    val lastSms: Flow<SmsResult.Last?> = store.data.map { SmsResult.decode(it[LAST_SMS]) }
+
+    suspend fun recordSms(atMs: Long, outcome: SmsOutcome, detail: String?) { store.edit { it[LAST_SMS] = SmsResult.encode(atMs, outcome, detail) } }
+
+    /** The start SMS reached no number: the alert is closed again so the next missed check retries it (Heartbeat.startNotSent). */
+    suspend fun startNotSent() {
+        store.edit { p -> if (read(p).enabled) p[STATE] = Heartbeat.encode(Heartbeat.startNotSent(Heartbeat.decode(p[STATE]))) }
+    }
 
     suspend fun readState(): HeartbeatState = Heartbeat.decode(store.data.first()[STATE])
 
@@ -65,5 +77,6 @@ class HeartbeatStore(context: Context) {
         val ENABLED = booleanPreferencesKey("enabled")
         val LIMIT = intPreferencesKey("limit")
         val STATE = stringPreferencesKey("state")
+        val LAST_SMS = stringPreferencesKey("last_sms")
     }
 }

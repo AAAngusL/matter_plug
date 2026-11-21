@@ -49,6 +49,12 @@ object Heartbeat {
         }
     }
 
+    /**
+     * The start SMS reached no number: the alert is not really open, so the next missed check sends it again. The missed count is kept,
+     * so that check reaches the limit at once. (A recovery SMS that fails is not repeated: the alert is already closed.)
+     */
+    fun startNotSent(state: HeartbeatState): HeartbeatState = state.copy(down = false)
+
     /** A cap, so a console that stays down for months cannot overflow the stored count. */
     const val MAX_COUNT = 1_000
 

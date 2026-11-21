@@ -55,6 +55,21 @@ class HeartbeatTest {
     @Test fun loweringTheLimitBelowTheCountStartsOnTheNextMiss() =
         assertEquals(HeartbeatSms.Start, Heartbeat.step(HeartbeatState(3, false), fail, 2).second)
 
+    @Test fun aFailedStartSmsClosesTheAlertSoTheNextMissedCheckSendsItAgain() {
+        val (open, first) = Heartbeat.step(HeartbeatState(1, false), fail, 2)
+        assertEquals(HeartbeatSms.Start, first)
+        val reopened = Heartbeat.startNotSent(open)
+        assertEquals(HeartbeatState(2, false), reopened)
+        assertEquals(HeartbeatSms.Start, Heartbeat.step(reopened, fail, 2).second)
+    }
+
+    @Test fun aRetriedStartStillSendsOnlyOnce() {
+        val reopened = Heartbeat.startNotSent(HeartbeatState(2, true))
+        val (s, sms) = Heartbeat.step(reopened, fail, 2)
+        assertEquals(HeartbeatSms.Start, sms)
+        assertEquals(null, Heartbeat.step(s, fail, 2).second)
+    }
+
     @Test fun theCountIsCapped() = assertEquals(Heartbeat.MAX_COUNT, Heartbeat.step(HeartbeatState(Heartbeat.MAX_COUNT, true), fail, 2).first.missed)
 
     @Test fun observeWhenNothingWasPushed() = assertEquals(Observation.None, Heartbeat.observe(null, false))
