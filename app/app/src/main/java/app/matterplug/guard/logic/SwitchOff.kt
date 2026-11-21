@@ -2,13 +2,14 @@ package app.matterplug.guard.logic
 
 import app.matterplug.cellular.logic.CellularSettings
 
-/** Which switch closed an alert without a recovery (RECOVERY-SIGNALS.md 2.4). [phrase] starts the cancelled message. */
-enum class CancelledBy(val wire: String, val phrase: String) {
-    GuardOff("guard_off", "Battery Guard was turned off"),
-    AlertsOff("alerts_off", "Battery Guard alerts were turned off"),
-    CellularOff("cellular_off", "Cellular Check was turned off"),
-    CellularAlertsOff("cellular_alerts_off", "Cellular alerts were turned off"),
-    IpOff("ip_off", "Fixed IP was turned off"),
+/** Which switch closed an alert without a recovery (RECOVERY-SIGNALS.md 2.4). [cause] starts the cancelled message. */
+enum class CancelledBy(val wire: String, val cause: String) {
+    GuardOff("guard_off", "Battery Guard turned off"),
+    AlertsOff("alerts_off", "Battery Guard alerts turned off"),
+    CellularOff("cellular_off", "Cellular Check turned off"),
+    CellularAlertsOff("cellular_alerts_off", "Cellular alerts turned off"),
+    IpOff("ip_off", "Fixed IP turned off"),
+    IpUnpinned("ip_unpinned", "Fixed IP network unpinned"),
 }
 
 /** What a change of a feature's switches does to its alerts. */

@@ -63,20 +63,20 @@ class CellularReportTest {
         assertEquals(Layer.Registration, s.failedLayer)
         assertEquals("airplane mode", s.reason)
         assertEquals("not sent: radio off", s.smsReason)
-        assertEquals("Matter Plug: SMS service unavailable: not registered (airplane mode); the test SMS was not sent: radio off. Battery 64%.",
+        assertEquals("Matter Plug: SMS unavailable: not registered (airplane mode). Battery 64%.",
             AlertMessages.text(event(AlertPhase.Started, s)))
     }
 
     @Test fun anSmsOnlyFaultSaysTheSignalIsFine() {
         val s = CellularReport.summary(smsOnly, LoopbackTrigger.Daily)
         assertEquals(Layer.Sms, s.failedLayer)
-        assertEquals("Matter Plug: SMS is not working although the signal is fine; the test SMS was sent, no delivery report, not received back. Battery 64%.",
+        assertEquals("Matter Plug: SMS not working, signal fine: sent, not received back. Battery 64%.",
             AlertMessages.text(event(AlertPhase.Started, s)))
     }
 
     @Test fun reminderAndRecoveredTexts() {
         val s = CellularReport.summary(smsOnly, LoopbackTrigger.Daily)
-        assertTrue(AlertMessages.text(event(AlertPhase.Reminder, s)).startsWith("Matter Plug (reminder): SMS is not working"))
+        assertTrue(AlertMessages.text(event(AlertPhase.Reminder, s)).startsWith("Reminder: SMS not working"))
         assertEquals("Matter Plug: SMS works again. Battery 64%.", AlertMessages.text(event(AlertPhase.Recovered, s)))
     }
 
@@ -125,12 +125,12 @@ class CellularStatusReportTest {
     )
 
     @Test fun itsMessageNamesEveryLayer() = assertEquals(
-        "Matter Plug: cellular status: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
+        "Matter Plug: cellular: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
         AlertMessages.text(report(healthy)),
     )
 
     @Test fun skippedAndUntestedLayersSaySo() = assertEquals(
-        "Matter Plug: cellular status: SIM fail, registered skipped, signal skipped, SMS not tested. Battery 84%.",
+        "Matter Plug: cellular: SIM fail, registered skipped, signal skipped, SMS not tested. Battery 84%.",
         AlertMessages.text(report(mapOf(Layer.Sim to LayerResult.Fail("SIM absent"),
             Layer.Registration to LayerResult.Skipped(Layer.Sim), Layer.Signal to LayerResult.Skipped(Layer.Sim)))),
     )

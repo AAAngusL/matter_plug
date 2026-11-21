@@ -20,18 +20,19 @@ object IpReport {
         "\"sms\":${AlertJson.q(s.sms.wire)}",
     ).joinToString(",", "{", "}")
 
-    /** The message for a started alert, a reminder (AlertMessages makes the reminder) and a recovery. */
-    fun text(phase: AlertPhase, s: IpSummary?): String {
-        if (s == null) return "Matter Plug: the phone's Wi-Fi address."
-        if (phase == AlertPhase.Recovered) return recoveredText(s.pinned)
+    /**
+     * The message for a started alert, a reminder (AlertMessages makes the reminder) and a recovery, at most 100 characters even with
+     * two 15-character addresses. The battery goes last; [battery] of 0 or less means it could not be read, and the sentence is left out.
+     */
+    fun text(phase: AlertPhase, s: IpSummary?, battery: Int): String {
+        val tail = if (battery > 0) " Battery $battery%." else ""
+        if (s == null) return "Matter Plug: IP problem.$tail"
+        if (phase == AlertPhase.Recovered) return "Matter Plug: IP is back at ${s.pinned}.$tail"
+        val now = s.current ?: "unknown"
         return when (s.reason) {
-            DriftReason.AddressChanged ->
-                "Matter Plug: the phone's Wi-Fi address changed from ${s.pinned} to ${s.current ?: "unknown"}. The dialer may not reach it."
-            DriftReason.GatewayChanged ->
-                "Matter Plug: the phone's Wi-Fi gateway changed. Its address is ${s.current ?: "unknown"}. The dialer may not reach it."
-            DriftReason.NoWifi -> "Matter Plug: the phone has had no Wi-Fi for 1 minute. The dialer cannot reach it."
+            DriftReason.AddressChanged -> "Matter Plug: IP changed from ${s.pinned} to $now. Dialer may lose it.$tail"
+            DriftReason.GatewayChanged -> "Matter Plug: IP gateway changed. IP is $now. Dialer may not reach it.$tail"
+            DriftReason.NoWifi -> "Matter Plug: no Wi-Fi for 1 minute. Dialer cannot reach it.$tail"
         }
     }
-
-    fun recoveredText(pinned: String): String = "Matter Plug: the phone's Wi-Fi address is back at $pinned."
 }

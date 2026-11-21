@@ -8,9 +8,10 @@ For anyone programming the server at the **alert address**. It lists every reque
 |---|---|---|
 | 1 | **A new type, `ip_drift`,** with states `started`, `reminder`, `recovered` and `cancelled`, sent when the phone's Wi-Fi address (or gateway) is no longer the one the user pinned, or the phone has had no Wi-Fi for 1 minute | Accept the new `alert` value; show or store it (section 5, Fixed IP) |
 | 2 | **A new object, `ip`,** in every `ip_drift` request except `cancelled`: `pinned`, `current` (absent when the phone has no address), `ssid`, `reason` (`address_changed`, `gateway_changed`, `no_wifi`) and `sms` (`sent` or `failed`) | Ignore it if not needed (section 3) |
-| 3 | **A new `cancelled_by` value, `ip_off`,** when Fixed IP is switched off or the network is unpinned with an alert open | Treat it like the other `cancelled` values |
-| 4 | **A `no_wifi` request arrives late.** The alert address is usually on the home network, so the phone cannot reach it while Wi-Fi is down: the `started` waits and arrives, followed by `recovered`, once Wi-Fi is back. The same event is also sent by SMS, to the numbers the user set, before the request | Use `time`, not the arrival time, for when it began |
-| 5 | **Fixed IP sends no status report.** Only `ip_drift` | Nothing |
+| 3 | **Two new `cancelled_by` values:** `ip_off` (Fixed IP switched off) and `ip_unpinned` (the network unpinned) with an alert open | Treat them like the other `cancelled` values |
+| 4 | **Every `message` text is reworded, shorter, and at most 100 characters.** See `docs/MESSAGES.md`. Reminders start `Reminder: ` (was `Matter Plug (reminder): `). A `recovered` text now says what recovered (`charging again`, `charger plug reachable again`, `Battery Guard working again`). All `cancelled` texts use one wording and no longer name the alert. `cellular_status` reads `Matter Plug: cellular: SIM …`. Fields, `alert`, `state` and `cancelled_by` are unchanged | Only if the server matched on the text (it should not) |
+| 5 | **A `no_wifi` request arrives late.** The alert address is usually on the home network, so the phone cannot reach it while Wi-Fi is down: the `started` waits and arrives, followed by `recovered`, once Wi-Fi is back. The same event is also sent by SMS, to the numbers the user set, before the request | Use `time`, not the arrival time, for when it began |
+| 6 | **Fixed IP sends no status report.** Only `ip_drift` | Nothing |
 
 ## 0. Changes on 2026-11-16: what the server must change
 
@@ -23,7 +24,7 @@ For anyone programming the server at the **alert address**. It lists every reque
 | 5 | **Reminders now always follow an alert the server was told about.** Turning **Send alerts** off or on resets the alerts, so a fault is confirmed again and a new `started` comes | Nothing, but a server may still treat a `reminder` for an alert it does not have open as a `started` (section 7) |
 | 6 | **New end conditions:** `not_charging` ends only when the battery takes charge; `guard_degraded` for `service could not start` ends only when the service actually starts | `recovered` may come later than before, and `reminder` can arrive while `plugged_in` is `true` |
 | 7 | **`cellular_down` is re-tested every hour** while only SMS shows the fault, just before each reminder | A `recovered` arrives within the hour of a fix, not the next morning. The re-test's `trigger` is `recovery` |
-| 8 | **`not_charging` texts** use the power words: `Matter Plug: battery 18%, on battery. The plug is on. …` (was `…, not charging. …`) | Only if the server matched on the text (it should not) |
+| 8 | **`not_charging` texts** use the power words: `Matter Plug: battery 18%, on battery. The plug is on. …` (was `…, not charging. …`). Reworded again on 2026-11-19: see the change list there | Only if the server matched on the text (it should not) |
 
 Section 8 shows how to make the phone send each request, to test the server.
 
@@ -75,7 +76,7 @@ With both features on and both status switches on, a server receives **two statu
 
 | Field | Type | Present in | Meaning |
 |---|---|---|---|
-| `cancelled_by` | string | `cancelled` | The switch that closed the alert: `guard_off` (Keep battery between), `alerts_off` (Send alerts), `cellular_off` (Check cellular service) `cellular_alerts_off` (Send cellular alerts) or `ip_off` (Watch the Wi-Fi address, also when the network is unpinned) |
+| `cancelled_by` | string | `cancelled` | The switch that closed the alert: `guard_off` (Keep battery between), `alerts_off` (Send alerts), `cellular_off` (Check cellular service) `cellular_alerts_off` (Send cellular alerts), `ip_off` (Watch the Wi-Fi address) or `ip_unpinned` (the Fixed IP network unpinned) |
 | `next_check_in_min` | integer | `status`, `cellular_status` | Minutes until the next check (5, 10, 15, 30 or 60). If no further request arrives well after that, the phone has gone silent |
 | `cellular` | object | `cellular_status`, `cellular_down` | Cellular Check's results (below) |
 | `ip` | object | `ip_drift` except `cancelled` | Fixed IP's result: `pinned` (the address the user pinned), `current` (the address now; absent when the phone has none), `ssid` (the pinned network's name), `reason` (`address_changed`, `gateway_changed` or `no_wifi`) and `sms` (`sent` or `failed`: whether the SMS for this step went out) |
@@ -162,9 +163,9 @@ The battery was at or below the low threshold, the charger plug was switched on 
 
 | State | Message |
 |---|---|
-| `started` | `Matter Plug: battery 18%, <power>. The plug is on. Check the charger and cable.` (`<power>` as in `status`: usually `on battery`) |
-| `reminder` | The same text, starting `Matter Plug (reminder): `, for example `Matter Plug (reminder): battery 18%, plugged in, not charging. The plug is on. Check the charger and cable.` |
-| `recovered` | `Matter Plug: recovered. Battery 24%, <power>.` (`<power>` as in `status`) |
+| `started` | `Matter Plug: not charging though plug is on. Check charger and cable. Battery 18%.` |
+| `reminder` | The same text, starting `Reminder: ` in place of `Matter Plug: ` |
+| `recovered` | `Matter Plug: charging again. Battery 24%.` |
 
 #### `plug_unreachable` (states `started`, `reminder`, `recovered`, `cancelled`)
 
@@ -172,11 +173,11 @@ The charger plug could not be reached at two checks in a row: by a switch, or, w
 
 | State | Message |
 |---|---|
-| `started`, needed on | `Matter Plug: battery 18%, not charging. The charger plug cannot be reached.` |
-| `started`, needed off | `Matter Plug: battery 87%. The charger plug cannot be reached to turn it off.` |
-| `started`, no switch needed | `Matter Plug: battery 72%. The charger plug cannot be reached.` |
-| `reminder` | The same text, starting `Matter Plug (reminder): ` |
-| `recovered` | `Matter Plug: recovered. Battery <n>%, <power>.` (`<power>` as in `status`) |
+| `started`, needed on | `Matter Plug: cannot reach charger plug to turn it on. Battery 18%.` |
+| `started`, needed off | `Matter Plug: cannot reach charger plug to turn it off. Battery 87%.` |
+| `started`, no switch needed | `Matter Plug: cannot reach charger plug. Battery 72%.` |
+| `reminder` | The same text, starting `Reminder: ` in place of `Matter Plug: ` |
+| `recovered` | `Matter Plug: charger plug reachable again. Battery <n>%.` |
 
 #### `guard_degraded` (states `started`, `reminder`, `recovered`, `cancelled`)
 
@@ -184,9 +185,9 @@ Battery Guard found a fault of its own at two checks in a row. Ends when the fau
 
 | State | Message |
 |---|---|
-| `started` | `Matter Plug: Battery Guard is not working: <reason>. Battery <n>%.` where `<reason>` is `exact alarms not allowed`, `battery unreadable` or `service could not start` |
-| `reminder` | The same text, starting `Matter Plug (reminder): ` |
-| `recovered` | `Matter Plug: recovered. Battery <n>%, <power>.` (`<power>` as in `status`) |
+| `started` | `Matter Plug: Battery Guard stopped: <reason>. Battery <n>%.` where `<reason>` is `exact alarms not allowed`, `battery unreadable` or `service could not start` |
+| `reminder` | The same text, starting `Reminder: ` in place of `Matter Plug: ` |
+| `recovered` | `Matter Plug: Battery Guard working again. Battery <n>%.` |
 
 #### `test` (state `test`)
 
@@ -202,11 +203,11 @@ A switch closed the alert without a recovery. Kept and retried like `recovered`.
 
 ```json
 {"alert":"plug_unreachable","state":"cancelled",
- "message":"Matter Plug: Battery Guard was turned off. The plug unreachable alert is closed without a recovery. Battery 64%.",
+ "message":"Matter Plug: Battery Guard turned off. Open alert closed; problem may remain. Battery 64%.",
  "battery":64,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-16T14:05:10-06:00","cancelled_by":"guard_off"}
 ```
 
-Message: `Matter Plug: <switch>. The <alert> alert is closed without a recovery. Battery <n>%.` where `<switch>` is `Battery Guard was turned off`, `Battery Guard alerts were turned off`, `Cellular Check was turned off` or `Cellular alerts were turned off`, and `<alert>` is `not charging`, `plug unreachable`, `Battery Guard not working` or `SMS`.
+Message, one wording for every feature: `Matter Plug: <cause>. Open alert closed; problem may remain. Battery <n>%.` where `<cause>` is `Battery Guard turned off`, `Battery Guard alerts turned off`, `Cellular Check turned off`, `Cellular alerts turned off`, `Fixed IP turned off` or `Fixed IP network unpinned`. The text does not name the alert: the request's `alert` field does.
 
 #### Reminders
 
@@ -220,14 +221,14 @@ After every cellular run, with **Send cellular status after every check** on, wh
 
 ```json
 {"alert":"cellular_status","state":"status",
- "message":"Matter Plug: cellular status: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
+ "message":"Matter Plug: cellular: SIM pass, registered pass, signal pass, SMS pass. Battery 84%.",
  "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-14T20:10:50-06:00","next_check_in_min":15,
  "cellular":{"trigger":"daily","sim":"pass","registration":"pass","signal":"pass","sms":"pass",
              "signal_detail":"LTE, RSRP -97 dBm, RSRQ -11 dB, SINR 8 dB",
              "signal_reading":{"rat":"lte","level":3,"rsrp_dbm":-97,"rsrq_db":-11,"sinr_db":8,"read_at":"2026-11-14T20:10:50-06:00"}}}
 ```
 
-Message: `Matter Plug: cellular status: SIM <s>, registered <s>, signal <s>, SMS <s>. Battery <n>%.` where each `<s>` is `pass`, `fail`, `skipped`, or for SMS also `not tested`.
+Message: `Matter Plug: cellular: SIM <s>, registered <s>, signal <s>, SMS <s>. Battery <n>%.` where each `<s>` is `pass`, `fail`, `skipped`, or for SMS also `not tested`. Before any reading it is `Matter Plug: cellular: not tested yet. Battery <n>%.`
 
 #### `cellular_down` (states `started`, `reminder`, `recovered`, `cancelled`)
 
@@ -235,14 +236,14 @@ Two test SMS in a row failed, whatever triggered them. Ends when a test SMS pass
 
 | State | When | Message |
 |---|---|---|
-| `started` | A reading (SIM, registration, signal) failed too | `Matter Plug: SMS service unavailable: <reason>; the test SMS was <sms reason>. Battery <n>%.` For registration, `<reason>` reads `not registered (<reason>)` |
-| `started` | All readings passed | `Matter Plug: SMS is not working although the signal is fine; the test SMS was <sms reason>. Battery <n>%.` |
-| `reminder` | Every 60 minutes while on; when the readings pass, right after a failed re-test | The started text, starting `Matter Plug (reminder): ` |
+| `started` | A reading (SIM, registration, signal) failed too | `Matter Plug: SMS unavailable: <reason>. Battery <n>%.` For registration, `<reason>` reads `not registered (<reason>)`. The test SMS result is in the `cellular` object |
+| `started` | All readings passed | `Matter Plug: SMS not working, signal fine: <result>. Battery <n>%.` where `<result>` is `not sent, <why>` or `sent, not received back` |
+| `reminder` | Every 60 minutes while on; when the readings pass, right after a failed re-test | The started text, starting `Reminder: ` in place of `Matter Plug: ` |
 | `recovered` | A test SMS passed | `Matter Plug: SMS works again. Battery <n>%.` |
 
 ```json
 {"alert":"cellular_down","state":"started",
- "message":"Matter Plug: SMS service unavailable: SIM absent; the test SMS was not sent: no default sms app (code 32). Battery 84%.",
+ "message":"Matter Plug: SMS unavailable: SIM absent. Battery 84%.",
  "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-14T19:42:10-06:00",
  "cellular":{"trigger":"manual","failed_layer":"sim","reason":"SIM absent","sim":"fail","registration":"skipped",
              "signal":"skipped","sms":"fail","sms_reason":"not sent: no default sms app (code 32)","signal_detail":"none"}}
@@ -256,18 +257,20 @@ The phone's Wi-Fi address (or its gateway) is not the one the user pinned, or th
 
 | State | When | Message |
 |---|---|---|
-| `started` | `address_changed` | `Matter Plug: the phone's Wi-Fi address changed from <pinned> to <current>. The dialer may not reach it.` |
-| `started` | `gateway_changed` | `Matter Plug: the phone's Wi-Fi gateway changed. Its address is <current>. The dialer may not reach it.` |
-| `started` | `no_wifi` | `Matter Plug: the phone has had no Wi-Fi for 1 minute. The dialer cannot reach it.` |
-| `reminder` | Every 60 minutes while on | The started text, starting `Matter Plug (reminder): ` |
-| `recovered` | A reading matches the pinned address | `Matter Plug: the phone's Wi-Fi address is back at <pinned>.` |
-| `cancelled` | Switch off or unpin | The usual cancelled text; no `ip` object |
+| `started` | `address_changed` | `Matter Plug: IP changed from <pinned> to <current>. Dialer may lose it. Battery <n>%.` |
+| `started` | `gateway_changed` | `Matter Plug: IP gateway changed. IP is <current>. Dialer may not reach it. Battery <n>%.` |
+| `started` | `no_wifi` | `Matter Plug: no Wi-Fi for 1 minute. Dialer cannot reach it. Battery <n>%.` |
+| `reminder` | Every 60 minutes while on | The started text, starting `Reminder: ` in place of `Matter Plug: ` |
+| `recovered` | A reading matches the pinned address | `Matter Plug: IP is back at <pinned>. Battery <n>%.` |
+| `cancelled` | Switch off (`ip_off`) or unpin (`ip_unpinned`) | The usual cancelled text; no `ip` object |
+
+The SMS carries the same text as `message`. The battery sentence is left out of both when the battery cannot be read.
 
 **A `no_wifi` request arrives late.** The alert address is usually on the home network, so the phone cannot reach it while Wi-Fi is down. The `started` is kept in the waiting list and arrives, followed by `recovered`, once Wi-Fi is back. Use the SMS, or the `time` field, to know when it began.
 
 ```json
 {"alert":"ip_drift","state":"started",
- "message":"Matter Plug: the phone's Wi-Fi address changed from 192.168.1.37 to 192.168.1.52. The dialer may not reach it.",
+ "message":"Matter Plug: IP changed from 192.168.1.37 to 192.168.1.52. Dialer may lose it. Battery 84%.",
  "battery":84,"charging":true,"plugged_in":true,"battery_status":"charging","time":"2026-11-19T21:30:10-06:00",
  "ip":{"pinned":"192.168.1.37","current":"192.168.1.52","ssid":"Home","reason":"address_changed","sms":"sent"}}
 ```
@@ -334,6 +337,7 @@ How to make the phone send each request. Times assume a 5-minute **Check every**
 | `ip_drift` `recovered` | Turn Wi-Fi back on | At the next read after Wi-Fi returns, within seconds; one recovery SMS too |
 | `ip_drift` `started`, `address_changed` | Give the phone another address (a static address in Android's Wi-Fi settings, or a changed router reservation) | At once, with the SMS |
 | `cancelled`, `ip_off` | During an `ip_drift`, switch **Watch the Wi-Fi address** off | At once (behind any waiting requests); no SMS |
+| `cancelled`, `ip_unpinned` | During an `ip_drift`, tap **Unpin** | The same |
 | `not_charging` | With the battery at or below 50% (**Turn on** goes up to 50%): pull the charger cable out of the phone, then set **Turn on** just above the current battery. The next check turns the plug on and finds the phone not plugged in 30 s later | `started` about 30 s after that check. Plug the cable back in: `recovered` at the next check where the battery charges. Set **Turn on** back afterwards |
 | `guard_degraded` | Not practical on Android 13 and later | — |
 

@@ -5,7 +5,7 @@ Status: draft 5, for review. F1 to F3 built and verified; F4 built, not yet veri
 Changes in draft 5, from the review of F4's plan:
 
 - **A resident foreground service replaces the alarms** (section 8). Android lets an idle app have only about one exact alarm per 9 minutes, and the app already keeps one alarm chain for Battery Guard and Cellular Check, so a 60-second alarm could slip to 9 minutes. The service holds an ordinary Wi-Fi network callback; the 1-minute wait and the boot grace are timers in it. It shows a permanent low-priority notification while Fixed IP is on. The `PendingIntent` callback idea is dropped.
-- **Switching off or unpinning with an alert open** sends one `cancelled` (`cancelled_by: ip_off`) to the alert server and **no SMS** (section 7).
+- **Switching off or unpinning with an alert open** sends one `cancelled` (`cancelled_by: ip_off` for the switch, `ip_unpinned` for Unpin) to the alert server and **no SMS** (section 7).
 - **The no-Wi-Fi HTTP alert waits for Wi-Fi.** The alert address is a LAN address, so it cannot go over mobile data. The SMS goes first; the request stays in the waiting list and is sent when Wi-Fi returns (section 7).
 - **State survives the process:** the wait start, the open alert and the last SMS are kept in the store (section 11).
 
@@ -141,11 +141,13 @@ Rules:
 - **No status report.** The alert server receives `ip_drift` messages (start, reminders, recovered) and nothing else from Fixed IP.
 - **The SMS is sent first**, so it never waits behind the HTTP request.
 - **The HTTP alert needs an Alert address.** Without one it is skipped; the SMS is still sent.
-- **Switching off or Unpin with an alert open** sends one `cancelled` to the alert server (`cancelled_by: ip_off`), behind the waiting requests, and **no SMS**: the person who switched it off knows (Battery Guard's R4).
+- **Switching off or Unpin with an alert open** sends one `cancelled` to the alert server (`cancelled_by: ip_off` for the switch, `ip_unpinned` for Unpin), behind the waiting requests, and **no SMS**: the person who switched it off knows (Battery Guard's R4).
 - **SMS texts:**
-  - `Matter Plug: the phone's Wi-Fi address changed from 192.168.1.37 to 192.168.1.52. The dialer may not reach it.`
-  - `Matter Plug: the phone has had no Wi-Fi for 1 minute. The dialer cannot reach it.`
-  - `Matter Plug: the phone's Wi-Fi address is back at 192.168.1.37.`
+  - `Matter Plug: IP changed from 192.168.1.37 to 192.168.1.52. Dialer may lose it. Battery 61%.`
+  - `Matter Plug: IP gateway changed. IP is 192.168.1.52. Dialer may not reach it. Battery 61%.`
+  - `Matter Plug: no Wi-Fi for 1 minute. Dialer cannot reach it. Battery 61%.`
+  - `Matter Plug: IP is back at 192.168.1.37. Battery 61%.`
+  - All at most 100 characters (`docs/MESSAGES.md`); the battery sentence is left out when the battery cannot be read.
 - **If the SMS send fails** (no SIM, airplane mode) the failure is logged and shown on the screen. The HTTP alert is not held back by it, and neither depends on the other.
 
 ### Alert fields
@@ -289,5 +291,5 @@ Last SMS           sent 14:02, address changed
 | 16 | MAC change | Screen warning only (draft 4) |
 | 17 | Several pinned networks | One; unpin and pin again to move (draft 4) |
 | 18 | How a lost Wi-Fi is noticed within 1 minute | A resident foreground service, with a permanent notification (draft 5) |
-| 19 | Switch off or Unpin with an alert open | One `cancelled` (`ip_off`) to the server, no SMS (draft 5) |
+| 19 | Switch off or Unpin with an alert open | One `cancelled` to the server (`ip_off`, or `ip_unpinned` for Unpin), no SMS (draft 5; Unpin value added 2026-11-20) |
 | 20 | HTTP alert for a lost Wi-Fi | The SMS first; the request waits for Wi-Fi (draft 5) |

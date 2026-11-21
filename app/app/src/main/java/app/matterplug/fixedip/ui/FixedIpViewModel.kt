@@ -1,5 +1,6 @@
 package app.matterplug.fixedip.ui
 
+import app.matterplug.guard.logic.CancelledBy
 import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
@@ -114,7 +115,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val closed = store.update { it.copy(pinned = null, enabled = false) }
             IpWatchService.stop(getApplication())
-            IpRunner.closed(getApplication(), closed)
+            IpRunner.closed(getApplication(), closed, CancelledBy.IpUnpinned)
             _guide.value = false
             _problem.value = null
             refresh()

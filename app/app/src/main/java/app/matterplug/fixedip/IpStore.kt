@@ -32,7 +32,7 @@ class IpStore(context: Context) {
     /** The last alert SMS, for the screen (docs/FIXED-IP.md section 10); null before the first one. */
     val lastSms: Flow<SmsResult.Last?> = store.data.map { SmsResult.decode(it[LAST_SMS]) }
 
-    /** [wasOpen]: an alert was open and the switch closed it, so the caller sends cancelled (R4, with ip_off). */
+    /** [wasOpen]: an alert was open and the switch closed it, so the caller sends cancelled (R4, with ip_off or ip_unpinned). */
     data class Closed(val wasOpen: Boolean)
 
     /**

@@ -1,5 +1,6 @@
 package app.matterplug.cellular.logic
 
+import app.matterplug.guard.logic.AlertMessages
 import app.matterplug.guard.logic.AlertJson
 import app.matterplug.guard.logic.AlertPhase
 import java.time.ZoneId
@@ -101,15 +102,27 @@ object CellularReport {
 
     /** The started text; AlertMessages turns it into the reminder. A passive fault says which layer; an SMS-only fault says the signal is fine. */
     fun downText(s: CellularSummary, battery: Int): String {
-        val sms = "the test SMS was ${s.smsReason ?: "not tested"}"
-        return if (s.failedLayer in passive) "Matter Plug: SMS service unavailable: ${passivePhrase(s)}; $sms. Battery $battery%."
-        else "Matter Plug: SMS is not working although the signal is fine; $sms. Battery $battery%."
+        val tail = ". Battery $battery%."
+        return if (s.failedLayer in passive) AlertMessages.fit("Matter Plug: SMS unavailable: ", passivePhrase(s), tail)
+        else AlertMessages.fit("Matter Plug: SMS not working, signal fine: ", smsWords(s.smsReason), tail)
     }
 
-    /** The cellular_status message: every layer's result in words, "not tested" for an SMS test not yet run. */
+    /** "not sent: radio off" reads "not sent, radio off"; a sent test that did not come back reads "sent, not received back". */
+    private fun smsWords(reason: String?): String = when {
+        reason == null -> "not tested"
+        reason.startsWith("not sent: ") -> "not sent, " + reason.removePrefix("not sent: ")
+        reason.startsWith("sent") -> "sent, not received back"
+        else -> reason
+    }
+
+    /**
+     * The cellular_status message: every layer's result in words, "not tested" for an SMS test not yet run. With no reading at all it
+     * says so in one phrase: four "not tested" would pass 100 characters.
+     */
     fun statusText(s: CellularSummary?, battery: Int): String {
-        val word = { l: Layer -> (s?.layers?.get(l) ?: "not_due").let { if (it == "not_due") "not tested" else it } }
-        return "Matter Plug: cellular status: SIM ${word(Layer.Sim)}, registered ${word(Layer.Registration)}, " +
+        if (s == null) return "Matter Plug: cellular: not tested yet. Battery $battery%."
+        val word = { l: Layer -> (s.layers[l] ?: "not_due").let { if (it == "not_due") "not tested" else it } }
+        return "Matter Plug: cellular: SIM ${word(Layer.Sim)}, registered ${word(Layer.Registration)}, " +
             "signal ${word(Layer.Signal)}, SMS ${word(Layer.Sms)}. Battery $battery%."
     }
 

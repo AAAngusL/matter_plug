@@ -89,7 +89,7 @@ class AlertPolicyTest {
         assertEquals(AlertKind.PlugUnreachable to AlertPhase.Started, e.kind to e.phase)
         assertEquals(null, e.wantedOn)
         assertEquals(null, r2.state.active.single().wantedOn)
-        assertEquals("Matter Plug: battery 72%. The charger plug cannot be reached.", AlertMessages.text(e))
+        assertEquals("Matter Plug: cannot reach charger plug. Battery 72%.", AlertMessages.text(e))
     }
 
     // No charger plug (unpaired or removed): nothing to reach, so an active alert ends and the count resets
@@ -218,7 +218,7 @@ class AlertPolicyTest {
         val started = r.events.single()
         assertEquals(false, started.wantedOn)
         assertEquals(false, r.state.active.single().wantedOn)
-        assertTrue(AlertMessages.text(started).endsWith("to turn it off."))
+        assertTrue(AlertMessages.text(started).contains("to turn it off."))
         r = step(r.state, listOf(failOff), 75, battery = 88, plugged = true)
         assertEquals(AlertPhase.Reminder, r.events.single().phase)
         assertEquals(false, r.events.single().wantedOn)

@@ -75,9 +75,10 @@ object IpRunner {
         // The reason is the open alert's: a Recovered step has no memo left, so it uses the one just closed.
         val reason = (newMemo ?: memo)!!.reason
         val base = IpSummary(pinned.address, reading.address, pinned.ssid, reason, SmsOutcome.Failed)
-        val sms = if (phase == AlertPhase.Reminder) (store.readLastSms()?.outcome ?: SmsOutcome.Failed)
-        else sendSms(ctx, store, settings.recipients, IpReport.text(phase, base), now)
+        // The battery is read first: the SMS carries it, and the SMS and the request's message say the same thing.
         val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { if (e is CancellationException) throw e; null }
+        val sms = if (phase == AlertPhase.Reminder) (store.readLastSms()?.outcome ?: SmsOutcome.Failed)
+        else sendSms(ctx, store, settings.recipients, IpReport.text(phase, base, battery?.level ?: 0), now)
         val event = AlertEvent(AlertKind.IpDrift, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now, ip = base.copy(sms = sms))
         GuardNotifier.post(ctx, listOf(event))
         return Outcome(event, nextAt)
@@ -93,19 +94,19 @@ object IpRunner {
     }
 
     /**
-     * The switch was turned off (or the network unpinned) while an alert was open: the notification goes and one cancelled is queued
-     * behind the waiting requests (R4). No SMS: the person who switched it off knows. Never throws.
+     * The switch was turned off, or the network unpinned ([by]), while an alert was open: the notification goes and one cancelled is
+     * queued behind the waiting requests (R4). No SMS: the person who switched it off knows. Never throws.
      */
-    suspend fun closed(ctx: Context, closed: IpStore.Closed) {
+    suspend fun closed(ctx: Context, closed: IpStore.Closed, by: CancelledBy = CancelledBy.IpOff) {
         if (!closed.wasOpen) return
         try {
             GuardNotifier.cancel(ctx, listOf(AlertKind.IpDrift))
             val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
             val e = AlertEvent(AlertKind.IpDrift, AlertPhase.Cancelled, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null,
-                System.currentTimeMillis(), cancelledBy = CancelledBy.IpOff)
+                System.currentTimeMillis(), cancelledBy = by)
             GuardStore(ctx).enqueue(listOf(HttpAlerter.body(e)), guardItems = false)
             FlushJobService.schedule(ctx)
-            Log.i(TAG, "alert: kind=ip_drift phase=cancelled by=ip_off")
+            Log.i(TAG, "alert: kind=ip_drift phase=cancelled by=${by.wire}")
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "cancelled not queued", e)
