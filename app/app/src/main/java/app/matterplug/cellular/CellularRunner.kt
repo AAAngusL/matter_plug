@@ -80,8 +80,10 @@ object CellularRunner {
     suspend fun run(ctx: Context) {
         val out = mutex.withLock { runLocked(ctx) } ?: return
         if (out.alert != null || out.status != null) {
+            // Battery Guard's own check carries the heartbeat when it is on; this run is a check of its own only when it is off.
+            val guardOn = try { GuardStore(ctx).readSettings().enabled } catch (e: Exception) { if (e is CancellationException) throw e; true }
             HttpAlerter.deliver(ctx, GuardStore(ctx), listOfNotNull(out.alert), status = out.status,
-                budgetMs = RECEIVER_BUDGET_MS, cellular = out.switches)
+                budgetMs = RECEIVER_BUDGET_MS, cellular = out.switches, heartbeat = !guardOn)
         }
     }
 

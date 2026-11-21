@@ -14,6 +14,7 @@ import app.matterplug.guard.logic.DeliveryPlan
 import app.matterplug.guard.logic.PostResult
 import app.matterplug.guard.logic.Power
 import app.matterplug.guard.logic.authorizationHeader
+import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.guard.logic.resultForCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -130,18 +131,22 @@ object HttpAlerter {
 
     suspend fun deliver(
         ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
-        cellular: SenderSwitches? = null,
+        cellular: SenderSwitches? = null, heartbeat: Boolean = false,
     ) {
+        // The first push this call makes, for the heartbeat of docs/CONSOLE-HEARTBEAT.md: only a check's own delivery passes heartbeat = true.
+        val first = AtomicReference<PostResult?>(null)
         try {
-            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, cellular)
+            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, cellular, first)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
         }
+        if (heartbeat) HeartbeatRunner.afterCheck(ctx, first.get())
     }
 
     private suspend fun deliverInner(
         ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, cellular: SenderSwitches?,
+        first: AtomicReference<PostResult?>,
     ) {
         val settings = store.readSettings()
         val alertsOn = cellular?.alertsOn ?: settings.alertsEnabled
@@ -161,7 +166,7 @@ object HttpAlerter {
         val host = AlertAddress.hostOf(address)
 
         // Step 3: every waiting request was queued under its own sender's switch, so the list is sent whoever asks.
-        if (waiting || alertsOn) flushQueue(store, address, settings.alertToken, host, deadline)
+        if (waiting || alertsOn) flushQueue(store, address, settings.alertToken, host, deadline, first)
 
         if (store.readQueue().isEmpty()) {                                               // step 4
             for (e in DeliveryPlan.extras(events, status, alertsOn, statusOn)) {
@@ -170,6 +175,7 @@ object HttpAlerter {
                 val r = post(address, settings.alertToken, body(e), t)
                 Log.i(TAG, "deliver: ${e.kind.wire}/${e.phase.wire} host=$host code=${r.code} error=${r.error}")
                 record(store, r)
+                first.compareAndSet(null, r)
                 if (!r.delivered) break         // the network is likely down: do not spend the budget on the next one
             }
         } else {                                                                         // step 5
@@ -194,7 +200,9 @@ object HttpAlerter {
     }
 
     /** Oldest first; each delivered entry is removed at once; stops at the first failure or when the budget is used. */
-    private suspend fun flushQueue(store: GuardStore, address: String, token: String, host: String?, deadline: Long) {
+    private suspend fun flushQueue(
+        store: GuardStore, address: String, token: String, host: String?, deadline: Long, first: AtomicReference<PostResult?>? = null,
+    ) {
         if (!flushLock.tryLock()) { Log.i(TAG, "flush: another flush is running"); return }
         try {
             var q = store.readQueue()
@@ -205,6 +213,7 @@ object HttpAlerter {
                 val r = post(address, token, head, t)
                 Log.i(TAG, "flush: host=$host code=${r.code} error=${r.error} waiting=${q.size}")
                 record(store, r)
+                first?.compareAndSet(null, r)
                 if (!r.delivered) return
                 store.dequeueIfHead(head)
                 q = store.readQueue()

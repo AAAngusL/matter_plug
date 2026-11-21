@@ -244,4 +244,9 @@
     <string name="fixedip_guide_ip_value">IP address for the router</string>
     <string name="fixedip_guide_step4">4. Turn Wi-Fi off and on, so the phone takes the reserved address.</string>
     <string name="fixedip_guide_no_check">The app cannot see the router and does not check it. If the reservation is missing or lost, the alert tells you when the address changes.</string>
+    <string name="heartbeat_switch">Alert me if the autodialer console stops answering</string>
+    <string name="heartbeat_note">Needs \"Send status after every check\". Texts the Fixed IP numbers.</string>
+    <string name="heartbeat_need_number">Set the IP alert number in the Fixed IP tab first.</string>
+    <string name="heartbeat_sms_denied">The SMS permission is needed to send the text.</string>
+    <string name="heartbeat_limit">Missed checks before the SMS</string>
 </resources>

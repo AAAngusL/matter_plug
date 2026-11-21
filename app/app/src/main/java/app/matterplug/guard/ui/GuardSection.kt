@@ -63,6 +63,7 @@ import app.matterplug.guard.logic.GuardSettings
 import app.matterplug.guard.logic.PercentInput
 import app.matterplug.guard.logic.PermissionPrompt
 import app.matterplug.guard.logic.tokenOverPlainHttp
+import app.matterplug.heartbeat.ui.HeartbeatSection
 import java.util.Date
 import kotlin.math.roundToInt
 
@@ -187,6 +188,8 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
                 color = MaterialTheme.colorScheme.error,
             )
         }
+
+        HeartbeatSection()
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             // Needs a valid address only: works with "Send alerts" off.

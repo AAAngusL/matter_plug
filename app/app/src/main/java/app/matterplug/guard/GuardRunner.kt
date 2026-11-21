@@ -282,7 +282,7 @@ object GuardRunner {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
-        HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
+        HttpAlerter.deliver(ctx, store, result.events, status, budgetMs, heartbeat = true)         // 5.6: never throws, stays inside budgetMs
     }
 
     /** Returns the outcome text for the log line. Throws only on cancellation or an unexpected error (the caller logs it). */
