@@ -10,19 +10,23 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.matterplug.data.guardDataStore
 import app.matterplug.guard.logic.PlugSighting
-import app.matterplug.guard.logic.AlertKind
+import app.matterplug.alerts.logic.AlertKind
 import app.matterplug.guard.logic.AlertState
-import app.matterplug.guard.logic.SwitchOff
+import app.matterplug.guard.logic.GuardSwitchOff
 import app.matterplug.guard.logic.AlertStateCodec
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.Power
-import app.matterplug.guard.logic.DeliveryPlan
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
+import app.matterplug.alerts.logic.DeliveryPlan
 import app.matterplug.guard.logic.GuardSettings
-import app.matterplug.guard.logic.QueueCodec
+import app.matterplug.alerts.logic.QueueCodec
 import app.matterplug.guard.logic.coerced
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import app.matterplug.alerts.AlertOutbox
+import app.matterplug.alerts.HttpAlerter
+import app.matterplug.alerts.Sender
+import app.matterplug.battery.BatteryReader
 
 /** Battery Guard's own DataStore file ("guard"). Nothing of it is kept in "plugs". */
 class GuardStore(context: Context) {
@@ -66,14 +70,14 @@ class GuardStore(context: Context) {
             val old = readSettings(p)
             val new = transform(old).coerced()
             writeSettings(p, new)
-            val change = SwitchOff.guard(old, new)
+            val change = GuardSwitchOff.change(old, new)
             if (change.reset) {
                 val active = AlertStateCodec.decode(p[ALERT_STATE]).active
                 cleared = active.map { it.kind }
                 val by = change.cancelledBy
                 if (by != null && active.isNotEmpty()) {
                     val reading = try { BatteryReader.read(app) } catch (e: Exception) { null }
-                    val bodies = SwitchOff.cancelled(active, by, reading?.level ?: 0,
+                    val bodies = GuardSwitchOff.cancelled(active, by, reading?.level ?: 0,
                         reading?.power ?: Power(false, BatteryStatus.Unknown), System.currentTimeMillis()).map(HttpAlerter::body)
                     AlertOutbox.appendIn(p, bodies)
                 }

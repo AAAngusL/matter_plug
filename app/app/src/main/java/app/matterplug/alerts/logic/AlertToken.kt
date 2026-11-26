@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 /**
  * The value of the Authorization header for [token], or null when no header is to be sent (blank token).

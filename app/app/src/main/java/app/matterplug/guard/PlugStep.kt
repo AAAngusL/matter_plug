@@ -9,6 +9,7 @@ import app.matterplug.matter.PlugCommander
 import app.matterplug.matter.SwitchResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import app.matterplug.battery.BatteryReader
 
 /** What a check does with the charger plug and the battery reading: read the plug, switch it, wait for power. Records what it saw in [GuardStore]. */
 internal object PlugStep {

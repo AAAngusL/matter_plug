@@ -1,14 +1,14 @@
 package app.matterplug.fixedip.logic
 
 import app.matterplug.sms.SmsOutcome
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertJson
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertMessages
-import app.matterplug.guard.logic.AlertPhase
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.CancelledBy
-import app.matterplug.guard.logic.Power
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertJson
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertMessages
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.alerts.logic.CancelledBy
+import app.matterplug.battery.Power
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

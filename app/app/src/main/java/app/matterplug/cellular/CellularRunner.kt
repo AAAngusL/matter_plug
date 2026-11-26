@@ -15,15 +15,15 @@ import app.matterplug.cellular.logic.LoopbackJudge
 import app.matterplug.cellular.logic.LoopbackOutcome
 import app.matterplug.cellular.logic.LoopbackPlan
 import app.matterplug.cellular.logic.LoopbackTrigger
-import app.matterplug.guard.AlertChannel
-import app.matterplug.guard.Delivery
-import app.matterplug.guard.BatteryReader
+import app.matterplug.alerts.AlertChannel
+import app.matterplug.alerts.Delivery
+import app.matterplug.battery.BatteryReader
 import app.matterplug.guard.CheckSchedule
-import app.matterplug.guard.GuardNotifier
-import app.matterplug.guard.FeatureSender
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.alerts.AlertNotifier
+import app.matterplug.alerts.FeatureSender
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertPhase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -180,7 +180,7 @@ object CellularRunner {
         val summary = summaryOf(store)
         val event = AlertChannel.event(ctx, AlertKind.CellularDown, phase, now, extra = summary)
         Log.i(TAG, "alert: kind=${event.kind.wire} phase=${phase.wire} failed_layer=${summary.failedLayer?.wire}")
-        GuardNotifier.post(ctx, listOf(event))
+        AlertNotifier.post(ctx, listOf(event))
         return event
     }
 
@@ -191,7 +191,7 @@ object CellularRunner {
     suspend fun closed(ctx: Context, closed: CellularStore.Closed) {
         if (!closed.wasOpen) return
         try {
-            GuardNotifier.cancel(ctx, listOf(AlertKind.CellularDown))
+            AlertNotifier.cancel(ctx, listOf(AlertKind.CellularDown))
             val by = closed.cancelledBy ?: return
             AlertChannel.queueCancelled(ctx, AlertKind.CellularDown, by, extra = summaryOf(CellularStore(ctx)))
             Log.i(TAG, "alert: kind=cellular_down phase=cancelled by=${by.wire}")

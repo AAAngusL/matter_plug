@@ -1,5 +1,11 @@
 package app.matterplug.guard.logic
 
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
+
 data class AlertResult(val state: AlertState, val events: List<AlertEvent>)
 
 object AlertPolicy {

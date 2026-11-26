@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -6,6 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.ZoneOffset
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 class AlertJsonTest {
     private val sampleEvent = AlertEvent(AlertKind.PlugUnreachable, AlertPhase.Started, 18, Power(false, BatteryStatus.Discharging), true, 0L)

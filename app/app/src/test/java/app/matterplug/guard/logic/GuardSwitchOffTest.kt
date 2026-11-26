@@ -7,41 +7,46 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.alerts.logic.CancelledBy
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 /** RECOVERY-SIGNALS.md 2.4: an alert closed by a switch ends with cancelled. */
-class SwitchOffTest {
+class GuardSwitchOffTest {
     private val on = GuardSettings(enabled = true, alertsEnabled = true)
 
     @Test fun batteryGuardOffCancels() {
-        val c = SwitchOff.guard(on, on.copy(enabled = false))
+        val c = GuardSwitchOff.change(on, on.copy(enabled = false))
         assertEquals(CancelledBy.GuardOff, c.cancelledBy)
         assertTrue(c.reset)
     }
 
     @Test fun sendAlertsOffCancelsAndResets() {
-        val c = SwitchOff.guard(on, on.copy(alertsEnabled = false))
+        val c = GuardSwitchOff.change(on, on.copy(alertsEnabled = false))
         assertEquals(CancelledBy.AlertsOff, c.cancelledBy)
         assertTrue(c.reset)
     }
 
     @Test fun bothOffAtOnceIsBatteryGuardOff() =
-        assertEquals(CancelledBy.GuardOff, SwitchOff.guard(on, on.copy(enabled = false, alertsEnabled = false)).cancelledBy)
+        assertEquals(CancelledBy.GuardOff, GuardSwitchOff.change(on, on.copy(enabled = false, alertsEnabled = false)).cancelledBy)
 
     // Alerts were off: the server was told nothing, so nothing is cancelled, but what was tracked silently is dropped.
     @Test fun sendAlertsOnResetsWithoutCancel() {
-        val c = SwitchOff.guard(on.copy(alertsEnabled = false), on)
+        val c = GuardSwitchOff.change(on.copy(alertsEnabled = false), on)
         assertNull(c.cancelledBy)
         assertTrue(c.reset)
     }
 
     @Test fun batteryGuardOffWithAlertsOffSendsNothing() =
-        assertNull(SwitchOff.guard(on.copy(alertsEnabled = false), GuardSettings(enabled = false)).cancelledBy)
+        assertNull(GuardSwitchOff.change(on.copy(alertsEnabled = false), GuardSettings(enabled = false)).cancelledBy)
 
     @Test fun otherChangesDoNothing() {
-        val c = SwitchOff.guard(on, on.copy(low = 30, statusEnabled = true))
+        val c = GuardSwitchOff.change(on, on.copy(low = 30, statusEnabled = true))
         assertNull(c.cancelledBy)
         assertFalse(c.reset)
-        assertFalse(SwitchOff.guard(on.copy(enabled = false), on).reset)          // turning on: the state is already empty
+        assertFalse(GuardSwitchOff.change(on.copy(enabled = false), on).reset)          // turning on: the state is already empty
     }
 
     private val cOn = CellularSettings(enabled = true, alertsEnabled = true)
@@ -63,7 +68,7 @@ class SwitchOffTest {
             ActiveAlert(AlertKind.GuardDegraded, 1L, 2L, wantedOn = null, detail = "battery unreadable"),
         )
         val power = Power(true, BatteryStatus.Charging)
-        val out = SwitchOff.cancelled(active, CancelledBy.GuardOff, 64, power, 9L)
+        val out = GuardSwitchOff.cancelled(active, CancelledBy.GuardOff, 64, power, 9L)
         assertEquals(listOf(AlertKind.PlugUnreachable, AlertKind.GuardDegraded), out.map { it.kind })
         assertTrue(out.all { it.phase == AlertPhase.Cancelled && it.cancelledBy == CancelledBy.GuardOff && it.atMs == 9L })
         assertEquals(true, out[0].wantedOn)
@@ -72,7 +77,7 @@ class SwitchOffTest {
         assertEquals(power, out[1].power)
     }
 
-    @Test fun noOpenAlertNoRequest() = assertTrue(SwitchOff.cancelled(emptyList(), CancelledBy.GuardOff, 64, Power(false, BatteryStatus.Unknown), 0L).isEmpty())
+    @Test fun noOpenAlertNoRequest() = assertTrue(GuardSwitchOff.cancelled(emptyList(), CancelledBy.GuardOff, 64, Power(false, BatteryStatus.Unknown), 0L).isEmpty())
 
     @Test fun wireNames() {
         assertEquals("cancelled", AlertPhase.Cancelled.wire)

@@ -2,7 +2,7 @@ package app.matterplug.heartbeat
 
 import android.content.Context
 import android.util.Log
-import app.matterplug.guard.logic.PostResult
+import app.matterplug.alerts.logic.PostResult
 import app.matterplug.heartbeat.logic.Heartbeat
 import app.matterplug.heartbeat.logic.HeartbeatDue
 import app.matterplug.heartbeat.logic.HeartbeatSms

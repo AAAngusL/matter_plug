@@ -1,4 +1,4 @@
-package app.matterplug.guard
+package app.matterplug.alerts
 
 import android.app.job.JobInfo
 import android.app.job.JobParameters

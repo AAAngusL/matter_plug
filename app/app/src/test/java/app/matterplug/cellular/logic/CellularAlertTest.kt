@@ -1,12 +1,12 @@
 package app.matterplug.cellular.logic
 
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.Power
-import app.matterplug.guard.logic.AlertJson
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertMessages
-import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
+import app.matterplug.alerts.logic.AlertJson
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertMessages
+import app.matterplug.alerts.logic.AlertPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

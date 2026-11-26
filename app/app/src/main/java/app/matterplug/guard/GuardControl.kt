@@ -2,6 +2,9 @@ package app.matterplug.guard
 
 import android.content.Context
 import android.util.Log
+import app.matterplug.alerts.AlertNotifier
+import app.matterplug.alerts.AlertOutbox
+import app.matterplug.alerts.FlushJobService
 
 /** Switches Battery Guard off (its part only; [app.matterplug.checks.GuardSwitch.off] is what the app calls). */
 object GuardControl {
@@ -17,8 +20,8 @@ object GuardControl {
     }
 
     /** After a switch closed alerts: remove their notifications, and start the flush job if anything waits. */
-    suspend fun afterSwitch(ctx: Context, store: GuardStore, cleared: List<app.matterplug.guard.logic.AlertKind>) {
-        GuardNotifier.cancel(ctx, cleared)
+    suspend fun afterSwitch(ctx: Context, store: GuardStore, cleared: List<app.matterplug.alerts.logic.AlertKind>) {
+        AlertNotifier.cancel(ctx, cleared)
         try {
             if (AlertOutbox(ctx).readQueue().isNotEmpty()) FlushJobService.schedule(ctx)
         } catch (e: Exception) {

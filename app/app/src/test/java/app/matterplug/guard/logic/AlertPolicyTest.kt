@@ -3,6 +3,12 @@ package app.matterplug.guard.logic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertMessages
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 class AlertPolicyTest {
     private fun min(m: Int) = m * 60_000L

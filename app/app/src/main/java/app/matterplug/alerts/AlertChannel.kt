@@ -1,14 +1,16 @@
-package app.matterplug.guard
+package app.matterplug.alerts
 
 import android.content.Context
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertExtra
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertPhase
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.CancelledBy
-import app.matterplug.guard.logic.PostResult
-import app.matterplug.guard.logic.Power
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertExtra
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.alerts.logic.CancelledBy
+import app.matterplug.alerts.logic.PostResult
+import app.matterplug.battery.Power
+import app.matterplug.battery.BatteryReader
+import app.matterplug.battery.BatteryReading
 
 /** A check that went through delivery: the first push it made, or null when it made none (what the console heartbeat learns from it). */
 class Delivery(val firstPush: PostResult?)

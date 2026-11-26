@@ -1,6 +1,6 @@
 package app.matterplug.fixedip.ui
 
-import app.matterplug.guard.logic.CancelledBy
+import app.matterplug.alerts.logic.CancelledBy
 import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel

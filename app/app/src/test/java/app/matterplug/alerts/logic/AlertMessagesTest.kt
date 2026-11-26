@@ -1,8 +1,10 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 class AlertMessagesTest {
     private fun ev(

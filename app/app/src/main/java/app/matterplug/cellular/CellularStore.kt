@@ -17,8 +17,8 @@ import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.cellular.logic.CellularState
 import app.matterplug.cellular.logic.switchOff
 import app.matterplug.cellular.logic.CellularStateCodec
-import app.matterplug.guard.logic.CancelledBy
-import app.matterplug.guard.logic.SwitchOff
+import app.matterplug.alerts.logic.CancelledBy
+import app.matterplug.alerts.logic.SwitchOff
 import app.matterplug.cellular.logic.SentLog
 import app.matterplug.cellular.logic.SignalReading
 import app.matterplug.cellular.logic.SignalReadingCodec

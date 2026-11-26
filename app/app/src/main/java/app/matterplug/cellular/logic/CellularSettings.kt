@@ -1,7 +1,7 @@
 package app.matterplug.cellular.logic
 
-import app.matterplug.guard.logic.CancelledBy
-import app.matterplug.guard.logic.SwitchOff
+import app.matterplug.alerts.logic.CancelledBy
+import app.matterplug.alerts.logic.SwitchOff
 
 import java.time.LocalTime
 

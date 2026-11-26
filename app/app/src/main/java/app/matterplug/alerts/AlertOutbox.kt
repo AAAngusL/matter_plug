@@ -1,4 +1,4 @@
-package app.matterplug.guard
+package app.matterplug.alerts
 
 import android.content.Context
 import androidx.datastore.preferences.core.MutablePreferences
@@ -8,8 +8,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.matterplug.data.guardDataStore
-import app.matterplug.guard.logic.DeliveryPlan
-import app.matterplug.guard.logic.QueueCodec
+import app.matterplug.alerts.logic.DeliveryPlan
+import app.matterplug.alerts.logic.QueueCodec
 import kotlinx.coroutines.flow.first
 
 /**

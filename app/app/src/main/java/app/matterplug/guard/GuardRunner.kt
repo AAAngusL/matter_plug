@@ -2,12 +2,12 @@ package app.matterplug.guard
 
 import android.content.Context
 import android.util.Log
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertPhase
 import app.matterplug.guard.logic.AlertPolicy
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.Power
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 import app.matterplug.guard.logic.CheckDecision
 import app.matterplug.guard.logic.CheckEvent
 import app.matterplug.guard.logic.CheckLog
@@ -20,6 +20,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import app.matterplug.alerts.AlertNotifier
+import app.matterplug.alerts.AlertOutbox
+import app.matterplug.alerts.Delivery
+import app.matterplug.alerts.HttpAlerter
+import app.matterplug.battery.BatteryReader
+import app.matterplug.battery.BatteryReading
 
 /**
  * The check. [onAlarm] reads, reschedules, records and logs the decision, and starts the switching service (`checks.ActionService`) only when a switch
@@ -205,7 +211,7 @@ object GuardRunner {
         val result = AlertPolicy.apply(store.readAlertState(), events, level, power, System.currentTimeMillis())
         store.writeAlertState(result.state)
         for (e in result.events) Log.i(TAG, "alert: kind=${e.kind.wire} phase=${e.phase.wire} battery=${e.battery} plugged=${e.power.pluggedIn} status=${e.power.status.wire}")
-        GuardNotifier.post(ctx, result.events)                                   // always
+        AlertNotifier.post(ctx, result.events)                                   // always
         // The status report is built here and sent once by deliver (never queued). It needs statusEnabled, not alertsEnabled.
         val status: AlertEvent? = if (settings.statusEnabled) {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),

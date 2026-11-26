@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import java.io.EOFException
 import java.net.ConnectException

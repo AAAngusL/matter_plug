@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 object AlertAddress {
     fun isValid(text: String): Boolean {

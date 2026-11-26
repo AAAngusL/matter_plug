@@ -10,15 +10,14 @@ import app.matterplug.fixedip.logic.IpSummary
 import app.matterplug.fixedip.logic.IpVerdict
 import app.matterplug.sms.SmsOutcome
 import app.matterplug.sms.AlertSms
-import app.matterplug.guard.AlertChannel
-import app.matterplug.guard.BatteryReader
-import app.matterplug.guard.GuardNotifier
-import app.matterplug.guard.GuardStore
-import app.matterplug.guard.FeatureSender
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertPhase
-import app.matterplug.guard.logic.CancelledBy
+import app.matterplug.alerts.AlertChannel
+import app.matterplug.battery.BatteryReader
+import app.matterplug.alerts.AlertNotifier
+import app.matterplug.alerts.FeatureSender
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.alerts.logic.CancelledBy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -77,7 +76,7 @@ object IpRunner {
         val sms = if (phase == AlertPhase.Reminder) (store.lastSms.read()?.outcome ?: SmsOutcome.Failed)
         else sendSms(ctx, store, settings.recipients, IpReport.text(phase, base, battery?.level ?: 0))
         val event = AlertChannel.event(ctx, AlertKind.IpDrift, phase, now, extra = base.copy(sms = sms), battery = battery)
-        GuardNotifier.post(ctx, listOf(event))
+        AlertNotifier.post(ctx, listOf(event))
         return Outcome(event, nextAt)
     }
 
@@ -95,7 +94,7 @@ object IpRunner {
     suspend fun closed(ctx: Context, closed: IpStore.Closed, by: CancelledBy = CancelledBy.IpOff) {
         if (!closed.wasOpen) return
         try {
-            GuardNotifier.cancel(ctx, listOf(AlertKind.IpDrift))
+            AlertNotifier.cancel(ctx, listOf(AlertKind.IpDrift))
             AlertChannel.queueCancelled(ctx, AlertKind.IpDrift, by)
             Log.i(TAG, "alert: kind=ip_drift phase=cancelled by=${by.wire}")
         } catch (e: Exception) {

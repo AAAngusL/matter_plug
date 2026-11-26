@@ -40,7 +40,7 @@ class IpAlertPolicyTest {
     @Test fun driftStartsAnAlertAndRemembersIt() {
         val (memo, phase) = IpAlertPolicy.step(null, drift, 1_000)
         assertEquals(IpAlertMemo(1_000, 1_000, DriftReason.AddressChanged), memo)
-        assertEquals(app.matterplug.guard.logic.AlertPhase.Started, phase)
+        assertEquals(app.matterplug.alerts.logic.AlertPhase.Started, phase)
     }
 
     @Test fun nothingDueBeforeAnHour() {
@@ -52,13 +52,13 @@ class IpAlertPolicyTest {
         val m = IpAlertMemo(0, 0, DriftReason.NoWifi)
         val (memo, phase) = IpAlertPolicy.step(m, IpState.NoWifi(0, true), h)
         assertEquals(m.copy(lastSentAtMs = h), memo)
-        assertEquals(app.matterplug.guard.logic.AlertPhase.Reminder, phase)
+        assertEquals(app.matterplug.alerts.logic.AlertPhase.Reminder, phase)
     }
 
     @Test fun matchEndsTheAlert() {
         val (memo, phase) = IpAlertPolicy.step(IpAlertMemo(0, 0, DriftReason.AddressChanged), IpState.Match, 5)
         assertEquals(null, memo)
-        assertEquals(app.matterplug.guard.logic.AlertPhase.Recovered, phase)
+        assertEquals(app.matterplug.alerts.logic.AlertPhase.Recovered, phase)
     }
 
     @Test fun matchWithNoAlertDoesNothing() = assertEquals(null to null, IpAlertPolicy.step(null, IpState.Match, 5))

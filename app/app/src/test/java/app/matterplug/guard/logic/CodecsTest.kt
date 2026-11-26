@@ -3,6 +3,8 @@ package app.matterplug.guard.logic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.QueueCodec
 
 class CodecsTest {
     private fun roundTrip(s: AlertState) = AlertStateCodec.decode(AlertStateCodec.encode(s))

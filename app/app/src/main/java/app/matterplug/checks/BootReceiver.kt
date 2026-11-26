@@ -9,9 +9,9 @@ import app.matterplug.cellular.CellularScheduler
 import app.matterplug.cellular.CellularStore
 import app.matterplug.fixedip.IpStore
 import app.matterplug.fixedip.IpWatch
-import app.matterplug.guard.AlertOutbox
+import app.matterplug.alerts.AlertOutbox
 import app.matterplug.guard.CheckScheduler
-import app.matterplug.guard.FlushJobService
+import app.matterplug.alerts.FlushJobService
 import app.matterplug.guard.GuardStore
 
 /**

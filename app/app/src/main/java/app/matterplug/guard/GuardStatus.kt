@@ -1,7 +1,7 @@
 package app.matterplug.guard
 
 import app.matterplug.guard.logic.AlertState
-import app.matterplug.guard.logic.BatteryStatus
+import app.matterplug.battery.BatteryStatus
 import app.matterplug.guard.logic.PlugSighting
 
 /** Everything the settings screen shows under the controls. Null means "never recorded". */

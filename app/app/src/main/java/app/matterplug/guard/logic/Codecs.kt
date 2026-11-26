@@ -1,12 +1,8 @@
 package app.matterplug.guard.logic
 
-import java.util.Base64
-
-private val B64_ENC = Base64.getUrlEncoder().withoutPadding()
-private val B64_DEC = Base64.getUrlDecoder()
-
-private fun b64(s: String): String = B64_ENC.encodeToString(s.toByteArray(Charsets.UTF_8))
-private fun unb64(s: String): String = String(B64_DEC.decode(s), Charsets.UTF_8)
+import app.matterplug.alerts.logic.b64
+import app.matterplug.alerts.logic.unb64
+import app.matterplug.alerts.logic.AlertKind
 
 /**
  * Text format. First line `F,<failed>,<degraded>`; then one line per active alert
@@ -54,20 +50,5 @@ object AlertStateCodec {
             }
         }
         return AlertState(failed, degraded, active)
-    }
-}
-
-/** Each body is URL-safe Base64 without padding, entries joined by a newline, oldest first. */
-object QueueCodec {
-    fun encode(bodies: List<String>): String = bodies.joinToString("\n") { b64(it) }
-
-    fun decode(text: String?): List<String> {
-        if (text.isNullOrEmpty()) return emptyList()
-        val out = mutableListOf<String>()
-        for (line in text.split('\n')) {
-            if (line.isEmpty()) continue
-            try { out += unb64(line) } catch (e: Exception) { /* skip a damaged entry */ }
-        }
-        return out
     }
 }

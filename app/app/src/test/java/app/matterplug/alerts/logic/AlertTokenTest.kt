@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -56,11 +56,5 @@ class AlertTokenTest {
         assertFalse(tokenOverPlainHttp("", "http://host/x"))
         assertFalse(tokenOverPlainHttp("  ", "http://host/x"))
         assertFalse(tokenOverPlainHttp("x", ""))
-    }
-
-    @Test fun settingsKeepTheTokenThroughCoercion() {
-        val s = GuardSettings(alertAddress = "https://h/x", alertToken = "tok")
-        assertEquals("tok", s.coerced().alertToken)
-        assertEquals("", GuardSettings().alertToken)
     }
 }

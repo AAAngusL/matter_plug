@@ -1,4 +1,4 @@
-package app.matterplug.guard
+package app.matterplug.alerts
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -12,11 +12,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import app.matterplug.R
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertKind
-import app.matterplug.guard.logic.AlertMessages
-import app.matterplug.guard.logic.AlertPhase
-import app.matterplug.guard.logic.CheckDecision
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.AlertMessages
+import app.matterplug.alerts.logic.AlertPhase
+import app.matterplug.alerts.logic.NotificationIds
 
 /**
  * Posts one notification per alert event (BATTERY-GUARD-IMPLEMENTATION.md 5.7), whether or not "Send alerts" is on.
@@ -24,7 +24,7 @@ import app.matterplug.guard.logic.CheckDecision
  * replaces it with the recovery text. The channel `guard_work` of the switching service is created by `checks.ActionService`.
  * Never throws.
  */
-object GuardNotifier {
+object AlertNotifier {
     private const val TAG = "Guard"
     const val CHANNEL_ALERTS = "guard_alerts"
 
@@ -53,7 +53,7 @@ object GuardNotifier {
                     .setOnlyAlertOnce(false)
                     .setAutoCancel(true)
                     .build()
-                nm.notify(CheckDecision.notificationId(e.kind), n)
+                nm.notify(NotificationIds.of(e.kind), n)
             }
         } catch (e: Exception) {
             Log.w(TAG, "notification failed", e)
@@ -64,7 +64,7 @@ object GuardNotifier {
     fun cancel(ctx: Context, kinds: List<AlertKind>) {
         try {
             val nm = NotificationManagerCompat.from(ctx.applicationContext)
-            for (k in kinds) nm.cancel(CheckDecision.notificationId(k))
+            for (k in kinds) nm.cancel(NotificationIds.of(k))
         } catch (e: Exception) {
             Log.w(TAG, "notification not removed", e)
         }

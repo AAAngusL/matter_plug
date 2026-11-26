@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -10,6 +10,8 @@ import java.net.MalformedURLException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLHandshakeException
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 class DeliveryPlanTest {
     private fun ev(kind: AlertKind, phase: AlertPhase, next: Int? = null) =

@@ -1,10 +1,10 @@
 package app.matterplug.fixedip.logic
 
 import app.matterplug.sms.SmsOutcome
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertExtra
-import app.matterplug.guard.logic.AlertJson
-import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertExtra
+import app.matterplug.alerts.logic.AlertJson
+import app.matterplug.alerts.logic.AlertPhase
 
 /** The `ip` object of an ip_drift request, and the numbers the texts use. [current] is null when there is no Wi-Fi address. */
 data class IpSummary(val pinned: String, val current: String?, val ssid: String?, val reason: DriftReason, val sms: SmsOutcome) : AlertExtra {

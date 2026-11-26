@@ -1,13 +1,13 @@
-package app.matterplug.guard
+package app.matterplug.battery
 
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
-import app.matterplug.guard.logic.BatteryMath
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.Power
+import app.matterplug.battery.BatteryMath
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 data class BatteryReading(val level: Int, val power: Power) {
     val pluggedIn: Boolean get() = power.pluggedIn

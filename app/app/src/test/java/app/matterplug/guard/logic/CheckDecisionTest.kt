@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import app.matterplug.alerts.logic.AlertKind
+import app.matterplug.alerts.logic.NotificationIds
 
 class CheckDecisionTest {
     private val off = GuardSettings(enabled = true)
@@ -52,7 +54,7 @@ class CheckDecisionTest {
     @Test fun aReachedReadAloneMeansWork() = assertFalse(CheckDecision.nothingToDo(off, idle, true, listOf(reached)))
 
     @Test fun notificationIdsAreDistinct() =
-        assertEquals(AlertKind.values().size, AlertKind.values().map { CheckDecision.notificationId(it) }.toSet().size)
+        assertEquals(AlertKind.values().size, AlertKind.values().map { NotificationIds.of(it) }.toSet().size)
 
     @Test fun noPlug_addsEventAndStillEndsEarly() {
         val ev = CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, CheckEvent.NoPlug)

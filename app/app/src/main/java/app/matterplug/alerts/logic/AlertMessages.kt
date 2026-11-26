@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 /**
  * Fixed wire text (docs/MESSAGES.md). Short and plain: what is wrong, then what it means or what to do, battery last. No text passes

@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import app.matterplug.cellular.logic.CellularSummary
 import app.matterplug.cellular.logic.Layer
@@ -10,6 +10,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 /**
  * The bytes the alert server receives, and the texts of the SMS and notifications, for one event of every kind and phase. The golden file

@@ -3,7 +3,7 @@ package app.matterplug.checks
 import android.content.Context
 import app.matterplug.fixedip.IpRunner
 import app.matterplug.fixedip.IpStore
-import app.matterplug.guard.Delivery
+import app.matterplug.alerts.Delivery
 import app.matterplug.guard.CheckSchedule
 import app.matterplug.heartbeat.HeartbeatRunner
 

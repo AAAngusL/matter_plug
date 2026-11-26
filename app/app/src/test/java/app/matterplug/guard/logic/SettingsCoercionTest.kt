@@ -32,4 +32,10 @@ class SettingsCoercionTest {
         val s = d.copy(enabled = true, alertsEnabled = true, statusEnabled = true, alertAddress = "http://a.b")
         assertEquals(s, s.coerced())
     }
+
+    @Test fun settingsKeepTheTokenThroughCoercion() {
+        val s = GuardSettings(alertAddress = "https://h/x", alertToken = "tok")
+        assertEquals("tok", s.coerced().alertToken)
+        assertEquals("", GuardSettings().alertToken)
+    }
 }

@@ -1,10 +1,10 @@
 package app.matterplug.cellular.logic
 
-import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.guard.logic.AlertExtra
-import app.matterplug.guard.logic.AlertMessages
-import app.matterplug.guard.logic.AlertJson
-import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.alerts.logic.AlertEvent
+import app.matterplug.alerts.logic.AlertExtra
+import app.matterplug.alerts.logic.AlertMessages
+import app.matterplug.alerts.logic.AlertJson
+import app.matterplug.alerts.logic.AlertPhase
 import java.time.ZoneId
 
 /** The cellular_down alert while it is on: when it started and when a request about it was last sent. */

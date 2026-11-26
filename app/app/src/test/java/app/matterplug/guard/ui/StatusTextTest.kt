@@ -1,10 +1,10 @@
 package app.matterplug.guard.ui
 
 import app.matterplug.guard.logic.ActiveAlert
-import app.matterplug.guard.logic.AlertKind
+import app.matterplug.alerts.logic.AlertKind
 import app.matterplug.guard.logic.AlertState
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.Power
+import app.matterplug.battery.BatteryStatus
+import app.matterplug.battery.Power
 
 import app.matterplug.guard.GuardStatus
 import app.matterplug.guard.logic.PlugSighting

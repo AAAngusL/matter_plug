@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.alerts.logic
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

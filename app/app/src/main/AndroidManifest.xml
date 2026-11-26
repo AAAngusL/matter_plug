@@ -82,7 +82,7 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
         <service
-            android:name=".guard.FlushJobService"
+            android:name=".alerts.FlushJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
         <service

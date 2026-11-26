@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.battery
 
 /** Android's battery status (BatteryManager.EXTRA_STATUS), as `adb shell dumpsys battery` shows it. */
 enum class BatteryStatus(val wire: String) {

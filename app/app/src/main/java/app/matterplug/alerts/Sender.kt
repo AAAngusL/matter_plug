@@ -1,4 +1,4 @@
-package app.matterplug.guard
+package app.matterplug.alerts
 
 import androidx.datastore.preferences.core.Preferences
 

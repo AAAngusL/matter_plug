@@ -1,4 +1,4 @@
-package app.matterplug.guard.logic
+package app.matterplug.battery
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

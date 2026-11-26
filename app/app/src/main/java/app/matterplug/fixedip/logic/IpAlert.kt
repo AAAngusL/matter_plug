@@ -1,6 +1,6 @@
 package app.matterplug.fixedip.logic
 
-import app.matterplug.guard.logic.AlertPhase
+import app.matterplug.alerts.logic.AlertPhase
 
 /** What to do about an alert after a new state (docs/FIXED-IP.md section 7). The same action covers the HTTP alert and the SMS. */
 sealed interface IpAlertAction {
