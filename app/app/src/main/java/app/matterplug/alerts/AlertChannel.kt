@@ -1,6 +1,7 @@
 package app.matterplug.alerts
 
 import android.content.Context
+import android.util.Log
 import app.matterplug.alerts.logic.AlertEvent
 import app.matterplug.alerts.logic.AlertExtra
 import app.matterplug.alerts.logic.AlertKind
@@ -10,16 +11,19 @@ import app.matterplug.alerts.logic.CancelledBy
 import app.matterplug.alerts.logic.PostResult
 import app.matterplug.battery.Power
 import app.matterplug.battery.BatteryReader
+import kotlinx.coroutines.CancellationException
 import app.matterplug.battery.BatteryReading
 
 /** A check that went through delivery: the first push it made, or null when it made none (what the console heartbeat learns from it). */
 class Delivery(val firstPush: PostResult?)
 
 /**
- * What a feature (Cellular Check, Fixed IP) uses to put an alert on the wire: build the event with the battery as it reads now, send it,
- * or queue its cancelled behind the waiting requests. The waiting list, the HTTP request and the battery fallback stay behind it.
+ * The one way into the alert pipeline: build an event with the battery as it reads now, send it, close an alert, ask whether requests wait,
+ * send the test request. The waiting list, the HTTP request and the battery fallback stay behind it.
  */
 object AlertChannel {
+    private const val TAG = "Alerts"
+
     /** The battery could not be read: nothing is known about the power. */
     private val UNREAD_POWER = Power(false, BatteryStatus.Unknown)
 
@@ -30,15 +34,43 @@ object AlertChannel {
     ) = AlertEvent(kind, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, atMs,
         nextCheckInMin = nextCheckInMin, cancelledBy = cancelledBy, extra = extra)
 
-    /** Sends [events] and the status report under the feature's own switches; returns the first push (see [HttpAlerter.deliver]). Never throws except for cancellation. */
+    /** Sends [events] and the status report under [sender]'s switches; returns the first push (see [HttpAlerter.deliver]). Never throws except for cancellation. */
     suspend fun deliver(
-        ctx: Context, sender: FeatureSender, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
+        ctx: Context, sender: Sender, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
     ) = HttpAlerter.deliver(ctx, AlertOutbox(ctx), events, status, budgetMs, sender)
 
-    /** Queues a cancelled for [kind] behind the waiting requests and starts the flush job. Throws on a store failure: the caller logs it. */
-    suspend fun queueCancelled(ctx: Context, kind: AlertKind, by: CancelledBy, extra: AlertExtra? = null) {
-        val e = event(ctx, kind, AlertPhase.Cancelled, System.currentTimeMillis(), extra, cancelledBy = by)
-        AlertOutbox(ctx).enqueue(listOf(HttpAlerter.body(e)), FeatureSender(alertsOn = true, statusOn = false))
-        FlushJobService.schedule(ctx)
+    /** Whether alert requests are waiting for a network or a server. */
+    suspend fun hasWaiting(ctx: Context): Boolean = AlertOutbox(ctx).readQueue().isNotEmpty()
+
+    /** Starts the flush job when requests wait; says whether any do. Never throws except for cancellation. */
+    suspend fun flushIfWaiting(ctx: Context): Boolean = try {
+        val waiting = hasWaiting(ctx)
+        if (waiting) FlushJobService.schedule(ctx)
+        waiting
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
+        Log.e(TAG, "flush job not scheduled", e)
+        false
+    }
+
+    /** The test button: one request to the stored address, whether or not alerts are on (see [HttpAlerter.postTest]). */
+    suspend fun sendTest(ctx: Context, level: Int, power: Power): PostResult = HttpAlerter.postTest(AlertOutbox(ctx), level, power)
+
+    /**
+     * An alert of [kind] was closed by a switch: its phone notification goes and, when [by] is set, a cancelled is queued behind the waiting
+     * requests and the flush job started. [extra] builds the feature's part of that cancelled. Never throws except for cancellation.
+     */
+    suspend fun closeAlert(ctx: Context, kind: AlertKind, by: CancelledBy?, extra: suspend () -> AlertExtra? = { null }) {
+        try {
+            AlertNotifier.cancel(ctx, listOf(kind))
+            if (by == null) return
+            val e = event(ctx, kind, AlertPhase.Cancelled, System.currentTimeMillis(), extra(), cancelledBy = by)
+            AlertOutbox(ctx).enqueue(listOf(HttpAlerter.body(e)), FeatureSender(alertsOn = true, statusOn = false))
+            FlushJobService.schedule(ctx)
+            Log.i(TAG, "alert: kind=${kind.wire} phase=cancelled by=${by.wire}")
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "${kind.wire}: cancelled not queued", e)
+        }
     }
 }

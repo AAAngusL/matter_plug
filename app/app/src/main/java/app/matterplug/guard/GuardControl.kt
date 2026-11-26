@@ -1,5 +1,6 @@
 package app.matterplug.guard
 
+import app.matterplug.alerts.AlertChannel
 import android.content.Context
 import android.util.Log
 import app.matterplug.alerts.AlertNotifier
@@ -22,12 +23,7 @@ object GuardControl {
     /** After a switch closed alerts: remove their notifications, and start the flush job if anything waits. */
     suspend fun afterSwitch(ctx: Context, store: GuardStore, cleared: List<app.matterplug.alerts.logic.AlertKind>) {
         AlertNotifier.cancel(ctx, cleared)
-        try {
-            if (AlertOutbox(ctx).readQueue().isNotEmpty()) FlushJobService.schedule(ctx)
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.e("Guard", "flush job not scheduled", e)
-        }
+        AlertChannel.flushIfWaiting(ctx)
     }
 
     private inline fun guarded(what: String, block: () -> Unit) {

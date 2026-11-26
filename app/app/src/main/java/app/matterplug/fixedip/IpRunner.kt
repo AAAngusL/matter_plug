@@ -93,14 +93,7 @@ object IpRunner {
      */
     suspend fun closed(ctx: Context, closed: IpStore.Closed, by: CancelledBy = CancelledBy.IpOff) {
         if (!closed.wasOpen) return
-        try {
-            AlertNotifier.cancel(ctx, listOf(AlertKind.IpDrift))
-            AlertChannel.queueCancelled(ctx, AlertKind.IpDrift, by)
-            Log.i(TAG, "alert: kind=ip_drift phase=cancelled by=${by.wire}")
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e(TAG, "cancelled not queued", e)
-        }
+        AlertChannel.closeAlert(ctx, AlertKind.IpDrift, by)
     }
 
     /**

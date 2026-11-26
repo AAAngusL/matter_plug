@@ -28,7 +28,6 @@ object ConsoleHeartbeat {
      */
     suspend fun afterCellularRun(ctx: Context, delivery: Delivery?) {
         if (delivery == null) return
-        val guardOn = CheckSchedule.now(ctx).guardOn ?: true      // unreadable: assume it is on, so the heartbeat is not counted twice
-        if (!guardOn) afterCheck(ctx, delivery)
+        if (!CheckSchedule.now(ctx).guardCarriesHeartbeat) afterCheck(ctx, delivery)
     }
 }

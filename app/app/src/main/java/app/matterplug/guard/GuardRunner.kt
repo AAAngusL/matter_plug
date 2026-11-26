@@ -1,5 +1,6 @@
 package app.matterplug.guard
 
+import app.matterplug.alerts.AlertChannel
 import android.content.Context
 import android.util.Log
 import app.matterplug.alerts.logic.AlertEvent
@@ -123,7 +124,7 @@ object GuardRunner {
                 Log.w(TAG, CheckLog.line(reading?.level, reading?.pluggedIn, action, CheckDecision.FAULT_SERVICE, settings.intervalMin, nextAt))
             }
             val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugEvent)
-            val quiet = CheckDecision.nothingToDo(settings, store.readAlertState(), AlertOutbox(ctx).readQueue().isEmpty(), events)
+            val quiet = CheckDecision.nothingToDo(settings, store.readAlertState(), !AlertChannel.hasWaiting(ctx), events)
             // A quiet check starts no service, touches no Matter and does no notification work.
             val delivery = if (quiet) null else finish(ctx, settings, reading, events, budgetMs = RECEIVER_DELIVERY_BUDGET_MS)
             if (fault == null && !serviceFailed && nextAt != null) noteError(store, null)
@@ -208,7 +209,7 @@ object GuardRunner {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
-        val firstPush = HttpAlerter.deliver(ctx, AlertOutbox(ctx), result.events, status, budgetMs, BatteryGuardSender)         // 5.6: never throws, stays inside budgetMs
+        val firstPush = AlertChannel.deliver(ctx, BatteryGuardSender, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
         return Delivery(firstPush)      // the caller hands it to the console heartbeat, which Battery Guard's check carries when it is on
     }
 
@@ -225,6 +226,9 @@ object GuardRunner {
         val fault = degradationReason(ctx, after)
         Log.i(TAG, "work: " + CheckLog.line(after?.level, after?.pluggedIn, action, fault, intervalMin, nextAt) + " outcome=$outcome")
     }
+
+    /** What the switching service records when it fails around the check (see [GuardStore.recordRunError]). Never throws except for cancellation. */
+    suspend fun noteRunError(ctx: Context, text: String) = noteError(GuardStore(ctx), text)
 
     private suspend fun noteError(store: GuardStore, text: String?) {
         safely("recordRunError", Unit) { store.recordRunError(text) }

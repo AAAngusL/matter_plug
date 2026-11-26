@@ -15,7 +15,6 @@ import androidx.core.content.ContextCompat
 import app.matterplug.R
 import app.matterplug.alarm.partialWakeLock
 import app.matterplug.guard.GuardRunner
-import app.matterplug.guard.GuardStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,10 +42,7 @@ class ActionService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed", e)
             scope.launch {
-                try { GuardStore(app).recordRunError(ERR_NOT_STARTED) } catch (e2: Exception) {
-                    if (e2 is CancellationException) throw e2
-                    Log.e(TAG, "recordRunError failed", e2)
-                }
+                GuardRunner.noteRunError(app, ERR_NOT_STARTED)
                 running.set(false)
                 stopSelf()
             }
@@ -65,16 +61,12 @@ class ActionService : Service() {
             } catch (e: TimeoutCancellationException) {
                 // Only our own withTimeout throws this here; a cancelled scope throws a plain CancellationException.
                 Log.w(TAG, "work timed out after ${WORK_TIMEOUT_MS / 1000} s")
-                try { GuardStore(app).recordRunError("switching timed out") } catch (e2: Exception) {
-                    if (e2 is CancellationException) throw e2
-                }
+                GuardRunner.noteRunError(app, "switching timed out")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "work failed", e)
-                try { GuardStore(app).recordRunError("check failed") } catch (e2: Exception) {
-                    if (e2 is CancellationException) throw e2
-                }
+                GuardRunner.noteRunError(app, "check failed")
             } finally {
                 try { if (wakeLock?.isHeld == true) wakeLock.release() } catch (e: Exception) { Log.w(TAG, "wake lock release failed", e) }
                 running.set(false)
@@ -139,12 +131,7 @@ class ActionService : Service() {
             } catch (e: SecurityException) {
                 Log.w(TAG, "service could not start (security)", e)
             }
-            try {
-                GuardStore(app).recordRunError(ERR_NOT_STARTED)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "recordRunError failed", e)
-            }
+            GuardRunner.noteRunError(app, ERR_NOT_STARTED)
             return false
         }
     }

@@ -1,5 +1,6 @@
 package app.matterplug.checks
 
+import app.matterplug.alerts.AlertChannel
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -30,10 +31,9 @@ class BootReceiver : BroadcastReceiver() {
         runAsync(context, TAG, "boot handling") { app ->
             val store = GuardStore(app)
             val enabled = store.readSettings().enabled
-            val waiting = AlertOutbox(app).readQueue().isNotEmpty()
+            val waiting = AlertChannel.flushIfWaiting(app)
             Log.i(TAG, "boot: action=$action enabled=$enabled waiting=$waiting")
             if (enabled) CheckScheduler.scheduleIn(app, FIRST_CHECK_MS)
-            if (waiting) FlushJobService.schedule(app)
             // Cellular Check has its own alarm chain; restart it the same way.
             val cellular = CellularStore(app).readSettings().enabled
             Log.i(TAG, "boot: cellular=$cellular")

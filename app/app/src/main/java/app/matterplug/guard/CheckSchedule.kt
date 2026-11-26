@@ -15,23 +15,24 @@ object CheckSchedule {
     const val DEFAULT_INTERVAL_MIN = 15
 
     /**
-     * [guardOn] is null when Battery Guard's settings could not be read. [guardNextCheckAt] is the time of its next check: set only while it is
-     * on and has one stored; while it is on, its alarm brings every check, so that is the next run of every feature too.
+     * [guardBringsNextRun]: Battery Guard is on, so its alarm brings every check and [guardNextCheckAt] (null if none is stored) is the next run
+     * of every feature too; otherwise a feature keeps its own alarm. [guardCarriesHeartbeat]: Battery Guard's check carries the console
+     * heartbeat, which is also assumed when its settings cannot be read, so the heartbeat is not counted twice.
      */
-    data class Now(val intervalMin: Int, val guardOn: Boolean?, val guardNextCheckAt: Long?)
+    data class Now(val intervalMin: Int, val guardBringsNextRun: Boolean, val guardNextCheckAt: Long?, val guardCarriesHeartbeat: Boolean)
 
     /** Never throws except for cancellation. */
     suspend fun now(ctx: Context): Now {
         val store = GuardStore(ctx)
         val settings = try { store.readSettings() } catch (e: Exception) {
             if (e is CancellationException) throw e
-            return Now(DEFAULT_INTERVAL_MIN, null, null)
+            return Now(DEFAULT_INTERVAL_MIN, guardBringsNextRun = false, guardNextCheckAt = null, guardCarriesHeartbeat = true)
         }
         val next = if (!settings.enabled) null else try { store.status.first().nextCheckAt } catch (e: Exception) {
             if (e is CancellationException) throw e
             null
         }
-        return Now(settings.intervalMin, settings.enabled, next)
+        return Now(settings.intervalMin, settings.enabled, next, guardCarriesHeartbeat = settings.enabled)
     }
 
     /** The interval, for a screen that shows it. */

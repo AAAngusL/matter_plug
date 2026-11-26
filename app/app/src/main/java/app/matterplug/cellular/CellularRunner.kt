@@ -79,7 +79,7 @@ object CellularRunner {
         val schedule = CheckSchedule.now(ctx)
         val intervalMin = schedule.intervalMin
         // While Battery Guard is on, its alarm brings the next run; its next check time is then the next run time.
-        val nextAt = if (schedule.guardOn == true) {
+        val nextAt = if (schedule.guardBringsNextRun) {
             schedule.guardNextCheckAt
         } else {
             try { CellularScheduler.alarm.scheduleIn(ctx, intervalMin * 60_000L) } catch (e: Exception) {
@@ -190,15 +190,7 @@ object CellularRunner {
      */
     suspend fun closed(ctx: Context, closed: CellularStore.Closed) {
         if (!closed.wasOpen) return
-        try {
-            AlertNotifier.cancel(ctx, listOf(AlertKind.CellularDown))
-            val by = closed.cancelledBy ?: return
-            AlertChannel.queueCancelled(ctx, AlertKind.CellularDown, by, extra = summaryOf(CellularStore(ctx)))
-            Log.i(TAG, "alert: kind=cellular_down phase=cancelled by=${by.wire}")
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e(TAG, "cancelled not queued", e)
-        }
+        AlertChannel.closeAlert(ctx, AlertKind.CellularDown, closed.cancelledBy) { summaryOf(CellularStore(ctx)) }
     }
 
     private suspend fun summaryOf(store: CellularStore): CellularSummary {
