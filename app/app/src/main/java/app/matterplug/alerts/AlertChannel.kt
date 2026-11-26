@@ -43,7 +43,7 @@ object AlertChannel {
     /** Sends [events] and the status report under [sender]'s switches; returns the first push (see [HttpAlerter.deliver]). Never throws except for cancellation. */
     suspend fun deliver(
         ctx: Context, sender: Sender, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
-    ) = HttpAlerter.deliver(ctx, AlertOutbox(ctx), events, status, budgetMs, sender)
+    ) = HttpAlerter.deliver(ctx, AlertOutbox(ctx), sender, events, status, budgetMs)
 
     /** Whether alert requests are waiting for a network or a server. */
     suspend fun hasWaiting(ctx: Context): Boolean = AlertOutbox(ctx).readQueue().isNotEmpty()

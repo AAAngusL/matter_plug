@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference
  * The address is never logged in full: the host only.
  */
 object HttpAlerter {
-    private const val TAG = "Guard"
+    private const val TAG = "Alerts"
 
     /** One flush at a time (the check's own flush and the flush job). A second caller skips its flush. */
     private val flushLock = Mutex()
@@ -115,22 +115,21 @@ object HttpAlerter {
     }
 
     /**
-     * The 5 steps of 5.6, within [budgetMs] in total. Never throws except for cancellation.
+     * Sends [events] and the [status] report under [sender]'s switches, within [budgetMs] in total (the 5 steps of 5.6). Never throws except for
+     * cancellation. Returns the first push this call made, or null when it made none: what the console heartbeat (docs/CONSOLE-HEARTBEAT.md)
+     * learns from a check.
      * 1. nothing to send -> return (alerts still go on the waiting list when the address is invalid)
      * 2. alerts on: Started and Recovered go on the waiting list
      * 3. alerts on: flush the list, oldest first
      * 4. list empty: reminders once, then the status report once (never queued)
      * 5. list not empty: schedule the flush job
      */
-
-    /** Returns the first push this call made, or null when it made none: what the console heartbeat (docs/CONSOLE-HEARTBEAT.md) learns from a check. */
     suspend fun deliver(
-        ctx: Context, outbox: AlertOutbox, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
-        sender: Sender,
+        ctx: Context, outbox: AlertOutbox, sender: Sender, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
     ): PostResult? {
         val first = AtomicReference<PostResult?>(null)
         try {
-            deliverInner(ctx, outbox, events, status, SystemClock.elapsedRealtime() + budgetMs, sender, first)
+            deliverInner(ctx, outbox, sender, events, status, SystemClock.elapsedRealtime() + budgetMs, first)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
@@ -139,7 +138,7 @@ object HttpAlerter {
     }
 
     private suspend fun deliverInner(
-        ctx: Context, outbox: AlertOutbox, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, sender: Sender,
+        ctx: Context, outbox: AlertOutbox, sender: Sender, events: List<AlertEvent>, status: AlertEvent?, deadline: Long,
         first: AtomicReference<PostResult?>,
     ) {
         val endpoint = outbox.readEndpoint()
