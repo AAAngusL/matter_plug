@@ -19,15 +19,15 @@ object ConsoleHeartbeat {
 
     /** After a check of Battery Guard's. Never throws except for cancellation. */
     suspend fun afterCheck(ctx: Context, delivery: Delivery) {
-        HeartbeatRunner.afterCheck(ctx, delivery.firstPush, FixedIpLink(ctx))
+        if (delivery is Delivery.Ran) HeartbeatRunner.afterCheck(ctx, delivery.firstPush, FixedIpLink(ctx))
     }
 
     /**
      * After a Cellular Check run. Battery Guard's own check carries the heartbeat when it is on (its stored switch, not which receiver fired:
      * Run now and a fresh install fire the cellular run too); a cellular run is a check of its own only when Battery Guard is off.
      */
-    suspend fun afterCellularRun(ctx: Context, delivery: Delivery?) {
-        if (delivery == null) return
+    suspend fun afterCellularRun(ctx: Context, delivery: Delivery) {
+        if (delivery is Delivery.Skipped) return
         if (!CheckSchedule.now(ctx).guardCarriesHeartbeat) afterCheck(ctx, delivery)
     }
 }

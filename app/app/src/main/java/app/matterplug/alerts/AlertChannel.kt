@@ -14,8 +14,14 @@ import app.matterplug.battery.BatteryReader
 import kotlinx.coroutines.CancellationException
 import app.matterplug.battery.BatteryReading
 
-/** A check that went through delivery: the first push it made, or null when it made none (what the console heartbeat learns from it). */
-class Delivery(val firstPush: PostResult?)
+/** What a check's delivery step amounted to, which is what the console heartbeat learns from. */
+sealed interface Delivery {
+    /** The check had nothing to deliver, so there is nothing for the heartbeat to learn. */
+    data object Skipped : Delivery
+
+    /** The delivery step ran. [firstPush] is its first request, or null when it made none (no valid address, say). */
+    class Ran(val firstPush: PostResult?) : Delivery
+}
 
 /**
  * The one way into the alert pipeline: build an event with the battery as it reads now, send it, close an alert, ask whether requests wait,

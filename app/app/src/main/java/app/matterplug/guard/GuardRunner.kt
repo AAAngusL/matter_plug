@@ -48,13 +48,13 @@ object GuardRunner {
 
     /**
      * From the check receiver, inside goAsync. [startSwitchService] starts the service that runs [work] (false when Android refuses); it is
-     * passed in because the service sits above this object. Returns the delivery when the check made one, else null. Never throws (except cancellation).
+     * passed in because the service sits above this object. Returns what its delivery step amounted to. Never throws (except cancellation).
      */
-    suspend fun onAlarm(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery? =
+    suspend fun onAlarm(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery =
         mutex.withLock { runCheck(ctx, startSwitchService) }
 
-    /** From the switching service, inside withTimeout(120_000). Returns the delivery when the run made one. Never throws (except cancellation); always reschedules. */
-    suspend fun work(ctx: Context): Delivery? = mutex.withLock { runWork(ctx) }
+    /** From the switching service, inside withTimeout(120_000). Returns what its delivery step amounted to. Never throws (except cancellation); always reschedules. */
+    suspend fun work(ctx: Context): Delivery = mutex.withLock { runWork(ctx) }
 
     private fun scheduleRetry(ctx: Context) {
         safely("retry scheduling", Unit) { CheckScheduler.scheduleIn(ctx, RETRY_MS) }
@@ -98,9 +98,9 @@ object GuardRunner {
         safely("recordCheck", Unit) { store.recordCheck(System.currentTimeMillis(), reading?.level, reading?.power, nextAt) }
     }
 
-    private suspend fun runCheck(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery? {
+    private suspend fun runCheck(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery {
         val store = GuardStore(ctx)
-        val settings = enabledSettingsOrNull(ctx, store, "check") ?: return null
+        val settings = enabledSettingsOrNull(ctx, store, "check") ?: return Delivery.Skipped
 
         var nextAt: Long? = null
         try {
@@ -120,13 +120,13 @@ object GuardRunner {
             // the service start has already written the run error, and this check goes on without a switch.
             val serviceFailed = action != GuardAction.Nothing
             if (serviceFailed) {
-                if (startSwitchService(ctx)) return null
+                if (startSwitchService(ctx)) return Delivery.Skipped
                 Log.w(TAG, CheckLog.line(reading?.level, reading?.pluggedIn, action, CheckDecision.FAULT_SERVICE, settings.intervalMin, nextAt))
             }
             val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugEvent)
             val quiet = CheckDecision.nothingToDo(settings, store.readAlertState(), !AlertChannel.hasWaiting(ctx), events)
             // A quiet check starts no service, touches no Matter and does no notification work.
-            val delivery = if (quiet) null else finish(ctx, settings, reading, events, budgetMs = RECEIVER_DELIVERY_BUDGET_MS)
+            val delivery = if (quiet) Delivery.Skipped else finish(ctx, settings, reading, events, budgetMs = RECEIVER_DELIVERY_BUDGET_MS)
             if (fault == null && !serviceFailed && nextAt != null) noteError(store, null)
             return delivery
         } catch (e: Exception) {
@@ -135,18 +135,18 @@ object GuardRunner {
             noteError(store, "check failed")
             if (nextAt == null) scheduleRetry(ctx)      // failed before the alarm was set: set it now so the chain continues
         }
-        return null
+        return Delivery.Skipped
     }
 
-    private suspend fun runWork(ctx: Context): Delivery? {
+    private suspend fun runWork(ctx: Context): Delivery {
         val store = GuardStore(ctx)
-        val settings = enabledSettingsOrNull(ctx, store, "work") ?: return null
+        val settings = enabledSettingsOrNull(ctx, store, "work") ?: return Delivery.Skipped
 
         var reading: BatteryReading? = null
         var finalReading: BatteryReading? = null
         var action = GuardAction.Nothing
         var outcome = "none"
-        var delivery: Delivery? = null
+        var delivery: Delivery = Delivery.Skipped
         try {
             reading = BatteryReader.readOrNull(ctx)       // the service reads for itself
             // The service is running: proof that it can start (RECOVERY-SIGNALS.md 2.2).
@@ -210,7 +210,7 @@ object GuardRunner {
                 nextCheckInMin = settings.intervalMin)
         } else null
         val firstPush = AlertChannel.deliver(ctx, BatteryGuardSender(store), result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
-        return Delivery(firstPush)      // the caller hands it to the console heartbeat, which Battery Guard's check carries when it is on
+        return Delivery.Ran(firstPush)      // the caller hands it to the console heartbeat, which Battery Guard's check carries when it is on
     }
 
     /** The interval follows the plugged-in state read AFTER the switch. Never throws except for cancellation (not possible in NonCancellable). */

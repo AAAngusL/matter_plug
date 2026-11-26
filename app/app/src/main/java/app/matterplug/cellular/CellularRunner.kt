@@ -57,11 +57,11 @@ object CellularRunner {
     /** What a run sends after the lock is released, under Cellular Check's own switches: an alert step and its status report. */
     private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val sender: FeatureSender)
 
-    /** Returns the delivery this run made, or null when it had nothing to send (the caller hands it to the console heartbeat when it is due). */
-    suspend fun run(ctx: Context): Delivery? {
-        val out = mutex.withLock { runLocked(ctx) } ?: return null
-        if (out.alert == null && out.status == null) return null
-        return Delivery(AlertChannel.deliver(ctx, out.sender, listOfNotNull(out.alert), status = out.status, budgetMs = RECEIVER_BUDGET_MS))
+    /** Returns what its delivery step amounted to; Skipped when it had nothing to send (the caller hands it to the console heartbeat when it is due). */
+    suspend fun run(ctx: Context): Delivery {
+        val out = mutex.withLock { runLocked(ctx) } ?: return Delivery.Skipped
+        if (out.alert == null && out.status == null) return Delivery.Skipped
+        return Delivery.Ran(AlertChannel.deliver(ctx, out.sender, listOfNotNull(out.alert), status = out.status, budgetMs = RECEIVER_BUDGET_MS))
     }
 
     private suspend fun runLocked(ctx: Context): Outgoing? {

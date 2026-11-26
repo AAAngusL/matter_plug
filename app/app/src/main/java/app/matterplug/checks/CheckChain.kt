@@ -32,6 +32,6 @@ object CheckChain {
                 Log.e(TAG, "${step.name} failed; the check goes on", e)
             }
         }
-        if (withGuard) GuardRunner.onAlarm(ctx, startSwitchService = ActionService::start)?.let { ConsoleHeartbeat.afterCheck(ctx, it) }
+        if (withGuard) ConsoleHeartbeat.afterCheck(ctx, GuardRunner.onAlarm(ctx, startSwitchService = ActionService::start))
     }
 }
