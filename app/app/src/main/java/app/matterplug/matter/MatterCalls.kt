@@ -10,6 +10,7 @@ import chip.devicecontroller.model.InvokeElement
 import chip.devicecontroller.model.NodeState
 import kotlinx.coroutines.suspendCancellableCoroutine
 import matter.tlv.AnonymousTag
+import matter.tlv.TlvReader
 import matter.tlv.TlvWriter
 import kotlin.coroutines.resume
 
@@ -82,4 +83,23 @@ internal suspend fun <T : Any> readAttribute(
             pointer, listOf(path), null, false, 0
         )
     }
+}
+
+/** The On/Off cluster of a plug: its ids, the command that switches it and the read of its state. */
+internal object OnOff {
+    const val CLUSTER = 0x0006L
+    const val ATTRIBUTE = 0x0000L
+    private const val CMD_OFF = 0x00L
+    private const val CMD_ON = 0x01L
+
+    /** Sends On or Off (never Toggle). */
+    suspend fun send(context: Context, pointer: Long, endpoint: Int, on: Boolean): Result<Unit> =
+        invokeCommand(context, pointer, endpoint, CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure())
+
+    /** The state in a subscription report, or null when the report does not hold it. */
+    fun stateIn(report: NodeState, endpoint: Int): Boolean? =
+        report.attributeTlv(endpoint, CLUSTER, ATTRIBUTE)?.let { TlvReader(it).getBool(AnonymousTag) }
+
+    suspend fun read(context: Context, pointer: Long, endpoint: Int): Boolean? =
+        readAttribute(context, pointer, endpoint, CLUSTER, ATTRIBUTE) { TlvReader(it).getBool(AnonymousTag) }
 }

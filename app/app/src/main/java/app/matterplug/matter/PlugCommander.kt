@@ -6,8 +6,6 @@ import android.util.Log
 import app.matterplug.data.Plug
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
-import matter.tlv.AnonymousTag
-import matter.tlv.TlvReader
 
 sealed interface SwitchResult {
     data object Confirmed : SwitchResult
@@ -91,11 +89,9 @@ class PlugCommander(context: Context) {
             null
         }
 
-    private suspend fun sendOnOff(plug: Plug, pointer: Long, on: Boolean): Result<Unit> =
-        invokeCommand(context, pointer, plug.endpoint, ON_OFF_CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure())
+    private suspend fun sendOnOff(plug: Plug, pointer: Long, on: Boolean): Result<Unit> = OnOff.send(context, pointer, plug.endpoint, on)
 
-    private suspend fun readOnOffAt(plug: Plug, pointer: Long): Boolean? =
-        readAttribute(context, pointer, plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE) { TlvReader(it).getBool(AnonymousTag) }
+    private suspend fun readOnOffAt(plug: Plug, pointer: Long): Boolean? = OnOff.read(context, pointer, plug.endpoint)
 
     private companion object {
         const val TAG = "PlugCommander"
@@ -104,9 +100,5 @@ class PlugCommander(context: Context) {
         const val READ_TIMEOUT_MS = 10_000L
         const val READ_ONLY_TIMEOUT_MS = 8_000L
         const val FIRST_TRY_MS = 4_000L
-        const val ON_OFF_CLUSTER = 0x0006L
-        const val ON_OFF_ATTRIBUTE = 0x0000L
-        const val CMD_OFF = 0x00L
-        const val CMD_ON = 0x01L
     }
 }

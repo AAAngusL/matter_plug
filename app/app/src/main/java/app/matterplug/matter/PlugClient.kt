@@ -46,10 +46,9 @@ class PlugClient(context: Context, private val plug: Plug) {
 
         override fun onReport(nodeState: NodeState) {
             // VERIFY: accessor chain NodeState.getEndpointState(int) -> EndpointState.getClusterState(long) -> ClusterState.getAttributeState(long) -> AttributeState.getTlv() (settled for NodeState only).
-            val tlv = nodeState.attributeTlv(plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE) ?: return
             try {
                 // VERIFY: matter.tlv.TlvReader(ByteArray).getBool(Tag) and AnonymousTag names in libMatterTlv.jar.
-                val isOn = TlvReader(tlv).getBool(AnonymousTag)
+                val isOn = OnOff.stateIn(nodeState, plug.endpoint) ?: return
                 _state.value = PlugState.Online(isOn)
             } catch (e: Exception) {
                 Log.w(TAG, "could not decode OnOff report", e)
@@ -77,7 +76,7 @@ class PlugClient(context: Context, private val plug: Plug) {
         devicePointer = pointer
         try {
             // Settled: newInstance(int endpointId, long clusterId, long attributeId); the endpoint must be an Int.
-            val path = ChipAttributePath.newInstance(plug.endpoint, ON_OFF_CLUSTER, ON_OFF_ATTRIBUTE)
+            val path = ChipAttributePath.newInstance(plug.endpoint, OnOff.CLUSTER, OnOff.ATTRIBUTE)
             ChipController.get(context).subscribeToPath(
                 { _ -> Log.d(TAG, "subscription established") },
                 { _, _ -> _state.value = PlugState.Offline },   // resubscription attempt: the plug stopped answering
@@ -102,7 +101,7 @@ class PlugClient(context: Context, private val plug: Plug) {
         val pointer = devicePointer
         if (pointer == 0L) return Result.failure(IllegalStateException("not connected"))
         return try {
-            sendCommand(pointer, ON_OFF_CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure())
+            OnOff.send(context, pointer, plug.endpoint, on)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -171,10 +170,6 @@ class PlugClient(context: Context, private val plug: Plug) {
     private companion object {
         const val TAG = "PlugClient"
         const val READ_TIMEOUT_MS = 10_000L
-        const val ON_OFF_CLUSTER = 0x0006L
-        const val ON_OFF_ATTRIBUTE = 0x0000L
-        const val CMD_OFF = 0x00L
-        const val CMD_ON = 0x01L
         const val OPERATIONAL_CREDENTIALS_CLUSTER = 0x003EL
         const val ATTR_CURRENT_FABRIC_INDEX = 0x0005L
         const val CMD_REMOVE_FABRIC = 0x0AL

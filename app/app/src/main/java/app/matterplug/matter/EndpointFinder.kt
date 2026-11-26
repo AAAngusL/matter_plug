@@ -17,9 +17,6 @@ object EndpointFinder {
     private const val FALLBACK_ENDPOINT = 1
     private const val READ_TIMEOUT_MS = 10_000L
 
-    private const val ON_OFF_CLUSTER = 0x0006L
-    private const val ON_OFF_ATTRIBUTE = 0x0000L
-
     /**
      * Returns the lowest endpoint that has the OnOff attribute, or null if the node reports none.
      * Throws if the node cannot be reached. If the wildcard read itself fails, falls back to endpoint 1.
@@ -31,8 +28,8 @@ object EndpointFinder {
             // VERIFY: ChipPathId.forWildcard() and ChipPathId.forId(long) factory names in model/ChipPathId.java.
             val path = ChipAttributePath.newInstance(
                 ChipPathId.forWildcard(),
-                ChipPathId.forId(ON_OFF_CLUSTER),
-                ChipPathId.forId(ON_OFF_ATTRIBUTE)
+                ChipPathId.forId(OnOff.CLUSTER),
+                ChipPathId.forId(OnOff.ATTRIBUTE)
             )
             val found: Result<Int?>? = withTimeoutOrNull(READ_TIMEOUT_MS) {
                 suspendCancellableCoroutine<Result<Int?>> { cont ->
