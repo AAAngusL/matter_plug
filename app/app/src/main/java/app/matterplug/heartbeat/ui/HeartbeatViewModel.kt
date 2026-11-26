@@ -5,7 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.matterplug.fixedip.IpStore
 import app.matterplug.sms.SmsResult
-import app.matterplug.guard.GuardStore
+import app.matterplug.guard.CheckSchedule
 import app.matterplug.heartbeat.HeartbeatStore
 import app.matterplug.heartbeat.logic.HeartbeatSettings
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +26,7 @@ class HeartbeatViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** The heartbeat learns from the status push of each check (section 2), so it needs the status switch. */
-    val statusOn: StateFlow<Boolean> = GuardStore(application).settings.map { it.statusEnabled }
+    val statusOn: StateFlow<Boolean> = CheckSchedule.statusReportOnFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val lastSms: StateFlow<SmsResult.Last?> = store.lastSms.flow

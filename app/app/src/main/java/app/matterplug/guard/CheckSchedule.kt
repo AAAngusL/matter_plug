@@ -35,6 +35,9 @@ object CheckSchedule {
         return Now(settings.intervalMin, settings.enabled, next, guardCarriesHeartbeat = settings.enabled)
     }
 
+    /** Whether Battery Guard's "send status" switch is on, for a screen that depends on it (the heartbeat learns from the status push). */
+    fun statusReportOnFlow(ctx: Context): Flow<Boolean> = GuardStore(ctx).settings.map { it.statusEnabled }
+
     /** The interval, for a screen that shows it. */
     fun intervalMinFlow(ctx: Context): Flow<Int> = GuardStore(ctx).settings.map { it.intervalMin }
 }
