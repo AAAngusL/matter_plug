@@ -10,14 +10,11 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.matterplug.R
-import app.matterplug.data.Plug
 import app.matterplug.data.PlugRepository
 import app.matterplug.matter.Commissioner
-import app.matterplug.matter.EndpointFinder
 import app.matterplug.matter.PairingEvent
 import app.matterplug.matter.PairingRoute
 import app.matterplug.matter.PairingStage
-import app.matterplug.matter.PlugClient
 import app.matterplug.matter.SetupCode
 import app.matterplug.matter.SetupCodeResult
 import app.matterplug.matter.parseSetupCode
@@ -26,7 +23,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 
@@ -56,6 +52,7 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
     private val app: Application = application
     private val repository = PlugRepository(app)
     private val commissioner = Commissioner(app)
+    private val setup = PlugSetup(app)
 
     private val _state = MutableStateFlow<PairingState>(PairingState.EnterCode())
     val state: StateFlow<PairingState> = _state.asStateFlow()
@@ -194,27 +191,14 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun afterSuccess(nodeId: Long) {
         _password.value = ""
         _state.value = PairingState.Running(PairingStage.Finishing, canCancel = false)
-        val endpoint = try {
-            EndpointFinder.find(app, nodeId)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "could not reach the plug after pairing", e)
-            fail(FailureReason.AtStage(PairingStage.FindingOnNetwork, null))
-            return
+        when (val outcome = setup.finish(nodeId)) {
+            is PlugSetup.Outcome.Ready -> {
+                _plugName.value = outcome.name
+                _state.value = PairingState.NamePlug(nodeId, outcome.endpoint)
+            }
+            PlugSetup.Outcome.NoOnOff -> fail(FailureReason.NoOnOff)
+            PlugSetup.Outcome.Unreachable -> fail(FailureReason.AtStage(PairingStage.FindingOnNetwork, null))
         }
-        if (endpoint == null) {
-            // No on/off switch: leave the device clean by dropping the fabric.
-            PlugClient(app, Plug(nodeId, 0, "")).leaveFabric()
-            fail(FailureReason.NoOnOff)
-            return
-        }
-        // Saved now, under its default name: the plug already holds this app's credentials, so a kill before the
-        // naming step must not lose it. The naming step only renames it.
-        val name = nextDefaultName()
-        repository.add(Plug(nodeId, endpoint, name))
-        _plugName.value = name
-        _state.value = PairingState.NamePlug(nodeId, endpoint)
     }
 
     private fun fail(reason: FailureReason) {
@@ -228,13 +212,6 @@ class PairingViewModel(application: Application) : AndroidViewModel(application)
         _password.value = ""
         _plugName.value = app.getString(R.string.default_plug_name)
         _state.value = PairingState.EnterCode()
-    }
-
-    /** "Plug" for the first plug, "Plug 2", "Plug 3"... after that, so the switcher never lists two identical names. */
-    private suspend fun nextDefaultName(): String {
-        val base = app.getString(R.string.default_plug_name)
-        val count = repository.plugs.first().size
-        return if (count == 0) base else "$base ${count + 1}"
     }
 
     /** Leaves pairing from the "add another plug" entry: drops whatever was entered. */
