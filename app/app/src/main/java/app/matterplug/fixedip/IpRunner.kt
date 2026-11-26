@@ -57,14 +57,14 @@ object IpRunner {
         val now = System.currentTimeMillis()
         val bootAt = now - SystemClock.elapsedRealtime()
         val lostNow = !reading.wifi || reading.address == null
-        val since = store.readNoWifiSince()
+        val since = store.noWifiSince.read()
         val newSince = if (lostNow) (since ?: now) else null
-        if (newSince != since) store.writeNoWifiSince(newSince)
+        if (newSince != since) store.noWifiSince.write(newSince)
 
         val state = IpVerdict.judge(pinned, reading, newSince, bootAt, now)
-        val memo = store.readAlert()
+        val memo = store.alert.read()
         val (newMemo, phase) = IpAlertPolicy.step(memo, state, now)
-        store.writeAlert(newMemo)
+        store.alert.write(newMemo)
         val nextAt = (state as? IpState.NoWifi)?.takeIf { !it.due }?.dueAtMs
         Log.i(TAG, "read: state=${state.javaClass.simpleName} phase=${phase?.wire} open=${newMemo != null}")
         if (phase == null) return Outcome(null, nextAt)
@@ -74,7 +74,7 @@ object IpRunner {
         val base = IpSummary(pinned.address, reading.address, pinned.ssid, reason, SmsOutcome.Failed)
         // The battery is read first: the SMS carries it, and the SMS and the request's message say the same thing.
         val battery = BatteryReader.readOrNull(ctx)
-        val sms = if (phase == AlertPhase.Reminder) (store.readLastSms()?.outcome ?: SmsOutcome.Failed)
+        val sms = if (phase == AlertPhase.Reminder) (store.lastSms.read()?.outcome ?: SmsOutcome.Failed)
         else sendSms(ctx, store, settings.recipients, IpReport.text(phase, base, battery?.level ?: 0))
         val event = AlertChannel.event(ctx, AlertKind.IpDrift, phase, now, extra = base.copy(sms = sms), battery = battery)
         GuardNotifier.post(ctx, listOf(event))
@@ -83,7 +83,7 @@ object IpRunner {
 
     /** One SMS to every number, recorded for the screen. The reminder never sends one (section 7). */
     private suspend fun sendSms(ctx: Context, store: IpStore, numbers: List<String>, text: String): SmsOutcome {
-        val (outcome, failure) = AlertSms.sendAndRecord(ctx, numbers, text, store::recordSms)
+        val (outcome, failure) = AlertSms.sendAndRecord(ctx, numbers, text, store.lastSms::record)
         Log.i(TAG, "sms: numbers=${numbers.size} outcome=${outcome.wire} failure=$failure")
         return outcome
     }
@@ -114,7 +114,7 @@ object IpRunner {
         val pinned = settings.pinned
         if (!settings.enabled || pinned == null) return false
         val now = System.currentTimeMillis()
-        val state = IpVerdict.judge(pinned, IpReader.read(ctx), store.readNoWifiSince(), now - SystemClock.elapsedRealtime(), now)
+        val state = IpVerdict.judge(pinned, IpReader.read(ctx), store.noWifiSince.read(), now - SystemClock.elapsedRealtime(), now)
         return state is IpState.NoWifi || state is IpState.OtherNetwork
     }
 

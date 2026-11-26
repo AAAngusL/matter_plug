@@ -12,8 +12,7 @@ import app.matterplug.heartbeat.logic.Heartbeat
 import app.matterplug.heartbeat.logic.HeartbeatSettings
 import app.matterplug.heartbeat.logic.HeartbeatDue
 import app.matterplug.heartbeat.logic.HeartbeatState
-import app.matterplug.sms.SmsOutcome
-import app.matterplug.sms.SmsResult
+import app.matterplug.sms.LastSms
 import app.matterplug.heartbeat.logic.Observation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -29,10 +28,8 @@ class HeartbeatStore(context: Context) {
 
     suspend fun readSettings(): HeartbeatSettings = read(store.data.first())
 
-    /** The last heartbeat SMS, for the screen; null before the first one. */
-    val lastSms: Flow<SmsResult.Last?> = store.data.map { SmsResult.decode(it[LAST_SMS]) }
-
-    suspend fun recordSms(atMs: Long, outcome: SmsOutcome, detail: String?) { store.edit { it[LAST_SMS] = SmsResult.encode(atMs, outcome, detail) } }
+    /** The last heartbeat SMS, for the screen. */
+    val lastSms = LastSms(store)
 
     /** The start SMS reached no number: the alert is closed again so the next missed check retries it (Heartbeat.startNotSent). */
     suspend fun startNotSent() {
@@ -77,6 +74,5 @@ class HeartbeatStore(context: Context) {
         val ENABLED = booleanPreferencesKey("enabled")
         val LIMIT = intPreferencesKey("limit")
         val STATE = stringPreferencesKey("state")
-        val LAST_SMS = stringPreferencesKey("last_sms")
     }
 }

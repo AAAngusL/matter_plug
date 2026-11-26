@@ -29,7 +29,7 @@ class HeartbeatViewModel(application: Application) : AndroidViewModel(applicatio
     val statusOn: StateFlow<Boolean> = GuardStore(application).settings.map { it.statusEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
-    val lastSms: StateFlow<SmsResult.Last?> = store.lastSms
+    val lastSms: StateFlow<SmsResult.Last?> = store.lastSms.flow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** [hasNumber] and the SMS permission are checked by the caller. */

@@ -54,7 +54,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
     private val _backupText = MutableStateFlow("")
     val backupText: StateFlow<String> = _backupText
 
-    val lastSms: StateFlow<SmsResult.Last?> = store.lastSms
+    val lastSms: StateFlow<SmsResult.Last?> = store.lastSms.flow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     init {

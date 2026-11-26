@@ -13,8 +13,8 @@ import app.matterplug.fixedip.logic.FixedIpSettings
 import app.matterplug.fixedip.logic.IpAlertMemo
 import app.matterplug.fixedip.logic.IpAlertPolicy
 import app.matterplug.fixedip.logic.PinnedNetwork
-import app.matterplug.sms.SmsOutcome
-import app.matterplug.sms.SmsResult
+import app.matterplug.data.StoredValue
+import app.matterplug.sms.LastSms
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -29,8 +29,14 @@ class IpStore(context: Context) {
 
     suspend fun readSettings(): FixedIpSettings = read(store.data.first())
 
-    /** The last alert SMS, for the screen (docs/FIXED-IP.md section 10); null before the first one. */
-    val lastSms: Flow<SmsResult.Last?> = store.data.map { SmsResult.decode(it[LAST_SMS]) }
+    /** The last alert SMS, for the screen (docs/FIXED-IP.md section 10). */
+    val lastSms = LastSms(store)
+
+    /** The open alert, or null. */
+    val alert = StoredValue(store, ALERT, IpAlertPolicy::decode, IpAlertPolicy::encode)
+
+    /** When Wi-Fi was first seen missing, kept so the 1-minute wait survives the process being ended; null when it is not missing. */
+    val noWifiSince = StoredValue.plain(store, NO_WIFI_SINCE)
 
     /** [wasOpen]: an alert was open and the switch closed it, so the caller sends cancelled (with ip_off or ip_unpinned). */
     data class Closed(val wasOpen: Boolean)
@@ -45,9 +51,9 @@ class IpStore(context: Context) {
             val old = read(p)
             val new = transform(old).coerced()
             if (new.enabled != old.enabled) {
-                if (!new.enabled) closed = Closed(IpAlertPolicy.decode(p[ALERT]) != null)
-                p.remove(ALERT)
-                p.remove(NO_WIFI_SINCE)
+                if (!new.enabled) closed = Closed(alert.readIn(p) != null)
+                alert.removeIn(p)
+                noWifiSince.removeIn(p)
             }
             p[ENABLED] = new.enabled
             p[SMS_NUMBER] = new.smsNumber
@@ -63,16 +69,6 @@ class IpStore(context: Context) {
         }
         return closed
     }
-
-    suspend fun readAlert(): IpAlertMemo? = IpAlertPolicy.decode(store.data.first()[ALERT])
-    suspend fun writeAlert(m: IpAlertMemo?) { store.edit { if (m == null) it.remove(ALERT) else it[ALERT] = IpAlertPolicy.encode(m) } }
-
-    /** When Wi-Fi was first seen missing, kept so the 1-minute wait survives the process being ended; null when it is not missing. */
-    suspend fun readNoWifiSince(): Long? = store.data.first()[NO_WIFI_SINCE]
-    suspend fun writeNoWifiSince(at: Long?) { store.edit { if (at == null) it.remove(NO_WIFI_SINCE) else it[NO_WIFI_SINCE] = at } }
-
-    suspend fun readLastSms(): SmsResult.Last? = SmsResult.decode(store.data.first()[LAST_SMS])
-    suspend fun recordSms(atMs: Long, outcome: SmsOutcome, detail: String?) { store.edit { it[LAST_SMS] = SmsResult.encode(atMs, outcome, detail) } }
 
     private fun read(p: Preferences): FixedIpSettings {
         val address = p[PIN_ADDRESS]
@@ -92,6 +88,5 @@ class IpStore(context: Context) {
         val PIN_MAC = stringPreferencesKey("pin_mac")
         val ALERT = stringPreferencesKey("alert")
         val NO_WIFI_SINCE = longPreferencesKey("no_wifi_since")
-        val LAST_SMS = stringPreferencesKey("last_sms")
     }
 }

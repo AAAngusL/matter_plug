@@ -177,8 +177,8 @@ object CellularRunner {
      * deliver over HTTP after the lock is released, or null when there is nothing to send.
      */
     private suspend fun alertStep(ctx: Context, store: CellularStore, down: Boolean, now: Long): AlertEvent? {
-        val (memo, phase) = CellularAlertPolicy.step(store.readAlert(), down, now)
-        store.writeAlert(memo)
+        val (memo, phase) = CellularAlertPolicy.step(store.alert.read(), down, now)
+        store.alert.write(memo)
         if (phase == null) return null
         val summary = summaryOf(store)
         val event = AlertChannel.event(ctx, AlertKind.CellularDown, phase, now, extra = summary)

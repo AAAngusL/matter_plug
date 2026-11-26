@@ -47,7 +47,7 @@ object HeartbeatRunner {
      */
     private suspend fun send(ctx: Context, store: HeartbeatStore, due: HeartbeatDue.Send, link: PhoneLink) {
         val numbers = link.smsNumbers()
-        val (outcome, failure) = AlertSms.sendAndRecord(ctx, numbers, Heartbeat.text(due.sms, due.limit), store::recordSms)
+        val (outcome, failure) = AlertSms.sendAndRecord(ctx, numbers, Heartbeat.text(due.sms, due.limit), store.lastSms::record)
         Log.i(TAG, "sms: ${due.sms.name} numbers=${numbers.size} outcome=${outcome.wire} failure=$failure")
         if (due.sms == HeartbeatSms.Start && outcome == SmsOutcome.Failed) store.startNotSent()
     }

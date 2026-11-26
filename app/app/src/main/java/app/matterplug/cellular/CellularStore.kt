@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import app.matterplug.data.StoredValue
 import app.matterplug.cellular.logic.CellularAlert
 import app.matterplug.cellular.logic.CellularAlertCodec
 import app.matterplug.cellular.logic.CellularCodec
@@ -47,6 +48,9 @@ class CellularStore(context: Context) {
 
     val settings: Flow<CellularSettings> = store.data.map { readSettings(it) }
 
+    /** The open cellular_down alert, or null. */
+    val alert = StoredValue(store, ALERT, CellularAlertCodec::decode, CellularAlertCodec::encode)
+
     val status: Flow<CellularStatus> = store.data.map { p ->
         CellularStatus(p[LAST_RUN_AT], p[NEXT_RUN_AT], CellularCodec.decode(p[RESULTS]), SentLog.decode(p[SENT_LOG]), p[SMS_AT],
             SignalReadingCodec.decode(p[SIGNAL_READING]))
@@ -72,9 +76,9 @@ class CellularStore(context: Context) {
             p[STATUS_ENABLED] = new.statusEnabled
             val change = old.switchOff(new)
             if (change.reset) {
-                val open = CellularAlertCodec.decode(p[ALERT]) != null
+                val open = alert.readIn(p) != null
                 closed = Closed(open, if (open) change.cancelledBy else null)
-                p.remove(ALERT)
+                alert.removeIn(p)
                 if (new.enabled) {
                     val s = CellularStateCodec.decode(p[STATE])
                     p[STATE] = CellularStateCodec.encode(s.copy(failedInARow = 0, confirmedFault = null))
@@ -118,9 +122,6 @@ class CellularStore(context: Context) {
             if (layer == Layer.Sms) p[SMS_AT] = System.currentTimeMillis()
         }
     }
-
-    suspend fun readAlert(): CellularAlert? = CellularAlertCodec.decode(store.data.first()[ALERT])
-    suspend fun writeAlert(a: CellularAlert?) { store.edit { if (a == null) it.remove(ALERT) else it[ALERT] = CellularAlertCodec.encode(a) } }
 
     suspend fun recordSent(at: Long) {
         store.edit { p -> p[SENT_LOG] = SentLog.encode(SentLog.add(SentLog.decode(p[SENT_LOG]), at)) }
