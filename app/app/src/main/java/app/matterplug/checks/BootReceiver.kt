@@ -14,8 +14,8 @@ import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardStore
 
 /**
- * After a restart, an app update or a change of the exact-alarm permission (5.8): if Battery Guard is on, schedule the
- * normal check alarm 5 s from now (B3: the check then runs through CheckReceiver; no service is started here), and if
+ * After a restart, an app update or a change of the exact-alarm permission: if Battery Guard is on, schedule the
+ * normal check alarm 5 s from now (the check then runs through CheckReceiver; no service is started here), and if
  * alerts are waiting, schedule the flush job. Before the first unlock after a reboot this is not called at all (screen lock).
  */
 class BootReceiver : BroadcastReceiver() {

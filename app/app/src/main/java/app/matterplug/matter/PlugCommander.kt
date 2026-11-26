@@ -16,7 +16,7 @@ sealed interface SwitchResult {
 }
 
 /**
- * One switch, then release everything (BATTERY-GUARD-IMPLEMENTATION.md 5.4, B9). Connect, send On or Off (never Toggle),
+ * One switch, then release everything (BATTERY-GUARD-IMPLEMENTATION.md 5.4). Connect, send On or Off (never Toggle),
  * read OnOff back, release the pointer. It does not subscribe and is not tied to a screen. The few helpers it needs are
  * repeated from PlugClient on purpose, so the working pairing and toggle code stays untouched.
  *
@@ -76,7 +76,7 @@ class PlugCommander(context: Context) {
     }
 
     /**
-     * G7: reads the plug's OnOff state alone (connect, read, release), for the "turn it on before disabling?" question.
+     * Reads the plug's OnOff state alone (connect, read, release), for the "turn it on before disabling?" question.
      * One 8-second limit covers everything. A failed first try (for example a remembered session to an address the plug
      * no longer has after a power cycle) is released and tried once more with what is left of the 8 seconds; the first
      * try gets at most [FIRST_TRY_MS], so the second always has time. Null on any failure or timeout. Does not touch [switchTo].

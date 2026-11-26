@@ -8,7 +8,7 @@ data class GuardSettings(
     val alertsEnabled: Boolean = false,
     val statusEnabled: Boolean = false,        // status report after every check
     val alertAddress: String = "",
-    val alertToken: String = "",               // optional; sent as Authorization: Bearer <token> (B13). Never log it.
+    val alertToken: String = "",               // optional; sent as Authorization: Bearer <token>. Never log it.
 ) {
     companion object {
         val INTERVALS = listOf(5, 10, 15, 30, 60)

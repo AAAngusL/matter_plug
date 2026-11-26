@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Delivers the waiting list when a network is available, with the app closed (B6, 5.6). One persisted job, id 7001,
+ * Delivers the waiting list when a network is available, with the app closed. One persisted job, id 7001,
  * scheduled whenever the list is not empty. Runs steps 1 and 3 of the delivery with a 30-second budget.
  */
 class FlushJobService : JobService() {

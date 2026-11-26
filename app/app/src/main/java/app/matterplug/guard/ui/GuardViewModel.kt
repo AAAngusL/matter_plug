@@ -44,9 +44,9 @@ sealed interface TestState {
 }
 
 /**
- * G2/G3: the settings, and the alarm that follows them: on -> check in 1 s, off -> alarm cancelled, a changed
- * threshold or interval while on -> check in 1 s (B3). G6 adds the alert settings rules, the flush job and the test button.
- * G7: the permission prompts at the first enable, "Check now", and the "plug is off" dialog when switching off.
+ * The settings, and the alarm that follows them: on -> check in 1 s, off -> alarm cancelled, a changed
+ * threshold or interval while on -> check in 1 s. Also the alert settings rules, the flush job and the test button, the
+ * permission prompts at the first enable, "Check now", and the "plug is off" dialog when switching off.
  * The settings screen shows nothing until the stored values are read ([settings] is null before that).
  */
 class GuardViewModel(application: Application) : AndroidViewModel(application) {
@@ -58,7 +58,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     val status: StateFlow<GuardStatus> = store.status
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GuardStatus())
 
-    /** B10: Battery Guard acts on the Charger plug (the first plug until another is chosen). Null until the repository has answered. */
+    /** Battery Guard acts on the Charger plug (the first plug until another is chosen). Null until the repository has answered. */
     val hasPlug: StateFlow<Boolean?> = PlugRepository(application).plugs
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -106,7 +106,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun enable() {
-        if (hasPlug.value != true) return                    // B10: refused without a plug
+        if (hasPlug.value != true) return                    // refused without a plug
         if (!disable.canStart) return
         disable.reset()
         viewModelScope.launch {
@@ -162,7 +162,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * The text is saved whatever it is; the switches are what need a valid address. When the text is valid and alerts are
-     * waiting, the flush job is scheduled (5.9) after the typing has paused for 1.5 s, so a half-typed address
+     * waiting, the flush job is scheduled after the typing has paused for 1.5 s, so a half-typed address
      * ("http://192.168.1.2") is not tried.
      */
     fun setAlertAddress(text: String) {
@@ -183,7 +183,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * The token is trimmed (whitespace and newlines) and saved; nothing else happens, the next request reads it (B13).
+     * The token is trimmed (whitespace and newlines) and saved; nothing else happens, the next request reads it.
      * It does not trigger a flush by itself. Never logged.
      */
     fun setAlertToken(text: String) {
@@ -218,7 +218,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** The "Check now" button: the check runs through the normal alarm path (B3). Only while Battery Guard is on. */
+    /** The "Check now" button: the check runs through the normal alarm path. Only while Battery Guard is on. */
     fun checkNow() {
         viewModelScope.launch {
             if (store.readSettings().enabled) rearm()

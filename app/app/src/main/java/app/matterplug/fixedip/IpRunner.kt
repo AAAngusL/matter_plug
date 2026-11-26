@@ -90,7 +90,7 @@ object IpRunner {
 
     /**
      * The switch was turned off, or the network unpinned ([by]), while an alert was open: the notification goes and one cancelled is
-     * queued behind the waiting requests (R4). No SMS: the person who switched it off knows. Never throws.
+     * queued behind the waiting requests. No SMS: the person who switched it off knows. Never throws.
      */
     suspend fun closed(ctx: Context, closed: IpStore.Closed, by: CancelledBy = CancelledBy.IpOff) {
         if (!closed.wasOpen) return

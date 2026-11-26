@@ -5,7 +5,6 @@ import android.util.Log
 import app.matterplug.cellular.CellularRunner
 import app.matterplug.fixedip.IpRunner
 import app.matterplug.guard.GuardRunner
-import app.matterplug.heartbeat.HeartbeatRunner
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -20,7 +19,7 @@ object CheckChain {
     private class Step(val name: String, val run: suspend (Context) -> Unit)
 
     private val steps = listOf(
-        Step("cellular run", CellularRunner::run),
+        Step("cellular run") { ctx -> ConsoleHeartbeat.afterCellularRun(ctx, CellularRunner.run(ctx)) },
         Step("fixed ip read", IpRunner::readAndRestartWatch),
     )
 
@@ -33,6 +32,6 @@ object CheckChain {
                 Log.e(TAG, "${step.name} failed; the check goes on", e)
             }
         }
-        if (withGuard) GuardRunner.onAlarm(ctx, startSwitchService = ActionService::start)?.let { HeartbeatRunner.afterCheck(ctx, it.firstPush) }
+        if (withGuard) GuardRunner.onAlarm(ctx, startSwitchService = ActionService::start)?.let { ConsoleHeartbeat.afterCheck(ctx, it) }
     }
 }

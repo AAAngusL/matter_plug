@@ -23,7 +23,7 @@ object CheckDecision {
     /**
      * True when the check ends here: events are exactly [NoSwitchNeeded], with or without a plug read that reached the
      * plug, or a note that there is no plug (PLUG-WATCH.md), the stored alert state has no failed or
-     * faulty checks and no active alerts, the waiting list is empty and status reports are off (rule 1, B11).
+     * faulty checks and no active alerts, the waiting list is empty and status reports are off (a quiet check).
      */
     fun nothingToDo(settings: GuardSettings, state: AlertState, queueEmpty: Boolean, events: List<CheckEvent>): Boolean =
         events.filterNot { it == CheckEvent.PlugRead(true) || it == CheckEvent.NoPlug } == listOf<CheckEvent>(CheckEvent.NoSwitchNeeded) &&

@@ -2,14 +2,14 @@ package app.matterplug.guard.logic
 
 /**
  * The value of the Authorization header for [token], or null when no header is to be sent (blank token).
- * The token is trimmed; it is sent as a bearer token (B13). Never log the result.
+ * The token is trimmed; it is sent as a bearer token. Never log the result.
  */
 fun authorizationHeader(token: String): String? {
     val t = token.trim()
     return if (t.isEmpty()) null else "Bearer $t"
 }
 
-/** The PostResult for a response with status [code]: 401 and 403 carry the error token "rejected" (B13). */
+/** The PostResult for a response with status [code]: 401 and 403 carry the error token "rejected". */
 fun resultForCode(code: Int): PostResult =
     PostResult(code, if (code == 401 || code == 403) DeliveryError.REJECTED else null)
 

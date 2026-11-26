@@ -76,7 +76,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
         val pinned = store.readSettings().pinned
         val now = System.currentTimeMillis()
         val bootAt = now - SystemClock.elapsedRealtime()
-        // A single read has no memory of when Wi-Fi was lost; the watch of F4 keeps that. Here the wait simply starts now.
+        // A single read has no memory of when Wi-Fi was lost; the watch service keeps that. Here the wait simply starts now.
         val state = IpVerdict.judge(pinned, reading, noWifiSinceMs = null, bootAtMs = bootAt, nowMs = now)
         _screen.value = IpScreenState(reading, state, IpVerdict.macChanged(pinned, reading), now)
         return reading
@@ -100,7 +100,7 @@ class FixedIpViewModel(application: Application) : AndroidViewModel(application)
 
     /**
      * The switch (docs/FIXED-IP.md section 6): on only with a pinned network and a valid number; the caller has asked for the SMS permission.
-     * Off ends an open alert with cancelled (R4) and stops the watch.
+     * Off ends an open alert with cancelled and stops the watch.
      */
     fun setEnabled(on: Boolean) {
         viewModelScope.launch {

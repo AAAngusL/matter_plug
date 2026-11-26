@@ -7,6 +7,7 @@ import app.matterplug.cellular.CellularRunner
 import app.matterplug.cellular.CellularStatus
 import app.matterplug.cellular.CellularStore
 import app.matterplug.cellular.logic.CellularSettings
+import app.matterplug.checks.CellularRunNow
 import app.matterplug.guard.GuardStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -42,7 +43,7 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
     fun enable() {
         viewModelScope.launch {
             store.update { it.copy(enabled = true) }
-            CellularRunner.runNow(getApplication(), withLoopback = false)      // the first run, now
+            CellularRunNow.start(getApplication(), withLoopback = false)      // the first run, now
         }
     }
 
@@ -77,6 +78,6 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
     /** Run cellular check now: the passive layers and a loopback SMS, whatever the state (section 6). */
     fun runNow() {
         if (settings.value?.enabled != true) return
-        CellularRunner.runNow(getApplication(), withLoopback = true)
+        CellularRunNow.start(getApplication(), withLoopback = true)
     }
 }

@@ -116,7 +116,7 @@ object HttpAlerter {
 
     /**
      * The 5 steps of 5.6, within [budgetMs] in total. Never throws except for cancellation.
-     * 1. nothing to send -> return (alerts still go on the waiting list when the address is invalid, see deviation 2)
+     * 1. nothing to send -> return (alerts still go on the waiting list when the address is invalid)
      * 2. alerts on: Started and Recovered go on the waiting list
      * 3. alerts on: flush the list, oldest first
      * 4. list empty: reminders once, then the status report once (never queued)

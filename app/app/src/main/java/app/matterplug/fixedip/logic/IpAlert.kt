@@ -13,8 +13,7 @@ object IpAlert {
     /**
      * @param open an alert has started and has not ended
      *
-     * A start needs a Drift, or a NoWifi whose wait is over. An open alert ends only on proof, a Match (the rule of Battery Guard's R1
-     * and R2): leaving Wi-Fi, another network or an unpinned state keep it open. A state change inside an open alert (say, a drift that
+     * A start needs a Drift, or a NoWifi whose wait is over. An open alert ends only on proof, a Match (Battery Guard's rule too): leaving Wi-Fi, another network or an unpinned state keep it open. A state change inside an open alert (say, a drift that
      * becomes no Wi-Fi) is not a second start; the alert server's own reminders carry it.
      */
     fun next(open: Boolean, state: IpState): IpAlertAction = when {

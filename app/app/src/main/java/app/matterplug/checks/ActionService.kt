@@ -16,7 +16,6 @@ import app.matterplug.R
 import app.matterplug.alarm.partialWakeLock
 import app.matterplug.guard.GuardRunner
 import app.matterplug.guard.GuardStore
-import app.matterplug.heartbeat.HeartbeatRunner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +27,7 @@ import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Foreground service that does the one switch (5.5). Started only from the alarm's receiver path (B3) and only when the
+ * Foreground service that does the one switch. Started only from the alarm's receiver path and only when the
  * decision is TurnOn or TurnOff. It runs GuardRunner.work, then stops itself. It decides nothing.
  */
 class ActionService : Service() {
@@ -62,7 +61,7 @@ class ActionService : Service() {
         scope.launch {
             val wakeLock = partialWakeLock(app, WAKE_TAG, WAKE_TIMEOUT_MS, TAG)      // only while the work runs; the timeout is a backstop
             try {
-                withTimeout(WORK_TIMEOUT_MS) { GuardRunner.work(app)?.let { HeartbeatRunner.afterCheck(app, it.firstPush) } }
+                withTimeout(WORK_TIMEOUT_MS) { GuardRunner.work(app)?.let { ConsoleHeartbeat.afterCheck(app, it) } }
             } catch (e: TimeoutCancellationException) {
                 // Only our own withTimeout throws this here; a cancelled scope throws a plain CancellationException.
                 Log.w(TAG, "work timed out after ${WORK_TIMEOUT_MS / 1000} s")

@@ -63,7 +63,7 @@ internal object PlugStep {
     /** Throws only on cancellation or an unexpected error (the caller logs it). */
     suspend fun doSwitch(ctx: Context, store: GuardStore, on: Boolean, level: Int): SwitchRun {
         val events = mutableListOf<CheckEvent>()
-        val plug = PlugRepository(ctx).charger()      // B10
+        val plug = PlugRepository(ctx).charger()      // Battery Guard acts on the charger plug
         val result: SwitchResult = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(ctx).switchTo(plug, on)
         val what = if (on) "on" else "off"
         return when (result) {

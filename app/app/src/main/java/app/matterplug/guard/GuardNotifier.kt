@@ -21,7 +21,7 @@ import app.matterplug.guard.logic.CheckDecision
 /**
  * Posts one notification per alert event (BATTERY-GUARD-IMPLEMENTATION.md 5.7), whether or not "Send alerts" is on.
  * The notification id follows the alert kind, so a reminder replaces the earlier notification and a Recovered event
- * replaces it with the recovery text. The channel `guard_work` of the switching service is created by ActionService.
+ * replaces it with the recovery text. The channel `guard_work` of the switching service is created by `checks.ActionService`.
  * Never throws.
  */
 object GuardNotifier {

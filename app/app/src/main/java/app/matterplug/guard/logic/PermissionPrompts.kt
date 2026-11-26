@@ -3,7 +3,7 @@ package app.matterplug.guard.logic
 /** The two things Battery Guard asks for the first time it is switched on (BATTERY-GUARD.md section 9, 5.9). */
 enum class PermissionPrompt { Notifications, Exemption }
 
-/** Pure decisions for the G7 UI flow. No Android imports. */
+/** Pure decisions for the permission-prompt flow. No Android imports. */
 object PermissionPrompts {
     /** POST_NOTIFICATIONS is a runtime permission from Android 13 (API 33). */
     const val NOTIFICATIONS_RUNTIME_SDK = 33

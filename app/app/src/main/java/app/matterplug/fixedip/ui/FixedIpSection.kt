@@ -55,7 +55,7 @@ import app.matterplug.ui.rememberSmsPermissionRequest
 import app.matterplug.fixedip.logic.PinnedNetwork
 import java.util.Date
 
-/** Fixed IP, the third tab under the plug switch (docs/FIXED-IP.md section 10). F3: reads, pins, guides and keeps the numbers; the watch is F4. */
+/** Fixed IP, the third tab under the plug switch (docs/FIXED-IP.md section 10). */
 @Composable
 fun FixedIpSection(modifier: Modifier = Modifier, viewModel: FixedIpViewModel = viewModel()) {
     val screen by viewModel.screen.collectAsStateWithLifecycle()

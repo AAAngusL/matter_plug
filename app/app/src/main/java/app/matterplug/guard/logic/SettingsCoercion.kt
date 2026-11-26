@@ -1,7 +1,7 @@
 package app.matterplug.guard.logic
 
 /**
- * Makes a settings value valid. Used by GuardStore for everything it reads or writes (G2, BATTERY-GUARD-IMPLEMENTATION 5.1).
+ * Makes a settings value valid. Used by GuardStore for everything it reads or writes (BATTERY-GUARD-IMPLEMENTATION.md 5.1).
  * A field out of range falls back to its default; a pair with high < low + MIN_GAP falls back to the default pair.
  */
 fun GuardSettings.coerced(): GuardSettings {

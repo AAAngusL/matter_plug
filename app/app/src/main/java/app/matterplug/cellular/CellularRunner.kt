@@ -3,7 +3,6 @@ package app.matterplug.cellular
 import android.content.Context
 import android.util.Log
 import app.matterplug.alarm.ExactAlarm
-import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.cellular.logic.CellularAlertPolicy
 import app.matterplug.cellular.logic.CellularLog
 import app.matterplug.cellular.logic.CellularReport
@@ -17,6 +16,7 @@ import app.matterplug.cellular.logic.LoopbackOutcome
 import app.matterplug.cellular.logic.LoopbackPlan
 import app.matterplug.cellular.logic.LoopbackTrigger
 import app.matterplug.guard.AlertChannel
+import app.matterplug.guard.Delivery
 import app.matterplug.guard.BatteryReader
 import app.matterplug.guard.GuardNotifier
 import app.matterplug.guard.GuardStore
@@ -25,10 +25,6 @@ import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -53,7 +49,7 @@ object CellularScheduler {
 object CellularRunner {
     private const val TAG = "Cellular"
     private const val RETRY_MS = 5 * 60_000L
-    /** From an alarm receiver, as Battery Guard's checks (its B11); the loopback service can wait longer. */
+    /** From an alarm receiver, as Battery Guard's checks; the loopback service can wait longer. */
     private const val RECEIVER_BUDGET_MS = 5_000L
     private const val SERVICE_BUDGET_MS = 15_000L
     private val mutex = Mutex()
@@ -61,15 +57,11 @@ object CellularRunner {
     /** What a run sends after the lock is released, under Cellular Check's own switches: an alert step and its status report. */
     private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val sender: HttpAlerter.Sender.Feature)
 
-    suspend fun run(ctx: Context) {
-        val out = mutex.withLock { runLocked(ctx) } ?: return
-        if (out.alert != null || out.status != null) {
-            val firstPush = AlertChannel.deliver(ctx, out.sender, listOfNotNull(out.alert), status = out.status, budgetMs = RECEIVER_BUDGET_MS)
-            // Battery Guard's own check carries the console heartbeat when it is on (its stored switch, not which receiver fired: Run now
-            // and a fresh install fire this one too); this run is a check of its own only when it is off.
-            val guardOn = try { GuardStore(ctx).readSettings().enabled } catch (e: Exception) { if (e is CancellationException) throw e; true }
-            if (!guardOn) HeartbeatRunner.afterCheck(ctx, firstPush)
-        }
+    /** Returns the delivery this run made, or null when it had nothing to send (the caller hands it to the console heartbeat when it is due). */
+    suspend fun run(ctx: Context): Delivery? {
+        val out = mutex.withLock { runLocked(ctx) } ?: return null
+        if (out.alert == null && out.status == null) return null
+        return Delivery(AlertChannel.deliver(ctx, out.sender, listOfNotNull(out.alert), status = out.status, budgetMs = RECEIVER_BUDGET_MS))
     }
 
     private suspend fun runLocked(ctx: Context): Outgoing? {
@@ -216,27 +208,6 @@ object CellularRunner {
         val status = store.status.first()
         return CellularReport.summary(status.results, store.readState().lastTrigger, status.signal)
     }
-
-    /**
-     * "Run cellular check now", or switching the check on: the run happens at once, not through the alarm. Android may
-     * hold a one-second exact alarm back (its limit on exact alarms), and a second tap would replace the first before
-     * it fired. [withLoopback] asks for a manual test SMS; it stays asked if one is still waiting.
-     */
-    fun runNow(ctx: Context, withLoopback: Boolean) {
-        val app = ctx.applicationContext
-        appScope.launch {
-            try {
-                if (withLoopback) CellularStore(app).requestManual()
-                run(app)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "run now failed", e)
-            }
-        }
-    }
-
-    /** Outlives the screen: a run started from it finishes even if the user leaves the screen at once. */
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
      * A run in 1 s through Cellular Check's own alarm, for starts in the background: Battery Guard switching off (its

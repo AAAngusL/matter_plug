@@ -77,7 +77,7 @@ sealed interface TestOutcome {
     data class Failed(val error: DeliveryError.Parsed) : TestOutcome
 }
 
-/** Pure decisions of HttpAlerter.deliver (BATTERY-GUARD-IMPLEMENTATION.md 5.6, B12). HttpAlerter only does the I/O. */
+/** Pure decisions of HttpAlerter.deliver (BATTERY-GUARD-IMPLEMENTATION.md 5.6). HttpAlerter only does the I/O. */
 object DeliveryPlan {
     const val MAX_TIMEOUT_MS = 10_000L
     /** Below this a request is not started: a timeout of 0 would mean "no timeout" to HttpURLConnection. */

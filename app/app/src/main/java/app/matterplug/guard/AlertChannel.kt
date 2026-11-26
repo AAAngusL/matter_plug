@@ -7,7 +7,11 @@ import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
 import app.matterplug.guard.logic.BatteryStatus
 import app.matterplug.guard.logic.CancelledBy
+import app.matterplug.guard.logic.PostResult
 import app.matterplug.guard.logic.Power
+
+/** A check that went through delivery: the first push it made, or null when it made none (what the console heartbeat learns from it). */
+class Delivery(val firstPush: PostResult?)
 
 /**
  * What a feature (Cellular Check, Fixed IP) uses to put an alert on the wire: build the event with the battery as it reads now, send it,
@@ -29,7 +33,7 @@ object AlertChannel {
         ctx: Context, sender: HttpAlerter.Sender.Feature, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
     ) = HttpAlerter.deliver(ctx, GuardStore(ctx), events, status, budgetMs, sender)
 
-    /** Queues a cancelled for [kind] behind the waiting requests (R4) and starts the flush job. Throws on a store failure: the caller logs it. */
+    /** Queues a cancelled for [kind] behind the waiting requests and starts the flush job. Throws on a store failure: the caller logs it. */
     suspend fun queueCancelled(ctx: Context, kind: AlertKind, by: CancelledBy, extra: AlertExtra? = null) {
         val e = event(ctx, kind, AlertPhase.Cancelled, System.currentTimeMillis(), extra, cancelledBy = by)
         GuardStore(ctx).enqueue(listOf(HttpAlerter.body(e)), guardItems = false)

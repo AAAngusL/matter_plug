@@ -97,7 +97,7 @@ class GuardStore(context: Context) {
 
     /**
      * Appends finished bodies to the waiting list in ONE edit, and only while Battery Guard and "Send alerts" are both on
-     * in that same edit, so a run that is still going cannot refill a list that the settings rules have just cleared (5.2).
+     * in that same edit, so a run that is still going cannot refill a list that the settings rules have just cleared.
      * Capped at [DeliveryPlan.MAX_QUEUE] (oldest dropped). Cellular Check's requests pass [guardItems] false: its caller
      * has checked Cellular Check's own "Send cellular alerts", and Cellular Check runs with Battery Guard off.
      */
@@ -172,7 +172,7 @@ class GuardStore(context: Context) {
         store.edit { putOrRemove(it, LAST_RUN_ERROR, text) }
     }
 
-    /** G7: the two permission prompts are asked once each, whatever the answer was. Not cleared when Battery Guard is switched off. */
+    /** The two permission prompts are asked once each, whatever the answer was. Not cleared when Battery Guard is switched off. */
     suspend fun readAskedNotifications(): Boolean = store.data.first()[ASKED_NOTIFICATIONS] ?: false
     suspend fun readAskedExemption(): Boolean = store.data.first()[ASKED_EXEMPTION] ?: false
     suspend fun markAskedNotifications() { store.edit { it[ASKED_NOTIFICATIONS] = true } }
