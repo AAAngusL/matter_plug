@@ -3,7 +3,7 @@ package app.matterplug.guard
 import android.content.Context
 import android.util.Log
 import app.matterplug.guard.logic.AlertEvent
-import app.matterplug.heartbeat.HeartbeatRunner
+import app.matterplug.guard.logic.PostResult
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
 import app.matterplug.guard.logic.AlertPolicy
@@ -23,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * The check. [onAlarm] reads, reschedules, records and logs the decision, and starts [ActionService] only when a switch
+ * The check. [onAlarm] reads, reschedules, records and logs the decision, and starts the switching service (`checks.ActionService`) only when a switch
  * is needed; a check with action Nothing starts no service and touches no Matter class (B3, B11). [work] runs inside
  * the service, does the switch and the power wait. Both end in [finish] (alert policy, notifications, HTTP delivery and the status report).
  */
@@ -36,15 +36,18 @@ object GuardRunner {
     /** One run at a time. `work` takes the same lock. */
     private val mutex = Mutex()
 
-    /** From CheckReceiver, inside goAsync. Never throws (except cancellation). */
-    suspend fun onAlarm(ctx: Context) {
-        mutex.withLock { runCheck(ctx) }
-    }
+    /** A check that went through delivery: the first push it made, or null when it made none (what the console heartbeat learns from it). */
+    class Delivery(val firstPush: PostResult?)
 
-    /** From ActionService, inside withTimeout(120_000). Never throws (except cancellation); always reschedules. */
-    suspend fun work(ctx: Context) {
-        mutex.withLock { runWork(ctx) }
-    }
+    /**
+     * From the check receiver, inside goAsync. [startSwitchService] starts the service that runs [work] (false when Android refuses); it is
+     * passed in because the service sits above this object. Returns the delivery when the check made one, else null. Never throws (except cancellation).
+     */
+    suspend fun onAlarm(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery? =
+        mutex.withLock { runCheck(ctx, startSwitchService) }
+
+    /** From the switching service, inside withTimeout(120_000). Returns the delivery when the run made one. Never throws (except cancellation); always reschedules. */
+    suspend fun work(ctx: Context): Delivery? = mutex.withLock { runWork(ctx) }
 
     /**
      * The settings when Battery Guard is on, else null. When they cannot be read it is unknown whether it is on, so the
@@ -66,10 +69,10 @@ object GuardRunner {
         return settings
     }
 
-    private suspend fun runCheck(ctx: Context) {
+    private suspend fun runCheck(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery? {
         val store = GuardStore(ctx)
 
-        val settings = enabledSettingsOrNull(ctx, store, "check") ?: return
+        val settings = enabledSettingsOrNull(ctx, store, "check") ?: return null
 
         var nextAt: Long? = null
         try {
@@ -111,8 +114,8 @@ object GuardRunner {
 
             var serviceFailed = false
             if (action != GuardAction.Nothing) {
-                if (ActionService.start(ctx)) return      // the service does the rest (work, finish), including the next alarm
-                // ActionService.start already wrote recordRunError("service could not start")
+                if (startSwitchService(ctx)) return null      // the service does the rest (work, finish), including the next alarm
+                // the service start already wrote recordRunError("service could not start")
                 serviceFailed = true
                 Log.w(TAG, CheckLog.line(reading?.level, plugged, action, CheckDecision.FAULT_SERVICE, intervalMin, nextAt))
             }
@@ -121,10 +124,11 @@ object GuardRunner {
             val queueEmpty = store.readQueue().isEmpty()
             if (CheckDecision.nothingToDo(settings, store.readAlertState(), queueEmpty, events)) {
                 if (clean) noteError(store, null)         // rule 1: no service, no Matter, no notification work
-                return
+                return null
             }
-            finish(ctx, settings, reading, events, budgetMs = 5_000)      // B11
+            val delivery = finish(ctx, settings, reading, events, budgetMs = 5_000)      // B11
             if (clean) noteError(store, null)
+            return delivery
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "check failed", e)
@@ -133,17 +137,19 @@ object GuardRunner {
                 try { CheckScheduler.scheduleIn(ctx, RETRY_MS) } catch (e2: Exception) { Log.e(TAG, "retry not scheduled", e2) }
             }
         }
+        return null
     }
 
-    private suspend fun runWork(ctx: Context) {
+    private suspend fun runWork(ctx: Context): Delivery? {
         val store = GuardStore(ctx)
 
-        val settings = enabledSettingsOrNull(ctx, store, "work") ?: return
+        val settings = enabledSettingsOrNull(ctx, store, "work") ?: return null
 
         var reading: BatteryReading? = null
         var finalReading: BatteryReading? = null
         var action = GuardAction.Nothing
         var outcome = "none"
+        var delivery: Delivery? = null
         try {
             val r: BatteryReading? = BatteryReader.readOrNull(ctx)       // B5: the service reads for itself
             reading = r
@@ -173,7 +179,7 @@ object GuardRunner {
             // Read AFTER the power wait, so a PowerWait(false) is not followed by a plugged-in state in the same call (G1 note 8).
             val finalR: BatteryReading? = BatteryReader.readOrNull(ctx) ?: r
             finalReading = finalR
-            finish(ctx, settings, finalR, events, budgetMs = 60_000)
+            delivery = finish(ctx, settings, finalR, events, budgetMs = 60_000)
             if (fault == null) noteError(store, null)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -184,6 +190,7 @@ object GuardRunner {
             // Runs on cancellation (the 120 s limit) too, so the chain of alarms goes on.
             withContext(NonCancellable) { rescheduleAfterWork(ctx, store, settings, reading, finalReading, action, outcome) }
         }
+        return delivery
     }
 
     /** "battery unreadable" when there is no reading, else "exact alarms not allowed" when they are not allowed, else null. */
@@ -196,7 +203,7 @@ object GuardRunner {
      * Alert policy, stored state, notifications (always), then HTTP delivery and the status report within [budgetMs]
      * (5 s from onAlarm, B11; 60 s from the service).
      */
-    private suspend fun finish(ctx: Context, settings: GuardSettings, reading: BatteryReading?, events: List<CheckEvent>, budgetMs: Long) {
+    private suspend fun finish(ctx: Context, settings: GuardSettings, reading: BatteryReading?, events: List<CheckEvent>, budgetMs: Long): Delivery {
         val store = GuardStore(ctx)
         val last = if (reading == null) store.status.first() else null
         val level = reading?.level ?: last?.lastLevel ?: 0
@@ -212,7 +219,7 @@ object GuardRunner {
                 nextCheckInMin = settings.intervalMin)
         } else null
         val firstPush = HttpAlerter.deliver(ctx, store, result.events, status, budgetMs, HttpAlerter.Sender.BatteryGuard)         // 5.6: never throws, stays inside budgetMs
-        HeartbeatRunner.afterCheck(ctx, firstPush)      // Battery Guard's check carries the console heartbeat when it is on
+        return Delivery(firstPush)      // the caller hands it to the console heartbeat, which Battery Guard's check carries when it is on
     }
 
     /** The interval follows the plugged-in state read AFTER the switch (5.5). Never throws except for cancellation (not possible in NonCancellable). */

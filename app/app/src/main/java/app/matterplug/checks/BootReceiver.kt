@@ -1,4 +1,4 @@
-package app.matterplug.guard
+package app.matterplug.checks
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,6 +9,9 @@ import app.matterplug.cellular.CellularScheduler
 import app.matterplug.cellular.CellularStore
 import app.matterplug.fixedip.IpStore
 import app.matterplug.fixedip.IpWatch
+import app.matterplug.guard.CheckScheduler
+import app.matterplug.guard.FlushJobService
+import app.matterplug.guard.GuardStore
 
 /**
  * After a restart, an app update or a change of the exact-alarm permission (5.8): if Battery Guard is on, schedule the

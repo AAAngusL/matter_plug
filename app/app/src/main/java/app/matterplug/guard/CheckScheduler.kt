@@ -5,7 +5,10 @@ import app.matterplug.alarm.ExactAlarm
 
 /** The one alarm of Battery Guard (request code 1). */
 object CheckScheduler {
-    private val alarm = ExactAlarm(requestCode = 1, receiver = CheckReceiver::class.java, tag = "Guard")
+    /** The receiver in `checks` that runs the check; named, not imported, so `guard` stays below `checks`. */
+    const val CHECK_RECEIVER = "app.matterplug.checks.CheckReceiver"
+
+    private val alarm = ExactAlarm(requestCode = 1, receiverClassName = CHECK_RECEIVER, tag = "Guard")
 
     fun canScheduleExact(context: Context): Boolean = alarm.canScheduleExact(context)
 

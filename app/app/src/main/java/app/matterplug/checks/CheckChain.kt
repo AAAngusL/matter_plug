@@ -1,9 +1,11 @@
-package app.matterplug.guard
+package app.matterplug.checks
 
 import android.content.Context
 import android.util.Log
 import app.matterplug.cellular.CellularRunner
 import app.matterplug.fixedip.IpRunner
+import app.matterplug.guard.GuardRunner
+import app.matterplug.heartbeat.HeartbeatRunner
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -31,6 +33,6 @@ object CheckChain {
                 Log.e(TAG, "${step.name} failed; the check goes on", e)
             }
         }
-        if (withGuard) GuardRunner.onAlarm(ctx)
+        if (withGuard) GuardRunner.onAlarm(ctx, startSwitchService = ActionService::start)?.let { HeartbeatRunner.afterCheck(ctx, it.firstPush) }
     }
 }

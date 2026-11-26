@@ -58,8 +58,8 @@
         </activity>
 
         <!-- Battery Guard: the one alarm (G3), the switching service (G4), the flush job for waiting alerts (G6) and the restart receiver (G7). -->
-        <receiver android:name=".guard.CheckReceiver" android:exported="false" />
-        <receiver android:name=".guard.BootReceiver" android:exported="true">
+        <receiver android:name=".checks.CheckReceiver" android:exported="false" />
+        <receiver android:name=".checks.BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
@@ -67,7 +67,7 @@
             </intent-filter>
         </receiver>
         <!-- Cellular Check: its own alarm (C2) and the loopback SMS service (C3) -->
-        <receiver android:name=".cellular.CellularReceiver" android:exported="false" />
+        <receiver android:name=".checks.CellularReceiver" android:exported="false" />
         <service
             android:name=".cellular.LoopbackService"
             android:exported="false"
@@ -78,7 +78,7 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
         <service
-            android:name=".guard.ActionService"
+            android:name=".checks.ActionService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
         <service

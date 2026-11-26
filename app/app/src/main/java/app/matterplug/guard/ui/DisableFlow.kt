@@ -3,7 +3,7 @@ package app.matterplug.guard.ui
 import android.app.Application
 import android.util.Log
 import app.matterplug.data.PlugRepository
-import app.matterplug.guard.GuardControl
+import app.matterplug.checks.GuardSwitch
 import app.matterplug.guard.logic.PermissionPrompts
 import app.matterplug.matter.PlugCommander
 import app.matterplug.matter.SwitchResult
@@ -103,5 +103,5 @@ class DisableFlow(private val app: Application, private val scope: CoroutineScop
         if (_state.value == DisableState.AskTurnOn || _state.value == DisableState.TurnOnFailed) _state.value = DisableState.Idle
     }
 
-    private suspend fun disableNow() = GuardControl.disable(app)
+    private suspend fun disableNow() = GuardSwitch.off(app)
 }

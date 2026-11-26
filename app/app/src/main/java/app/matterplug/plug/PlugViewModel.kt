@@ -7,7 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import app.matterplug.data.Plug
 import app.matterplug.data.PlugRepository
-import app.matterplug.guard.GuardControl
+import app.matterplug.checks.GuardSwitch
 import app.matterplug.matter.PlugClient
 import app.matterplug.matter.PlugState
 import kotlinx.coroutines.Job
@@ -104,7 +104,7 @@ class PlugViewModel(application: Application, private val plug: Plug) : AndroidV
     fun remove(onRemoved: (unreachable: Boolean) -> Unit) {
         viewModelScope.launch {
             // Battery Guard must not move on to another plug by itself: removing the charger plug switches it off.
-            if (repository.charger()?.nodeId == plug.nodeId) GuardControl.disable(getApplication())
+            if (repository.charger()?.nodeId == plug.nodeId) GuardSwitch.off(getApplication())
             val wasOnline = ui.value.plug is PlugState.Online
             if (wasOnline) client.leaveFabric()
             client.stop()

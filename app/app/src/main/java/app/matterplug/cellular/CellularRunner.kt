@@ -1,12 +1,8 @@
 package app.matterplug.cellular
 
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import android.util.Log
 import app.matterplug.alarm.ExactAlarm
-import app.matterplug.alarm.runAsync
-import app.matterplug.guard.CheckChain
 import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.cellular.logic.CellularAlertPolicy
 import app.matterplug.cellular.logic.CellularLog
@@ -41,18 +37,13 @@ import java.util.UUID
 
 /**
  * Cellular Check's own alarm (request code 2). Used only while Battery Guard is off: while it is on, the cellular run
- * rides on Battery Guard's alarm (CheckReceiver), so the app never keeps two exact-alarm chains, which together would
+ * rides on Battery Guard's alarm (`checks.CheckReceiver`), so the app never keeps two exact-alarm chains, which together would
  * exceed what Android allows an idle phone (about one exact alarm per app every 9 minutes).
  */
 object CellularScheduler {
-    val alarm = ExactAlarm(requestCode = 2, receiver = CellularReceiver::class.java, tag = "Cellular")
-}
-
-/** Receives Cellular Check's own alarm: the features' steps, with no Battery Guard check (it is off; see [CheckChain]). */
-class CellularReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) = runAsync(context, "Cellular", "run") {
-        CheckChain.run(it, withGuard = false)
-    }
+    /** The receiver in `checks` that runs the steps; named, not imported, so `cellular` stays below `checks`. */
+    const val RECEIVER = "app.matterplug.checks.CellularReceiver"
+    val alarm = ExactAlarm(requestCode = 2, receiverClassName = RECEIVER, tag = "Cellular")
 }
 
 /**

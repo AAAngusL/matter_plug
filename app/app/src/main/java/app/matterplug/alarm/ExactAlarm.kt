@@ -2,7 +2,6 @@ package app.matterplug.alarm
 
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -10,10 +9,11 @@ import android.os.SystemClock
 import android.util.Log
 
 /**
- * One repeating chain of exact alarms delivered to [receiver]. The same PendingIntent replaces the previous alarm, so a
+ * One repeating chain of exact alarms delivered to the receiver named [receiverClassName] (a name, so the code that owns the alarm
+ * need not import the receiver, which sits in a higher layer). The same PendingIntent replaces the previous alarm, so a
  * chain never has more than one pending. Battery Guard and Cellular Check each own one, with their own [requestCode].
  */
-class ExactAlarm(private val requestCode: Int, private val receiver: Class<out BroadcastReceiver>, private val tag: String) {
+class ExactAlarm(private val requestCode: Int, private val receiverClassName: String, private val tag: String) {
 
     fun canScheduleExact(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager(context).canScheduleExactAlarms()
@@ -44,7 +44,7 @@ class ExactAlarm(private val requestCode: Int, private val receiver: Class<out B
         context.applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     private fun pending(context: Context): PendingIntent = PendingIntent.getBroadcast(
-        context.applicationContext, requestCode, Intent(context.applicationContext, receiver),
+        context.applicationContext, requestCode, Intent().setClassName(context.applicationContext, receiverClassName),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 }

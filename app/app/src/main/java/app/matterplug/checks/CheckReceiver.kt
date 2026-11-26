@@ -1,4 +1,4 @@
-package app.matterplug.guard
+package app.matterplug.checks
 
 import android.content.BroadcastReceiver
 import android.content.Context
