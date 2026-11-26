@@ -39,7 +39,7 @@ Each milestone ends with a check. Do not start a milestone until the previous ch
 | G2 | `GuardStore` (5.2), manifest and resource changes (section 3), and the settings section with the Battery Guard switch, sliders, drop-downs, alert fields and the status lines (5.9). The buttons are present but do nothing yet | Values survive an app restart; a slider cannot produce an invalid pair; an invalid address is refused |
 | G3 | `BatteryReader`, `CheckScheduler`, `CheckReceiver`, `GuardRunner.onAlarm` (5.3), logging the decision only (tag `Guard`). No service yet | With the app closed and the screen off, `adb logcat -s Guard` shows a line at each interval for the right state, with level, plugged-in state, decision and the next check time |
 | G4 | `ActionService`, `PlugCommander`, `GuardRunner.work` without alerts (5.4, 5.5) | With thresholds set close to the current level, the plug switches on and off at the right levels with the app closed and the screen off; the plug screen follows if it is open |
-| G5 | The failed-check count, the faulty-check count, the 30-second power wait, `AlertPolicy` wired in, `GuardNotifier`, notifications on the phone (5.5, 5.7) | Section 6 of `BATTERY-GUARD.md` behaves as written with the plug unpowered, with the charger cable pulled, and with exact alarms revoked (the third alert); notifications appear; no HTTP yet |
+| G5 | The failed-check count, the faulty-check count, the 30-second power wait, `AlertPolicy` wired in, `AlertNotifier`, notifications on the phone (5.5, 5.7) | Section 6 of `BATTERY-GUARD.md` behaves as written with the plug unpowered, with the charger cable pulled, and with exact alarms revoked (the third alert); notifications appear; no HTTP yet |
 | G6 | `HttpAlerter`, status reports, `FlushJobService`, the test button, the waiting list, the alert settings rules, and the Go receiver with its silence alarm (5.6, section 6) | Each alert arrives once at the receiver, repeats hourly, is followed by a recovered request, a request that failed arrives later with its original time, status requests arrive every interval, and the silence alarm fires and clears |
 | G7 | `BootReceiver`, the permission prompts, "Check now", the exact-alarm warning (5.8, 5.9) | After restarting the phone, checks resume without opening the app |
 
@@ -68,17 +68,17 @@ Add on `<application>`: `android:networkSecurityConfig="@xml/network_security_co
 Add inside `<application>`:
 
 ```xml
-<receiver android:name=".guard.CheckReceiver" android:exported="false" />
-<receiver android:name=".guard.BootReceiver" android:exported="true">
+<receiver android:name=".checks.CheckReceiver" android:exported="false" />
+<receiver android:name=".checks.BootReceiver" android:exported="true">
     <intent-filter>
         <action android:name="android.intent.action.BOOT_COMPLETED" />
         <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
         <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
     </intent-filter>
 </receiver>
-<service android:name=".guard.ActionService" android:exported="false"
+<service android:name=".checks.ActionService" android:exported="false"
     android:foregroundServiceType="connectedDevice" />
-<service android:name=".guard.FlushJobService" android:exported="false"
+<service android:name=".alerts.FlushJobService" android:exported="false"
     android:permission="android.permission.BIND_JOB_SERVICE" />
 ```
 
@@ -107,30 +107,31 @@ New code is a sub-tree. Only `PlugCommander` goes in the existing `matter` packa
 
 ```
 app/matterplug/
-  guard/
+  battery/                      BatteryReader, BatteryMath, Power (no Android imports except BatteryReader)
+  alerts/                       the alert pipeline, shared by every feature
     logic/                      <- no Android imports (B1)
+      AlertEvent.kt             (AlertKind, AlertPhase, AlertEvent, AlertExtra)
+      AlertMessages.kt, AlertJson.kt (encode + ISO time), AlertAddress.kt, AlertToken.kt
+      DeliveryPlan.kt, QueueCodec.kt, CancelledBy.kt, SwitchOff.kt, NotificationIds.kt
+    AlertOutbox.kt              (the waiting list, address, token and delivery line, in the "guard" DataStore file)
+    AlertChannel.kt, Sender.kt, HttpAlerter.kt, AlertNotifier.kt, FlushJobService.kt
+  guard/                        Battery Guard only
+    logic/
       GuardSettings.kt
-      GuardPolicy.kt            (GuardAction, GuardPolicy, BatteryMath)
-      AlertTypes.kt             (AlertKind, AlertPhase, ActiveAlert, AlertState, CheckEvent, AlertEvent)
-      AlertPolicy.kt
-      AlertMessages.kt
-      AlertJson.kt              (encode + ISO time)
-      AlertAddress.kt
-      Codecs.kt                 (AlertState and waiting-list text codecs)
+      GuardPolicy.kt            (GuardAction, GuardPolicy)
+      AlertTypes.kt             (ActiveAlert, AlertState, CheckEvent)
+      AlertPolicy.kt, GuardSwitchOff.kt, CheckDecision.kt
+      Codecs.kt                 (AlertState text codec)
     GuardStore.kt               (DataStore)
-    BatteryReader.kt
-    CheckScheduler.kt
-    CheckReceiver.kt
-    ActionService.kt
+    CheckScheduler.kt, CheckSchedule.kt
     GuardRunner.kt              (the check and the work, 5.5)
-    GuardNotifier.kt
-    HttpAlerter.kt
-    FlushJobService.kt
-    BootReceiver.kt
+    PlugStep.kt
     GuardPermissions.kt         (exemption, notification and exact-alarm helpers)
     ui/
       GuardSection.kt
       GuardViewModel.kt
+  checks/                       what runs at each check, above every feature
+    CheckChain.kt, CheckReceiver.kt, CellularReceiver.kt, BootReceiver.kt, ActionService.kt, GuardSwitch.kt
   matter/
     PlugCommander.kt            (new)
 tools/alert-receiver/           (main.go, go.mod; section 6)
@@ -546,7 +547,7 @@ store.recordCheck(now, final.level, final.pluggedIn, nextAt)
 level/plugged = reading, or the last stored values when reading is null (plugged defaults to false)
 result  = AlertPolicy.apply(store.readAlertState(), events, level, plugged, now)
 store.writeAlertState(result.state)
-GuardNotifier.post(ctx, result.events)                                           // always
+AlertNotifier.post(ctx, result.events)                                           // always
 status  = if (settings.statusEnabled) AlertEvent(Status, Status, level, plugged, null, now, nextCheckInMin = settings.intervalFor(plugged)) else null
 HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)                 // 5.6
 ```
@@ -593,7 +594,7 @@ A flush also runs on every `finish`, because the queue is read in step 3 whether
 
 `FlushJobService` (a `JobService`): schedule with `JobScheduler`, job id `7001`, `setRequiredNetworkType(NETWORK_TYPE_ANY)`, `setPersisted(true)`, default backoff. In `onStartJob` run steps 1 and 3 in a coroutine with a 30-second budget, call `jobFinished(params, needsReschedule = queue still not empty)`, and return true. It works with the app closed (B6). (verify) `setPersisted(true)` needs `RECEIVE_BOOT_COMPLETED`, which is declared.
 
-### 5.7 `GuardNotifier.kt`
+### 5.7 `AlertNotifier.kt`
 
 - Channels, created once: `guard_work` (importance low) and `guard_alerts` (importance high).
 - `post(ctx, events)`: for each event, one notification on `guard_alerts` with the `AlertMessages.text` string, id derived from the alert kind so a reminder replaces the earlier one and `Recovered` replaces it with the recovery text. If `POST_NOTIFICATIONS` is not granted on Android 13 and above, do nothing and do not fail.

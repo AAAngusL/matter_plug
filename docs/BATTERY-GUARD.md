@@ -179,7 +179,7 @@ These figures are estimates; the real numbers come from test T6. To hold the top
 |                                    HttpAlerter        ChipController  |    |
 |                                        +------------------------------+    |
 |                                                                            |
-|  GuardSettingsStore (DataStore)   GuardNotifier   BootReceiver             |
+|  GuardSettingsStore (DataStore)   AlertNotifier   BootReceiver             |
 +----------------------------------------------------------------------------+
 ```
 
@@ -194,7 +194,7 @@ These figures are estimates; the real numbers come from test T6. To hold the top
 | `PlugCommander` | One switch: connect to the plug, send On or Off, read the state back, release the session | New, in the `matter` package; reuses the calls in `PlugClient` |
 | `AlertPolicy` | Decides when an alert starts, repeats and ends (section 7), as a pure function | New; unit-tested without a phone |
 | `HttpAlerter` | Sends one alert or status report as an HTTP POST, and keeps alerts that failed to send until they are delivered | New |
-| `GuardNotifier` | The on-phone notification that mirrors each alert, and the brief "switching" notification | New |
+| `AlertNotifier` | The on-phone notification that mirrors each alert, and the brief "switching" notification | New |
 | `BootReceiver` | Schedules the checks again after a restart or an app update, and runs one check at once | New |
 | `ChipController` | Unchanged. Created only when `PlugCommander` or the plug screen needs it | Existing |
 
