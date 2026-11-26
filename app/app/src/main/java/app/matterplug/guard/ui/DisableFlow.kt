@@ -2,10 +2,9 @@ package app.matterplug.guard.ui
 
 import android.app.Application
 import android.util.Log
-import app.matterplug.data.PlugRepository
+import app.matterplug.guard.ChargerPlug
 import app.matterplug.checks.GuardSwitch
 import app.matterplug.guard.logic.PermissionPrompts
-import app.matterplug.matter.PlugCommander
 import app.matterplug.matter.SwitchResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -50,8 +49,7 @@ class DisableFlow(private val app: Application, private val scope: CoroutineScop
         _state.value = DisableState.Reading
         scope.launch {
             try {
-                val plug = PlugRepository(app).charger()
-                val isOn: Boolean? = if (plug == null) null else PlugCommander(app).readOnOff(plug)
+                val isOn: Boolean? = ChargerPlug(app).readOnOff()
                 Log.i("Guard", "disable: plug state ${isOn ?: "unknown"}")
                 if (PermissionPrompts.needsTurnOnDialog(isOn)) {
                     _state.value = DisableState.AskTurnOn
@@ -73,8 +71,7 @@ class DisableFlow(private val app: Application, private val scope: CoroutineScop
         _state.value = DisableState.TurningOn
         scope.launch {
             try {
-                val plug = PlugRepository(app).charger()
-                val result = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(app).switchTo(plug, true)
+                val result = ChargerPlug(app).switchTo(true)
                 Log.i("Guard", "disable: turn on -> $result")
                 if (result is SwitchResult.Confirmed) {
                     disableNow()
