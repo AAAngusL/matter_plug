@@ -84,37 +84,38 @@ object GuardRunner {
      * Sets the next alarm and returns its time; null when Android refused, which is noted for the screen and retried in 5 minutes so the chain
      * of alarms does not end. Never throws except for cancellation.
      */
-    private suspend fun scheduleNext(ctx: Context, store: GuardStore, intervalMin: Int): Long? = try {
+    private suspend fun scheduleNext(ctx: Context, record: GuardRecord, intervalMin: Int): Long? = try {
         CheckScheduler.scheduleIn(ctx, intervalMin * 60_000L)
     } catch (e: Exception) {
         if (e is CancellationException) throw e
         Log.e(TAG, "next alarm not scheduled", e)
         scheduleRetry(ctx)
-        noteError(store, "next check not scheduled")
+        noteError(record, "next check not scheduled")
         null
     }
 
-    private suspend fun recordCheck(store: GuardStore, reading: BatteryReading?, nextAt: Long?) {
-        safely("recordCheck", Unit) { store.recordCheck(System.currentTimeMillis(), reading?.level, reading?.power, nextAt) }
+    private suspend fun recordCheck(record: GuardRecord, reading: BatteryReading?, nextAt: Long?) {
+        safely("recordCheck", Unit) { record.recordCheck(System.currentTimeMillis(), reading?.level, reading?.power, nextAt) }
     }
 
     private suspend fun runCheck(ctx: Context, startSwitchService: suspend (Context) -> Boolean): Delivery {
         val store = GuardStore(ctx)
+        val record = GuardRecord(ctx)
         val settings = enabledSettingsOrNull(ctx, store, "check") ?: return Delivery.Skipped
 
         var nextAt: Long? = null
         try {
             val reading = BatteryReader.readOrNull(ctx)
-            nextAt = scheduleNext(ctx, store, settings.intervalMin)      // first, so nothing below can end the chain
-            recordCheck(store, reading, nextAt)
+            nextAt = scheduleNext(ctx, record, settings.intervalMin)      // first, so nothing below can end the chain
+            recordCheck(record, reading, nextAt)
 
             val fault = degradationReason(ctx, reading)
             val action = if (reading == null) GuardAction.Nothing else GuardPolicy.decide(reading.level, reading.pluggedIn, settings)
-            if (reading == null) noteError(store, CheckLog.FAULT_BATTERY_UNREADABLE)
+            if (reading == null) noteError(record, CheckLog.FAULT_BATTERY_UNREADABLE)
             Log.i(TAG, CheckLog.line(reading?.level, reading?.pluggedIn, action, fault, settings.intervalMin, nextAt))
 
             // PLUG-WATCH.md section 4: with no switch to make, a read-only check that the charger plug still answers.
-            val plugEvent = if (action == GuardAction.Nothing && reading != null) PlugStep.readPlug(ctx, store) else null
+            val plugEvent = if (action == GuardAction.Nothing && reading != null) PlugStep.readPlug(ctx, record) else null
 
             // A switch is needed: the service does the rest (work, finish), including the next alarm. When Android refuses to start it,
             // the service start has already written the run error, and this check goes on without a switch.
@@ -124,15 +125,15 @@ object GuardRunner {
                 Log.w(TAG, CheckLog.line(reading?.level, reading?.pluggedIn, action, CheckDecision.FAULT_SERVICE, settings.intervalMin, nextAt))
             }
             val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugEvent)
-            val quiet = CheckDecision.nothingToDo(settings, store.readAlertState(), !AlertChannel.hasWaiting(ctx), events)
+            val quiet = CheckDecision.nothingToDo(settings, record.readAlertState(), !AlertChannel.hasWaiting(ctx), events)
             // A quiet check starts no service, touches no Matter and does no notification work.
             val delivery = if (quiet) Delivery.Skipped else finish(ctx, settings, reading, events, budgetMs = RECEIVER_DELIVERY_BUDGET_MS)
-            if (fault == null && !serviceFailed && nextAt != null) noteError(store, null)
+            if (fault == null && !serviceFailed && nextAt != null) noteError(record, null)
             return delivery
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "check failed", e)
-            noteError(store, "check failed")
+            noteError(record, "check failed")
             if (nextAt == null) scheduleRetry(ctx)      // failed before the alarm was set: set it now so the chain continues
         }
         return Delivery.Skipped
@@ -140,6 +141,7 @@ object GuardRunner {
 
     private suspend fun runWork(ctx: Context): Delivery {
         val store = GuardStore(ctx)
+        val record = GuardRecord(ctx)
         val settings = enabledSettingsOrNull(ctx, store, "work") ?: return Delivery.Skipped
 
         var reading: BatteryReading? = null
@@ -153,10 +155,10 @@ object GuardRunner {
             val events = mutableListOf<CheckEvent>(CheckEvent.ServiceStarted)
             if (reading == null) {
                 outcome = "battery unreadable"
-                noteError(store, CheckLog.FAULT_BATTERY_UNREADABLE)
+                noteError(record, CheckLog.FAULT_BATTERY_UNREADABLE)
             } else {
                 action = GuardPolicy.decide(reading.level, reading.pluggedIn, settings)
-                val done = carryOut(ctx, store, action, reading.level)
+                val done = carryOut(ctx, record, action, reading.level)
                 outcome = done.outcome
                 events += done.events
             }
@@ -165,23 +167,23 @@ object GuardRunner {
             // Read AFTER the power wait, so a PowerWait(false) is not followed by a plugged-in state in the same call.
             finalReading = BatteryReader.readOrNull(ctx) ?: reading
             delivery = finish(ctx, settings, finalReading, events, budgetMs = SERVICE_DELIVERY_BUDGET_MS)
-            if (fault == null) noteError(store, null)
+            if (fault == null) noteError(record, null)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "work failed", e)
             outcome = "work failed"
-            noteError(store, "check failed")
+            noteError(record, "check failed")
         } finally {
             // Runs on cancellation (the 120 s limit) too, so the chain of alarms goes on.
-            withContext(NonCancellable) { rescheduleAfterWork(ctx, store, settings, reading, finalReading, action, outcome) }
+            withContext(NonCancellable) { rescheduleAfterWork(ctx, record, settings, reading, finalReading, action, outcome) }
         }
         return delivery
     }
 
     /** What the service does for a decided [action]: the switch and the power wait, or, with nothing to switch, the plug check (PLUG-WATCH.md section 4). */
-    private suspend fun carryOut(ctx: Context, store: GuardStore, action: GuardAction, level: Int): PlugStep.SwitchRun = when (action) {
-        GuardAction.Nothing -> PlugStep.SwitchRun("no switch needed", listOfNotNull(CheckEvent.NoSwitchNeeded, PlugStep.readPlug(ctx, store)))
-        GuardAction.TurnOn, GuardAction.TurnOff -> PlugStep.doSwitch(ctx, store, on = action == GuardAction.TurnOn, level = level)
+    private suspend fun carryOut(ctx: Context, record: GuardRecord, action: GuardAction, level: Int): PlugStep.SwitchRun = when (action) {
+        GuardAction.Nothing -> PlugStep.SwitchRun("no switch needed", listOfNotNull(CheckEvent.NoSwitchNeeded, PlugStep.readPlug(ctx, record)))
+        GuardAction.TurnOn, GuardAction.TurnOff -> PlugStep.doSwitch(ctx, record, on = action == GuardAction.TurnOn, level = level)
     }
 
     /** "battery unreadable" when there is no reading, else "exact alarms not allowed" when they are not allowed, else null. */
@@ -196,12 +198,13 @@ object GuardRunner {
      */
     private suspend fun finish(ctx: Context, settings: GuardSettings, reading: BatteryReading?, events: List<CheckEvent>, budgetMs: Long): Delivery {
         val store = GuardStore(ctx)
-        val last = if (reading == null) store.status.first() else null
+        val record = GuardRecord(ctx)
+        val last = if (reading == null) record.status.first() else null
         val level = reading?.level ?: last?.lastLevel ?: 0
         // Unread battery: the last plugged-in state, but the status is not known now (ALERT-API.md section 3).
         val power = reading?.power ?: Power(last?.lastPlugged ?: false, BatteryStatus.Unknown)
-        val result = AlertPolicy.apply(store.readAlertState(), events, level, power, System.currentTimeMillis())
-        store.writeAlertState(result.state)
+        val result = AlertPolicy.apply(record.readAlertState(), events, level, power, System.currentTimeMillis())
+        record.writeAlertState(result.state)
         for (e in result.events) Log.i(TAG, "alert: kind=${e.kind.wire} phase=${e.phase.wire} battery=${e.battery} plugged=${e.power.pluggedIn} status=${e.power.status.wire}")
         AlertNotifier.post(ctx, result.events)                                   // always
         // The status report is built here and sent once by deliver (never queued). It needs statusEnabled, not alertsEnabled.
@@ -215,22 +218,22 @@ object GuardRunner {
 
     /** The interval follows the plugged-in state read AFTER the switch. Never throws except for cancellation (not possible in NonCancellable). */
     private suspend fun rescheduleAfterWork(
-        ctx: Context, store: GuardStore, settings: GuardSettings,
+        ctx: Context, record: GuardRecord, settings: GuardSettings,
         before: BatteryReading?, finalReading: BatteryReading?, action: GuardAction, outcome: String,
     ) {
         // The final reading of the run when there is one (taken after the power wait), else read again.
         val after: BatteryReading? = finalReading ?: BatteryReader.readOrNull(ctx) ?: before
         val intervalMin = settings.intervalMin
-        val nextAt = scheduleNext(ctx, store, intervalMin)
-        recordCheck(store, after, nextAt)
+        val nextAt = scheduleNext(ctx, record, intervalMin)
+        recordCheck(record, after, nextAt)
         val fault = degradationReason(ctx, after)
         Log.i(TAG, "work: " + CheckLog.line(after?.level, after?.pluggedIn, action, fault, intervalMin, nextAt) + " outcome=$outcome")
     }
 
-    /** What the switching service records when it fails around the check (see [GuardStore.recordRunError]). Never throws except for cancellation. */
-    suspend fun noteRunError(ctx: Context, text: String) = noteError(GuardStore(ctx), text)
+    /** What the switching service records when it fails around the check (see [GuardRecord.recordRunError]). Never throws except for cancellation. */
+    suspend fun noteRunError(ctx: Context, text: String) = noteError(GuardRecord(ctx), text)
 
-    private suspend fun noteError(store: GuardStore, text: String?) {
-        safely("recordRunError", Unit) { store.recordRunError(text) }
+    private suspend fun noteError(record: GuardRecord, text: String?) {
+        safely("recordRunError", Unit) { record.recordRunError(text) }
     }
 }

@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.matterplug.data.guardDataStore
+import app.matterplug.alerts.logic.AlertBody
+import app.matterplug.alerts.logic.AlertEvent
 import app.matterplug.alerts.logic.DeliveryPlan
 import app.matterplug.alerts.logic.QueueCodec
 import kotlinx.coroutines.flow.Flow
@@ -41,7 +43,7 @@ class AlertOutbox(context: Context) {
      */
     suspend fun enqueue(bodies: List<String>, sender: Sender) {
         if (bodies.isEmpty()) return
-        store.edit { p -> if (sender.mayQueueIn(p)) appendIn(p, bodies) }
+        store.edit { p -> if (sender.mayQueueIn(p)) appendBodiesIn(p, bodies) }
     }
 
     /** Removes the first entry if it is [sent], in one edit (the list may have been cleared or changed meanwhile). */
@@ -79,7 +81,10 @@ class AlertOutbox(context: Context) {
             p[ALERT_TOKEN] = e.token.trim()
         }
 
-        fun appendIn(p: MutablePreferences, bodies: List<String>) {
+        /** Adds [events] behind the requests already waiting, inside an edit. */
+        fun appendIn(p: MutablePreferences, events: List<AlertEvent>) = appendBodiesIn(p, events.map(AlertBody::of))
+
+        internal fun appendBodiesIn(p: MutablePreferences, bodies: List<String>) {
             p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
         }
 

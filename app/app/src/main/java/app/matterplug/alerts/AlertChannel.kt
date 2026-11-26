@@ -2,6 +2,7 @@ package app.matterplug.alerts
 
 import android.content.Context
 import android.util.Log
+import app.matterplug.alerts.logic.AlertBody
 import app.matterplug.alerts.logic.AlertEvent
 import app.matterplug.alerts.logic.AlertExtra
 import app.matterplug.alerts.logic.AlertKind
@@ -71,7 +72,7 @@ object AlertChannel {
             AlertNotifier.cancel(ctx, listOf(kind))
             if (by == null) return
             val e = event(ctx, kind, AlertPhase.Cancelled, System.currentTimeMillis(), extra(), cancelledBy = by)
-            AlertOutbox(ctx).enqueue(listOf(HttpAlerter.body(e)), FeatureSender(alertsOn = true, statusOn = false))
+            AlertOutbox(ctx).enqueue(listOf(AlertBody.of(e)), FeatureSender(alertsOn = true, statusOn = false))
             FlushJobService.schedule(ctx)
             Log.i(TAG, "alert: kind=${kind.wire} phase=cancelled by=${by.wire}")
         } catch (e: Exception) {

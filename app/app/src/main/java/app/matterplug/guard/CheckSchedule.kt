@@ -28,7 +28,7 @@ object CheckSchedule {
             if (e is CancellationException) throw e
             return Now(DEFAULT_INTERVAL_MIN, guardBringsNextRun = false, guardNextCheckAt = null, guardCarriesHeartbeat = true)
         }
-        val next = if (!settings.enabled) null else try { store.status.first().nextCheckAt } catch (e: Exception) {
+        val next = if (!settings.enabled) null else try { GuardRecord(ctx).status.first().nextCheckAt } catch (e: Exception) {
             if (e is CancellationException) throw e
             null
         }

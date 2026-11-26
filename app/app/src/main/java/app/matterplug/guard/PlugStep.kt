@@ -23,24 +23,24 @@ internal object PlugStep {
      * [CheckEvent.PlugRead] when there is one, and null when the lookup failed, so nothing is said about the plug.
      * Never throws except for cancellation.
      */
-    suspend fun readPlug(ctx: Context, store: GuardStore): CheckEvent? {
+    suspend fun readPlug(ctx: Context, record: GuardRecord): CheckEvent? {
         val plug = try { PlugRepository(ctx).charger() } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.w(TAG, "charger plug unreadable", e)
             return null
         } ?: run {
-            safely("clearPlugSighting", Unit) { store.clearPlugSighting() }
+            safely("clearPlugSighting", Unit) { record.clearPlugSighting() }
             return CheckEvent.NoPlug
         }
         val t0 = SystemClock.elapsedRealtime()
         val on: Boolean? = PlugCommander(ctx).readOnOff(plug)
         Log.i(TAG, "plug read: ${on?.let { if (it) "on" else "off" } ?: "not reached"} in ${SystemClock.elapsedRealtime() - t0} ms")
-        recordPlugSafely(store, on != null, on)
+        recordPlugSafely(record, on != null, on)
         return CheckEvent.PlugRead(on != null)
     }
 
-    private suspend fun recordPlugSafely(store: GuardStore, reached: Boolean, on: Boolean?) {
-        safely("recordPlug", Unit) { store.recordPlug(reached, on, System.currentTimeMillis()) }
+    private suspend fun recordPlugSafely(record: GuardRecord, reached: Boolean, on: Boolean?) {
+        safely("recordPlug", Unit) { record.recordPlug(reached, on, System.currentTimeMillis()) }
     }
 
     /**
@@ -62,14 +62,14 @@ internal object PlugStep {
     class SwitchRun(val outcome: String, val events: List<CheckEvent>)
 
     /** Throws only on cancellation or an unexpected error (the caller logs it). */
-    suspend fun doSwitch(ctx: Context, store: GuardStore, on: Boolean, level: Int): SwitchRun {
+    suspend fun doSwitch(ctx: Context, record: GuardRecord, on: Boolean, level: Int): SwitchRun {
         val events = mutableListOf<CheckEvent>()
         val result: SwitchResult = ChargerPlug(ctx).switchTo(on)
         val what = if (on) "on" else "off"
         return when (result) {
             is SwitchResult.Confirmed -> {
-                store.recordSwitch(System.currentTimeMillis(), on, level)
-                recordPlugSafely(store, reached = true, on = on)
+                record.recordSwitch(System.currentTimeMillis(), on, level)
+                recordPlugSafely(record, reached = true, on = on)
                 Log.i(TAG, "switch $what confirmed at $level%")
                 events += CheckEvent.SwitchConfirmed(on)
                 if (on) {
@@ -81,13 +81,13 @@ internal object PlugStep {
             }
             is SwitchResult.NotReached -> {
                 Log.w(TAG, "switch $what failed: ${result.reason}")
-                recordPlugSafely(store, reached = false, on = null)
+                recordPlugSafely(record, reached = false, on = null)
                 events += CheckEvent.SwitchFailed(on)
                 SwitchRun("switch $what NotReached(${result.reason})", events)
             }
             is SwitchResult.Unconfirmed -> {
                 Log.w(TAG, "switch $what unconfirmed: read-back differs")
-                recordPlugSafely(store, reached = true, on = null)      // the plug accepted the command, so it was reached; its state is unknown
+                recordPlugSafely(record, reached = true, on = null)      // the plug accepted the command, so it was reached; its state is unknown
                 events += CheckEvent.SwitchFailed(on)
                 SwitchRun("switch $what Unconfirmed", events)
             }

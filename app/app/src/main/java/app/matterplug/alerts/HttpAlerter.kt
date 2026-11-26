@@ -5,9 +5,8 @@ import android.os.SystemClock
 import android.util.Log
 import app.matterplug.alerts.logic.AlertAddress
 import app.matterplug.alerts.logic.AlertEvent
-import app.matterplug.alerts.logic.AlertJson
+import app.matterplug.alerts.logic.AlertBody
 import app.matterplug.alerts.logic.AlertKind
-import app.matterplug.alerts.logic.AlertMessages
 import app.matterplug.alerts.logic.AlertPhase
 import app.matterplug.alerts.logic.DeliveryError
 import app.matterplug.alerts.logic.DeliveryPlan
@@ -30,10 +29,6 @@ object HttpAlerter {
     /** One flush at a time (the check's own flush and the flush job). A second caller skips its flush. */
     private val flushLock = Mutex()
 
-    /** The finished JSON body of an event, as it goes on the wire and into the waiting list. */
-    fun body(e: AlertEvent): String =
-        AlertJson.encode(e, AlertMessages.text(e), AlertJson.isoTime(e.atMs, ZoneId.systemDefault()))
-
     /**
      * The test button: posts an AlertEvent(Test, Test, ...). Works whether or not alerts are on; needs a valid address only.
      * Does not touch the waiting list, the alert state or the delivery line.
@@ -43,7 +38,7 @@ object HttpAlerter {
         val address = endpoint.address
         if (!AlertAddress.isValid(address)) return PostResult(null, DeliveryError.BAD_ADDRESS)
         val e = AlertEvent(AlertKind.Test, AlertPhase.Test, level, power, null, System.currentTimeMillis())
-        val r = HttpPost.post(address.trim(), endpoint.token, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
+        val r = HttpPost.post(address.trim(), endpoint.token, AlertBody.of(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
         Log.i(TAG, "test alert host=${AlertAddress.hostOf(address)} code=${r.code} error=${r.error}")
         return r
     }
@@ -82,7 +77,7 @@ object HttpAlerter {
         val valid = AlertAddress.isValid(endpoint.address)
 
         if (alertsOn) {                                                                  // step 2
-            val bodies = DeliveryPlan.toEnqueue(events, true).map { body(it) }
+            val bodies = DeliveryPlan.toEnqueue(events, true).map(AlertBody::of)
             if (bodies.isNotEmpty()) outbox.enqueue(bodies, sender)
         }
         val waiting = outbox.readQueue().isNotEmpty()
@@ -100,7 +95,7 @@ object HttpAlerter {
             for (e in DeliveryPlan.extras(events, status, alertsOn, statusOn)) {
                 val t = DeliveryPlan.timeoutFor(deadline - SystemClock.elapsedRealtime())
                 if (t == null) { Log.i(TAG, "deliver: budget used, ${e.phase.wire} skipped"); break }
-                val r = HttpPost.post(address, endpoint.token, body(e), t)
+                val r = HttpPost.post(address, endpoint.token, AlertBody.of(e), t)
                 Log.i(TAG, "deliver: ${e.kind.wire}/${e.phase.wire} host=$host code=${r.code} error=${r.error}")
                 record(outbox, r)
                 first.compareAndSet(null, r)

@@ -16,7 +16,9 @@ import app.matterplug.guard.CheckScheduler
 import app.matterplug.alerts.FlushJobService
 import app.matterplug.guard.GuardPermissions
 import app.matterplug.guard.GuardControl
+import app.matterplug.guard.GuardRecord
 import app.matterplug.guard.GuardStore
+import app.matterplug.guard.PermissionAsks
 import app.matterplug.alerts.HttpAlerter
 import app.matterplug.alerts.logic.AlertAddress
 import app.matterplug.alerts.logic.DeliveryPlan
@@ -50,7 +52,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     val settings: StateFlow<GuardSettings?> = store.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val status: StateFlow<GuardStatus> = store.status
+    val status: StateFlow<GuardStatus> = GuardRecord(application).status
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GuardStatus())
 
     /** Battery Guard acts on the Charger plug (the first plug until another is chosen). Null until the repository has answered. */
@@ -64,7 +66,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
     private val disable = DisableFlow(application, viewModelScope)
     val disableState: StateFlow<DisableState> = disable.state
 
-    private val prompts = PermissionPromptQueue(application, store, viewModelScope)
+    private val prompts = PermissionPromptQueue(application, PermissionAsks(application), viewModelScope)
 
     /** The permission prompt the screen should launch next; the screen calls [promptConsumed] as it launches it. */
     val prompt: StateFlow<PermissionPrompt?> = prompts.prompt
