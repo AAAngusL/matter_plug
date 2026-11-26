@@ -35,7 +35,7 @@ object BatteryReader {
     fun readOrNull(context: Context): BatteryReading? = try {
         read(context)
     } catch (e: Exception) {
-        Log.w("Guard", "battery read failed", e)
+        Log.w("Battery", "battery read failed", e)
         null
     }
 }

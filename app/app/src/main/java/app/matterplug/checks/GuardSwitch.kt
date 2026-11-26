@@ -16,7 +16,7 @@ object GuardSwitch {
             if (CellularStore(ctx).readSettings().enabled) CellularRunner.startSoon(ctx)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e("Guard", "cellular alarm not restarted", e)
+            Log.e("Checks", "cellular alarm not restarted", e)
         }
     }
 }
