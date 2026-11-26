@@ -18,7 +18,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import app.matterplug.R
 import app.matterplug.alarm.partialWakeLock
-import app.matterplug.guard.GuardStore
+import app.matterplug.guard.CheckSchedule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +84,7 @@ class IpWatchService : Service() {
         val app = applicationContext
         var nextAt: Long? = null
         while (true) {
-            val intervalMs = (try { GuardStore(app).readSettings().intervalMin } catch (e: Exception) { if (e is CancellationException) throw e; 15 }) * 60_000L
+            val intervalMs = CheckSchedule.now(app).intervalMin * 60_000L
             val waitMs = nextAt?.let { (it - System.currentTimeMillis()).coerceIn(1, intervalMs) } ?: intervalMs
             // A timer does not run while the CPU sleeps: hold the CPU only for a short wait (the 1-minute wait, the boot grace).
             val lock = if (nextAt != null) partialWakeLock(app, WAKE_TAG, waitMs + 30_000L, TAG) else null

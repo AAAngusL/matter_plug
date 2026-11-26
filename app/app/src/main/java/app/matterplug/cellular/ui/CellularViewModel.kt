@@ -8,7 +8,7 @@ import app.matterplug.cellular.CellularStatus
 import app.matterplug.cellular.CellularStore
 import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.checks.CellularRunNow
-import app.matterplug.guard.GuardStore
+import app.matterplug.guard.CheckSchedule
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +28,7 @@ class CellularViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CellularStatus())
 
     /** Battery Guard's Check every value: the passive layers run at it. */
-    val intervalMin: StateFlow<Int?> = GuardStore(application).settings.map { it.intervalMin }
+    val intervalMin: StateFlow<Int?> = CheckSchedule.intervalMinFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** What is in the number field, kept here so typing is not interrupted by the round trip through DataStore. */

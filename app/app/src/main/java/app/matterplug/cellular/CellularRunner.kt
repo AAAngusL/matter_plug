@@ -18,8 +18,8 @@ import app.matterplug.cellular.logic.LoopbackTrigger
 import app.matterplug.guard.AlertChannel
 import app.matterplug.guard.Delivery
 import app.matterplug.guard.BatteryReader
+import app.matterplug.guard.CheckSchedule
 import app.matterplug.guard.GuardNotifier
-import app.matterplug.guard.GuardStore
 import app.matterplug.guard.HttpAlerter
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
@@ -76,14 +76,11 @@ object CellularRunner {
             Log.i(TAG, "run skipped: Cellular Check is off")
             return null
         }
-        val guard = try { GuardStore(ctx).readSettings() } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            null
-        }
-        val intervalMin = guard?.intervalMin ?: 15
+        val schedule = CheckSchedule.now(ctx)
+        val intervalMin = schedule.intervalMin
         // While Battery Guard is on, its alarm brings the next run; its next check time is then the next run time.
-        val nextAt = if (guard?.enabled == true) {
-            try { GuardStore(ctx).status.first().nextCheckAt } catch (e: Exception) { if (e is CancellationException) throw e; null }
+        val nextAt = if (schedule.guardOn == true) {
+            schedule.guardNextCheckAt
         } else {
             try { CellularScheduler.alarm.scheduleIn(ctx, intervalMin * 60_000L) } catch (e: Exception) {
                 if (e is CancellationException) throw e

@@ -4,9 +4,8 @@ import android.content.Context
 import app.matterplug.fixedip.IpRunner
 import app.matterplug.fixedip.IpStore
 import app.matterplug.guard.Delivery
-import app.matterplug.guard.GuardStore
+import app.matterplug.guard.CheckSchedule
 import app.matterplug.heartbeat.HeartbeatRunner
-import kotlinx.coroutines.CancellationException
 
 /**
  * Hands a check's delivery to the console heartbeat, with the phone link it needs from Fixed IP: whether the phone is offline (read when a
@@ -29,7 +28,7 @@ object ConsoleHeartbeat {
      */
     suspend fun afterCellularRun(ctx: Context, delivery: Delivery?) {
         if (delivery == null) return
-        val guardOn = try { GuardStore(ctx).readSettings().enabled } catch (e: Exception) { if (e is CancellationException) throw e; true }
+        val guardOn = CheckSchedule.now(ctx).guardOn ?: true      // unreadable: assume it is on, so the heartbeat is not counted twice
         if (!guardOn) afterCheck(ctx, delivery)
     }
 }
