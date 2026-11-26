@@ -18,41 +18,28 @@ internal object PlugStep {
 
     /**
      * PLUG-WATCH.md section 5: connect, read On/Off, release, within PlugCommander's 8-second limit, and record it for the
-     * Battery Guard tab. Never throws except for cancellation.
+     * Battery Guard tab. Returns what the check saw: [CheckEvent.NoPlug] when there is no charger plug to watch,
+     * [CheckEvent.PlugRead] when there is one, and null when the lookup failed, so nothing is said about the plug.
+     * Never throws except for cancellation.
      */
-    suspend fun readPlug(ctx: Context, store: GuardStore): PlugCheck {
+    suspend fun readPlug(ctx: Context, store: GuardStore): CheckEvent? {
         val plug = try { PlugRepository(ctx).charger() } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.w(TAG, "charger plug unreadable", e)
-            return PlugCheck.Unknown
+            return null
         } ?: run {
-            try { store.clearPlugSighting() } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "clearPlugSighting failed", e)
-            }
-            return PlugCheck.None
+            safely("clearPlugSighting", Unit) { store.clearPlugSighting() }
+            return CheckEvent.NoPlug
         }
         val t0 = SystemClock.elapsedRealtime()
         val on: Boolean? = PlugCommander(ctx).readOnOff(plug)
         Log.i(TAG, "plug read: ${on?.let { if (it) "on" else "off" } ?: "not reached"} in ${SystemClock.elapsedRealtime() - t0} ms")
         recordPlugSafely(store, on != null, on)
-        return PlugCheck.Read(on != null)
-    }
-
-    /** [None]: no charger plug, so nothing to watch. [Unknown]: the lookup failed, so say nothing about the plug. */
-    sealed interface PlugCheck {
-        data object None : PlugCheck
-        data object Unknown : PlugCheck
-        data class Read(val reached: Boolean) : PlugCheck
+        return CheckEvent.PlugRead(on != null)
     }
 
     private suspend fun recordPlugSafely(store: GuardStore, reached: Boolean, on: Boolean?) {
-        try {
-            store.recordPlug(reached, on, System.currentTimeMillis())
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e(TAG, "recordPlug failed", e)
-        }
+        safely("recordPlug", Unit) { store.recordPlug(reached, on, System.currentTimeMillis()) }
     }
 
     /**
@@ -70,8 +57,12 @@ internal object PlugStep {
     }
 
 
-    /** Returns the outcome text for the log line. Throws only on cancellation or an unexpected error (the caller logs it). */
-    suspend fun doSwitch(ctx: Context, store: GuardStore, on: Boolean, level: Int, events: MutableList<CheckEvent>): String {
+    /** What a switch did: the text for the log line, and the events the alert policy is to see, in order. */
+    class SwitchRun(val outcome: String, val events: List<CheckEvent>)
+
+    /** Throws only on cancellation or an unexpected error (the caller logs it). */
+    suspend fun doSwitch(ctx: Context, store: GuardStore, on: Boolean, level: Int): SwitchRun {
+        val events = mutableListOf<CheckEvent>()
         val plug = PlugRepository(ctx).charger()      // B10
         val result: SwitchResult = if (plug == null) SwitchResult.NotReached("no plug") else PlugCommander(ctx).switchTo(plug, on)
         val what = if (on) "on" else "off"
@@ -86,19 +77,19 @@ internal object PlugStep {
                     Log.i(TAG, "power wait: plugged=$powered")
                     events += CheckEvent.PowerWait(powered)
                 }
-                "switch $what Confirmed"
+                SwitchRun("switch $what Confirmed", events)
             }
             is SwitchResult.NotReached -> {
                 Log.w(TAG, "switch $what failed: ${result.reason}")
                 recordPlugSafely(store, reached = false, on = null)
                 events += CheckEvent.SwitchFailed(on)
-                "switch $what NotReached(${result.reason})"
+                SwitchRun("switch $what NotReached(${result.reason})", events)
             }
             is SwitchResult.Unconfirmed -> {
                 Log.w(TAG, "switch $what unconfirmed: read-back differs")
                 recordPlugSafely(store, reached = true, on = null)      // the plug accepted the command, so it was reached; its state is unknown
                 events += CheckEvent.SwitchFailed(on)
-                "switch $what Unconfirmed"
+                SwitchRun("switch $what Unconfirmed", events)
             }
         }
     }

@@ -49,6 +49,10 @@ object GuardRunner {
     /** From the switching service, inside withTimeout(120_000). Returns the delivery when the run made one. Never throws (except cancellation); always reschedules. */
     suspend fun work(ctx: Context): Delivery? = mutex.withLock { runWork(ctx) }
 
+    private fun scheduleRetry(ctx: Context) {
+        safely("retry scheduling", Unit) { CheckScheduler.scheduleIn(ctx, RETRY_MS) }
+    }
+
     /**
      * The settings when Battery Guard is on, else null. When they cannot be read it is unknown whether it is on, so the
      * chain of alarms is kept alive with a retry; a later run that reads "off" ends it.
@@ -59,7 +63,7 @@ object GuardRunner {
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "$what: settings unreadable, retrying in 5 min", e)
-            try { CheckScheduler.scheduleIn(ctx, RETRY_MS) } catch (e2: Exception) { Log.e(TAG, "retry not scheduled", e2) }
+            scheduleRetry(ctx)
             return null
         }
         if (!settings.enabled) {
@@ -92,12 +96,7 @@ object GuardRunner {
             }
 
             val now = System.currentTimeMillis()
-            try {
-                store.recordCheck(now, reading?.level, power, nextAt)
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.e(TAG, "recordCheck failed", e)
-            }
+            safely("recordCheck", Unit) { store.recordCheck(now, reading?.level, power, nextAt) }
 
             val fault = degradationReason(ctx, reading)
             val action = if (reading == null) GuardAction.Nothing
@@ -108,9 +107,7 @@ object GuardRunner {
             Log.i(TAG, CheckLog.line(reading?.level, plugged, action, fault, intervalMin, nextAt))
 
             // PLUG-WATCH.md section 4: with no switch to make, a read-only check that the charger plug still answers.
-            val plugCheck: PlugStep.PlugCheck? = if (action == GuardAction.Nothing && reading != null) PlugStep.readPlug(ctx, store) else null
-            val plugReached: Boolean? = (plugCheck as? PlugStep.PlugCheck.Read)?.reached
-            val noPlug = plugCheck == PlugStep.PlugCheck.None
+            val plugEvent = if (action == GuardAction.Nothing && reading != null) PlugStep.readPlug(ctx, store) else null
 
             var serviceFailed = false
             if (action != GuardAction.Nothing) {
@@ -119,7 +116,7 @@ object GuardRunner {
                 serviceFailed = true
                 Log.w(TAG, CheckLog.line(reading?.level, plugged, action, CheckDecision.FAULT_SERVICE, intervalMin, nextAt))
             }
-            val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugReached, noPlug)
+            val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugEvent)
             val clean = fault == null && !serviceFailed && nextAt != null
             val queueEmpty = store.readQueue().isEmpty()
             if (CheckDecision.nothingToDo(settings, store.readAlertState(), queueEmpty, events)) {
@@ -134,7 +131,7 @@ object GuardRunner {
             Log.e(TAG, "check failed", e)
             noteError(store, "check failed")
             if (nextAt == null) {      // failed before the alarm was set: set it now so the chain continues
-                try { CheckScheduler.scheduleIn(ctx, RETRY_MS) } catch (e2: Exception) { Log.e(TAG, "retry not scheduled", e2) }
+                scheduleRetry(ctx)
             }
         }
         return null
@@ -164,14 +161,10 @@ object GuardRunner {
                 outcome = when (decided) {
                     GuardAction.Nothing -> {
                         events += CheckEvent.NoSwitchNeeded
-                        when (val c = PlugStep.readPlug(ctx, store)) {      // PLUG-WATCH.md section 4: also when the service ran
-                            PlugStep.PlugCheck.None -> events += CheckEvent.NoPlug
-                            PlugStep.PlugCheck.Unknown -> {}
-                            is PlugStep.PlugCheck.Read -> events += CheckEvent.PlugRead(c.reached)
-                        }
+                        PlugStep.readPlug(ctx, store)?.let { events += it }      // PLUG-WATCH.md section 4: also when the service ran
                         "no switch needed"
                     }
-                    GuardAction.TurnOn, GuardAction.TurnOff -> PlugStep.doSwitch(ctx, store, decided == GuardAction.TurnOn, r.level, events)
+                    GuardAction.TurnOn, GuardAction.TurnOff -> PlugStep.doSwitch(ctx, store, decided == GuardAction.TurnOn, r.level).also { events += it.events }.outcome
                 }
             }
             val fault = degradationReason(ctx, r)
@@ -195,7 +188,7 @@ object GuardRunner {
 
     /** "battery unreadable" when there is no reading, else "exact alarms not allowed" when they are not allowed, else null. */
     private fun degradationReason(ctx: Context, reading: BatteryReading?): String? {
-        val exactAllowed = try { CheckScheduler.canScheduleExact(ctx) } catch (e: Exception) { false }
+        val exactAllowed = safely("exact-alarm check", false) { CheckScheduler.canScheduleExact(ctx) }
         return CheckLog.degradationReason(reading != null, exactAllowed)
     }
 
@@ -234,25 +227,16 @@ object GuardRunner {
             CheckScheduler.scheduleIn(ctx, intervalMin * 60_000L)
         } catch (e: Exception) {
             Log.e(TAG, "next alarm not scheduled after work", e)
-            try { CheckScheduler.scheduleIn(ctx, RETRY_MS) } catch (e2: Exception) { Log.e(TAG, "retry not scheduled", e2) }
+            scheduleRetry(ctx)
             noteError(store, "next check not scheduled")
             null
         }
-        try {
-            store.recordCheck(System.currentTimeMillis(), after?.level, after?.power, nextAt)
-        } catch (e: Exception) {
-            Log.e(TAG, "recordCheck failed", e)
-        }
+        safely("recordCheck", Unit) { store.recordCheck(System.currentTimeMillis(), after?.level, after?.power, nextAt) }
         val fault = degradationReason(ctx, after)
         Log.i(TAG, "work: " + CheckLog.line(after?.level, after?.pluggedIn, action, fault, intervalMin, nextAt) + " outcome=$outcome")
     }
 
     private suspend fun noteError(store: GuardStore, text: String?) {
-        try {
-            store.recordRunError(text)
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            Log.e(TAG, "recordRunError failed", e)
-        }
+        safely("recordRunError", Unit) { store.recordRunError(text) }
     }
 }

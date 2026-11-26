@@ -40,13 +40,13 @@ class CheckDecisionTest {
     private val reached = CheckEvent.PlugRead(true)
     private val missed = CheckEvent.PlugRead(false)
     @Test fun alarmEventsWithAReachedRead() =
-        assertEquals(noSwitch + reached, CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, plugReached = true))
+        assertEquals(noSwitch + reached, CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, plugEvent = CheckEvent.PlugRead(true)))
     @Test fun alarmEventsWithAMissedRead() =
-        assertEquals(noSwitch + missed, CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, plugReached = false))
+        assertEquals(noSwitch + missed, CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, plugEvent = CheckEvent.PlugRead(false)))
     @Test fun alarmEventsUnreadableBatteryStillCarriesTheRead() =
         assertEquals(listOf(missed, CheckEvent.Degraded("battery unreadable")),
-            CheckDecision.alarmEvents(GuardAction.Nothing, false, "battery unreadable", false, plugReached = false))
-    @Test fun alarmEventsNoRead() = assertEquals(noSwitch, CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, plugReached = null))
+            CheckDecision.alarmEvents(GuardAction.Nothing, false, "battery unreadable", false, plugEvent = CheckEvent.PlugRead(false)))
+    @Test fun alarmEventsNoRead() = assertEquals(noSwitch, CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, plugEvent = null))
     @Test fun aReachedReadIsStillNothingToDo() = assertTrue(CheckDecision.nothingToDo(off, idle, true, noSwitch + reached))
     @Test fun aMissedReadMeansWork() = assertFalse(CheckDecision.nothingToDo(off, idle, true, noSwitch + missed))
     @Test fun aReachedReadAloneMeansWork() = assertFalse(CheckDecision.nothingToDo(off, idle, true, listOf(reached)))
@@ -55,7 +55,7 @@ class CheckDecisionTest {
         assertEquals(AlertKind.values().size, AlertKind.values().map { CheckDecision.notificationId(it) }.toSet().size)
 
     @Test fun noPlug_addsEventAndStillEndsEarly() {
-        val ev = CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, null, noPlug = true)
+        val ev = CheckDecision.alarmEvents(GuardAction.Nothing, true, null, false, CheckEvent.NoPlug)
         assertEquals(listOf(CheckEvent.NoSwitchNeeded, CheckEvent.NoPlug), ev)
         assertTrue(CheckDecision.nothingToDo(off, idle, true, ev))
     }

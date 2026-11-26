@@ -10,12 +10,11 @@ object CheckDecision {
      * "service could not start" wins over [fault] when the service was refused.
      */
     fun alarmEvents(
-        action: GuardAction, batteryRead: Boolean, fault: String?, serviceFailed: Boolean, plugReached: Boolean? = null, noPlug: Boolean = false,
+        action: GuardAction, batteryRead: Boolean, fault: String?, serviceFailed: Boolean, plugEvent: CheckEvent? = null,
     ): List<CheckEvent> {
         val out = mutableListOf<CheckEvent>()
         if (action == GuardAction.Nothing && batteryRead) out += CheckEvent.NoSwitchNeeded
-        if (noPlug) out += CheckEvent.NoPlug
-        if (plugReached != null) out += CheckEvent.PlugRead(plugReached)       // PLUG-WATCH.md section 4
+        if (plugEvent != null) out += plugEvent       // NoPlug or PlugRead, from a read-only check of the plug (PLUG-WATCH.md section 4)
         val reason = if (serviceFailed) FAULT_SERVICE else fault
         if (reason != null) out += CheckEvent.Degraded(reason)
         return out
