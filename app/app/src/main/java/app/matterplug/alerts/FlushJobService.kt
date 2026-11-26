@@ -57,7 +57,7 @@ class FlushJobService : JobService() {
     }
 
     companion object {
-        private const val TAG = "Guard"
+        private const val TAG = "Alerts"
         const val JOB_ID = 7001
         private const val BUDGET_MS = 30_000L
 

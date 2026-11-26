@@ -105,7 +105,7 @@ class ActionService : Service() {
     }
 
     companion object {
-        private const val TAG = "Guard"
+        private const val TAG = "Checks"
         private const val CHANNEL_ID = "guard_work"
         private const val NOTIFICATION_ID = 4101
         private const val WAKE_TAG = "matterplug:guard"

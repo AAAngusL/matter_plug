@@ -25,7 +25,7 @@ import app.matterplug.alerts.logic.NotificationIds
  * Never throws.
  */
 object AlertNotifier {
-    private const val TAG = "Guard"
+    private const val TAG = "Alerts"
     const val CHANNEL_ALERTS = "guard_alerts"
 
     @SuppressLint("MissingPermission")      // checked below with ContextCompat.checkSelfPermission

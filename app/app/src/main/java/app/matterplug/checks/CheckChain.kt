@@ -14,7 +14,7 @@ import kotlinx.coroutines.CancellationException
  * A new feature that reads at every check is one more line in [steps].
  */
 object CheckChain {
-    private const val TAG = "Guard"
+    private const val TAG = "Checks"
 
     private class Step(val name: String, val run: suspend (Context) -> Unit)
 

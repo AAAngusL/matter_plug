@@ -46,7 +46,7 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private companion object {
-        const val TAG = "Guard"
+        const val TAG = "Checks"
         const val FIRST_CHECK_MS = 5_000L
         /** AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED (API 31); the string is used so minSdk 28 needs no check. */
         const val ACTION_EXACT_ALARM_STATE = "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"

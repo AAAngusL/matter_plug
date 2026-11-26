@@ -7,7 +7,7 @@ import app.matterplug.alarm.runAsync
 
 /** Receives Battery Guard's alarm: the features' steps, then Battery Guard's check (see [CheckChain]). */
 class CheckReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) = runAsync(context, "Guard", "check") {
+    override fun onReceive(context: Context, intent: Intent) = runAsync(context, "Checks", "check") {
         CheckChain.run(it, withGuard = true)
     }
 }
