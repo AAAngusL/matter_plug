@@ -1,6 +1,9 @@
 package app.matterplug.guard.ui
 
-import app.matterplug.alerts.ui.TestState
+import app.matterplug.alerts.ui.AlertEndpointFields
+import app.matterplug.alerts.ui.TestAlertButton
+import app.matterplug.alerts.ui.TestAlertResult
+import app.matterplug.alerts.ui.errorText
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.text.format.DateFormat
@@ -30,7 +33,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,8 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -55,15 +55,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.matterplug.R
 import app.matterplug.guard.GuardPermissions
-import app.matterplug.alerts.logic.AlertAddress
 import app.matterplug.battery.PowerWords
 import app.matterplug.alerts.logic.AlertKind
 import app.matterplug.alerts.logic.DeliveryError
-import app.matterplug.alerts.logic.TestOutcome
 import app.matterplug.guard.logic.GuardSettings
 import app.matterplug.guard.logic.PercentInput
 import app.matterplug.guard.logic.PermissionPrompt
-import app.matterplug.alerts.logic.tokenOverPlainHttp
 import app.matterplug.heartbeat.ui.HeartbeatSection
 import app.matterplug.ui.LabeledSwitch
 import java.util.Date
@@ -75,10 +72,6 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
     val hasPlug by viewModel.hasPlug.collectAsStateWithLifecycle()
-    val address by viewModel.endpoint.addressText.collectAsStateWithLifecycle()
-    val tokenText by viewModel.endpoint.tokenText.collectAsStateWithLifecycle()
-    val addressError by viewModel.endpoint.addressError.collectAsStateWithLifecycle()
-    val testState by viewModel.endpoint.testState.collectAsStateWithLifecycle()
     val disableState by viewModel.disableState.collectAsStateWithLifecycle()
     val prompt by viewModel.prompt.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -155,53 +148,16 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
 
         LabeledSwitch(stringResource(R.string.guard_send_alerts), s.alertsEnabled, true, viewModel::setAlertsEnabled)
         LabeledSwitch(stringResource(R.string.guard_send_status), s.statusEnabled, true, viewModel::setStatusEnabled)
-        OutlinedTextField(
-            value = address,
-            onValueChange = viewModel.endpoint::setAddress,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.guard_alert_address)) },
-            placeholder = { Text(stringResource(R.string.guard_alert_address_hint)) },
-            singleLine = true,
-            isError = addressError,
-            supportingText = if (addressError) {
-                { Text(stringResource(R.string.guard_address_error)) }
-            } else null,
-        )
-
-        var tokenShown by remember { mutableStateOf(false) }      // hidden by default; not kept across a restart
-        OutlinedTextField(
-            value = tokenText,
-            onValueChange = viewModel.endpoint::setToken,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.guard_alert_token)) },
-            singleLine = true,
-            visualTransformation = if (tokenShown) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            trailingIcon = {
-                TextButton(onClick = { tokenShown = !tokenShown }) {
-                    Text(stringResource(if (tokenShown) R.string.guard_token_hide else R.string.guard_token_show))
-                }
-            },
-        )
-        if (tokenOverPlainHttp(tokenText, address)) {
-            Text(
-                stringResource(R.string.guard_token_http_warning),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
+        AlertEndpointFields(viewModel.endpoint)
 
         HeartbeatSection()
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             // Needs a valid address only: works with "Send alerts" off.
-            OutlinedButton(
-                onClick = viewModel::sendTestAlert,
-                enabled = AlertAddress.isValid(address) && testState != TestState.Sending,
-            ) { Text(stringResource(R.string.guard_send_test)) }
+            TestAlertButton(viewModel.endpoint, onSend = viewModel::sendTestAlert)
             OutlinedButton(onClick = viewModel::checkNow, enabled = s.enabled) { Text(stringResource(R.string.guard_check_now)) }
         }
-        TestResultText(testState)
+        TestAlertResult(viewModel.endpoint)
 
         for (line in lines) StatusLineText(line)
         Note(stringResource(R.string.guard_bottom_note))
@@ -220,36 +176,6 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
             },
         )
     }
-}
-
-/** "200 OK", the status code, or the error, next to the test button. */
-@Composable
-private fun TestResultText(state: TestState) {
-    val (text, isError) = when (state) {
-        TestState.Idle -> return
-        TestState.Sending -> stringResource(R.string.guard_test_sending) to false
-        is TestState.Done -> when (val o = state.outcome) {
-            TestOutcome.Ok -> stringResource(R.string.guard_test_ok) to false
-            is TestOutcome.Http -> stringResource(R.string.guard_http_status, o.code) to true
-            is TestOutcome.Failed -> errorText(o.error) to true
-        }
-    }
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-    )
-}
-
-@Composable
-private fun errorText(e: DeliveryError.Parsed): String = when (e) {
-    DeliveryError.Parsed.NoConnection -> stringResource(R.string.guard_err_no_connection)
-    DeliveryError.Parsed.Timeout -> stringResource(R.string.guard_err_timeout)
-    DeliveryError.Parsed.BadAddress -> stringResource(R.string.guard_err_bad_address)
-    DeliveryError.Parsed.Tls -> stringResource(R.string.guard_err_tls)
-    DeliveryError.Parsed.Rejected -> stringResource(R.string.guard_err_rejected)
-    is DeliveryError.Parsed.Http -> stringResource(R.string.guard_http_status, e.code)
-    is DeliveryError.Parsed.Other -> stringResource(R.string.guard_err_other, e.name)
 }
 
 /**
