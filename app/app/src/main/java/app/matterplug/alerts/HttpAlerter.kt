@@ -13,19 +13,10 @@ import app.matterplug.alerts.logic.DeliveryError
 import app.matterplug.alerts.logic.DeliveryPlan
 import app.matterplug.alerts.logic.PostResult
 import app.matterplug.battery.Power
-import app.matterplug.alerts.logic.authorizationHeader
-import app.matterplug.alerts.logic.resultForCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.withContext
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URI
 import java.time.ZoneId
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -44,63 +35,6 @@ object HttpAlerter {
         AlertJson.encode(e, AlertMessages.text(e), AlertJson.isoTime(e.atMs, ZoneId.systemDefault()))
 
     /**
-     * POST [body] to [address], Content-Type application/json; charset=utf-8, no redirects (so a token is never forwarded).
-     * If [token] is not blank, the header `Authorization: Bearer <token trimmed>` is set, otherwise there is no Authorization
-     * header. A response of 401 or 403 gives error "rejected". The token is never logged and never put in an error.
-     * [timeoutMs] is the connect timeout, the read timeout and, by a watchdog that closes the connection, the cap on the
-     * whole request. The response body is read and discarded. Never throws except for coroutine cancellation.
-     */
-    suspend fun post(address: String, token: String, body: String, timeoutMs: Int = 10_000): PostResult = withContext(Dispatchers.IO) {
-        val t = timeoutMs.coerceAtLeast(1)
-        val connRef = AtomicReference<HttpURLConnection?>(null)
-        val timedOut = AtomicBoolean(false)
-        val watchdog = launch {
-            delay(t.toLong())
-            timedOut.set(true)
-            connRef.get()?.disconnect()      // aborts a blocked connect, write or read
-        }
-        try {
-            val conn = URI(address.trim()).toURL().openConnection() as HttpURLConnection
-            connRef.set(conn)
-            conn.requestMethod = "POST"
-            conn.connectTimeout = t
-            conn.readTimeout = t
-            conn.instanceFollowRedirects = false
-            conn.doOutput = true
-            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-            authorizationHeader(token)?.let { conn.setRequestProperty("Authorization", it) }
-            val bytes = body.toByteArray(Charsets.UTF_8)
-            conn.setFixedLengthStreamingMode(bytes.size)
-            conn.outputStream.use { it.write(bytes) }
-            val code = conn.responseCode
-            try {
-                val stream: InputStream? = if (code >= 400) conn.errorStream else conn.inputStream
-                stream?.use { drain(it) }
-            } catch (e: java.io.IOException) {
-                // the status code is what counts; a broken body does not undo it
-            }
-            resultForCode(code)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            PostResult(null, if (timedOut.get()) DeliveryError.TIMEOUT else DeliveryError.of(e))
-        } finally {
-            watchdog.cancel()
-            connRef.get()?.disconnect()
-        }
-    }
-
-    private fun drain(s: InputStream) {
-        val buf = ByteArray(2048)
-        var total = 0
-        while (total < 65_536) {
-            val n = s.read(buf)
-            if (n < 0) return
-            total += n
-        }
-    }
-
-    /**
      * The test button: posts an AlertEvent(Test, Test, ...). Works whether or not alerts are on; needs a valid address only.
      * Does not touch the waiting list, the alert state or the delivery line.
      */
@@ -109,7 +43,7 @@ object HttpAlerter {
         val address = endpoint.address
         if (!AlertAddress.isValid(address)) return PostResult(null, DeliveryError.BAD_ADDRESS)
         val e = AlertEvent(AlertKind.Test, AlertPhase.Test, level, power, null, System.currentTimeMillis())
-        val r = post(address.trim(), endpoint.token, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
+        val r = HttpPost.post(address.trim(), endpoint.token, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
         Log.i(TAG, "test alert host=${AlertAddress.hostOf(address)} code=${r.code} error=${r.error}")
         return r
     }
@@ -166,7 +100,7 @@ object HttpAlerter {
             for (e in DeliveryPlan.extras(events, status, alertsOn, statusOn)) {
                 val t = DeliveryPlan.timeoutFor(deadline - SystemClock.elapsedRealtime())
                 if (t == null) { Log.i(TAG, "deliver: budget used, ${e.phase.wire} skipped"); break }
-                val r = post(address, endpoint.token, body(e), t)
+                val r = HttpPost.post(address, endpoint.token, body(e), t)
                 Log.i(TAG, "deliver: ${e.kind.wire}/${e.phase.wire} host=$host code=${r.code} error=${r.error}")
                 record(outbox, r)
                 first.compareAndSet(null, r)
@@ -204,7 +138,7 @@ object HttpAlerter {
                 val t = DeliveryPlan.timeoutFor(deadline - SystemClock.elapsedRealtime())
                 if (t == null) { Log.i(TAG, "flush: budget used, ${q.size} waiting"); return }
                 val head = q.first()
-                val r = post(address, token, head, t)
+                val r = HttpPost.post(address, token, head, t)
                 Log.i(TAG, "flush: host=$host code=${r.code} error=${r.error} waiting=${q.size}")
                 record(outbox, r)
                 first?.compareAndSet(null, r)
