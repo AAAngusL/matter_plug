@@ -17,8 +17,7 @@ sealed interface SwitchResult {
 
 /**
  * One switch, then release everything (BATTERY-GUARD-IMPLEMENTATION.md 5.4). Connect, send On or Off (never Toggle),
- * read OnOff back, release the pointer. It does not subscribe and is not tied to a screen. The few helpers it needs are
- * repeated from PlugClient on purpose, so the working pairing and toggle code stays untouched.
+ * read OnOff back, release the pointer. It does not subscribe and is not tied to a screen. The connection comes from [PlugSession].
  *
  * Timeouts use withTimeoutOrNull: a step that runs out of time gives NotReached("timeout ..."), while a cancellation of
  * the caller (for example the service's own 120 s limit) is never caught here and propagates.
@@ -26,39 +25,25 @@ sealed interface SwitchResult {
 class PlugCommander(context: Context) {
     private val context: Context = context.applicationContext
 
-    suspend fun switchTo(plug: Plug, on: Boolean): SwitchResult {
-        var pointer = 0L
-        try {
-            // 1. Connect.
-            val connectedOrNull: Long? = try {
-                withTimeoutOrNull(CONNECT_TIMEOUT_MS) { ChipController.connect(context, plug.nodeId) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "connect failed", e)
-                return SwitchResult.NotReached("connect failed: ${e.message ?: e.javaClass.simpleName}")
-            }
-            if (connectedOrNull == null) return SwitchResult.NotReached("timeout connecting")
-            pointer = connectedOrNull
-
-            // 2. Send On or Off.
+    suspend fun switchTo(plug: Plug, on: Boolean): SwitchResult =
+        PlugSession.use(context, plug.nodeId, CONNECT_TIMEOUT_MS, onNotConnected = { SwitchResult.NotReached(it) }) { pointer ->
+            // 1. Send On or Off.
             val sentOrNull: Result<Unit>? = try {
                 withTimeoutOrNull(INVOKE_TIMEOUT_MS) { sendOnOff(plug, pointer, on) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "command failed", e)
-                return SwitchResult.NotReached("command failed: ${e.message ?: e.javaClass.simpleName}")
+                return@use SwitchResult.NotReached("command failed: ${e.message ?: e.javaClass.simpleName}")
             }
-            if (sentOrNull == null) return SwitchResult.NotReached("timeout sending command")
-            val sent: Result<Unit> = sentOrNull
-            if (sent.isFailure) {
-                val e = sent.exceptionOrNull()
+            if (sentOrNull == null) return@use SwitchResult.NotReached("timeout sending command")
+            if (sentOrNull.isFailure) {
+                val e = sentOrNull.exceptionOrNull()
                 Log.w(TAG, "command failed", e)
-                return SwitchResult.NotReached("command failed: ${e?.message ?: e?.javaClass?.simpleName ?: "unknown"}")
+                return@use SwitchResult.NotReached("command failed: ${e?.message ?: e?.javaClass?.simpleName ?: "unknown"}")
             }
 
-            // 3. Read OnOff back and compare. A failed or timed-out read is Unconfirmed, not NotReached: the command was accepted.
+            // 2. Read OnOff back and compare. A failed or timed-out read is Unconfirmed, not NotReached: the command was accepted.
             val actual: Boolean? = try {
                 withTimeoutOrNull(READ_TIMEOUT_MS) { readOnOffAt(plug, pointer) }
             } catch (e: CancellationException) {
@@ -68,12 +53,8 @@ class PlugCommander(context: Context) {
                 null
             }
             Log.i(TAG, "requested=${if (on) "on" else "off"} readBack=${actual ?: "unknown"}")
-            return if (actual == on) SwitchResult.Confirmed else SwitchResult.Unconfirmed
-        } finally {
-            // 4. Release every pointer obtained.
-            if (pointer != 0L) ChipController.release(pointer)
+            if (actual == on) SwitchResult.Confirmed else SwitchResult.Unconfirmed
         }
-    }
 
     /**
      * Reads the plug's OnOff state alone (connect, read, release), for the "turn it on before disabling?" question.
@@ -98,22 +79,17 @@ class PlugCommander(context: Context) {
     }
 
     /** One connect, read and release within [limitMs]. A pointer that arrives after the timeout is lost, as in ChipController.connect (V3 note in G4). */
-    private suspend fun readOnOffOnce(plug: Plug, limitMs: Long): Boolean? {
-        var pointer = 0L
+    private suspend fun readOnOffOnce(plug: Plug, limitMs: Long): Boolean? =
         try {
-            return withTimeoutOrNull(limitMs) {
-                pointer = ChipController.connect(context, plug.nodeId)
-                readOnOffAt(plug, pointer)
+            withTimeoutOrNull(limitMs) {
+                PlugSession.use(context, plug.nodeId, onNotConnected = { null }) { pointer -> readOnOffAt(plug, pointer) }
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "readOnOff try failed", e)
-            return null
-        } finally {
-            if (pointer != 0L) ChipController.release(pointer)
+            null
         }
-    }
 
     private suspend fun sendOnOff(plug: Plug, pointer: Long, on: Boolean): Result<Unit> =
         invokeCommand(context, pointer, plug.endpoint, ON_OFF_CLUSTER, if (on) CMD_ON else CMD_OFF, emptyStructure())

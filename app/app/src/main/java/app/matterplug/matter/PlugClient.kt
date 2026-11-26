@@ -130,18 +130,11 @@ class PlugClient(context: Context, private val plug: Plug) {
      * A session error after RemoveFabric was sent counts as success, because the plug closes the session.
      */
     suspend fun leaveFabric(): Result<Unit> {
-        val ownPointer = devicePointer == 0L
-        val pointer = if (ownPointer) {
-            try {
-                ChipController.connect(context, plug.nodeId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                return Result.failure(e)
-            }
-        } else {
-            devicePointer
-        }
+        if (devicePointer != 0L) return removeFabric(devicePointer)
+        return PlugSession.use(context, plug.nodeId, onNotConnected = { Result.failure(IllegalStateException(it)) }) { removeFabric(it) }
+    }
+
+    private suspend fun removeFabric(pointer: Long): Result<Unit> {
         try {
             val fabricIndex = readFabricIndex(pointer)
                 ?: return Result.failure(IllegalStateException("could not read CurrentFabricIndex"))
@@ -160,8 +153,6 @@ class PlugClient(context: Context, private val plug: Plug) {
             throw e
         } catch (e: Exception) {
             return Result.failure(e)
-        } finally {
-            if (ownPointer) ChipController.release(pointer)
         }
     }
 
