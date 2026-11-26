@@ -118,7 +118,7 @@ object GuardRunner {
             }
             val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugEvent)
             val clean = fault == null && !serviceFailed && nextAt != null
-            val queueEmpty = store.readQueue().isEmpty()
+            val queueEmpty = AlertOutbox(ctx).readQueue().isEmpty()
             if (CheckDecision.nothingToDo(settings, store.readAlertState(), queueEmpty, events)) {
                 if (clean) noteError(store, null)         // a quiet check: no service, no Matter, no notification work
                 return null
@@ -211,7 +211,7 @@ object GuardRunner {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
-        val firstPush = HttpAlerter.deliver(ctx, store, result.events, status, budgetMs, HttpAlerter.Sender.BatteryGuard)         // 5.6: never throws, stays inside budgetMs
+        val firstPush = HttpAlerter.deliver(ctx, AlertOutbox(ctx), result.events, status, budgetMs, BatteryGuardSender)         // 5.6: never throws, stays inside budgetMs
         return Delivery(firstPush)      // the caller hands it to the console heartbeat, which Battery Guard's check carries when it is on
     }
 

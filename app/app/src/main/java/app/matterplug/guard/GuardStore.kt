@@ -8,7 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import app.matterplug.data.guardDataStore
 import app.matterplug.guard.logic.PlugSighting
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertState
@@ -23,8 +23,6 @@ import app.matterplug.guard.logic.coerced
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-
-private val Context.guardDataStore: DataStore<Preferences> by preferencesDataStore(name = "guard")
 
 /** Battery Guard's own DataStore file ("guard"). Nothing of it is kept in "plugs". */
 class GuardStore(context: Context) {
@@ -43,12 +41,12 @@ class GuardStore(context: Context) {
             lastSwitchAt = p[LAST_SWITCH_AT],
             lastSwitchOn = p[LAST_SWITCH_ON],
             lastSwitchLevel = p[LAST_SWITCH_LEVEL],
-            lastDeliveryOkAt = p[LAST_DELIVERY_OK_AT],
-            lastDeliveryFailAt = p[LAST_DELIVERY_FAIL_AT],
-            lastDeliveryError = p[LAST_DELIVERY_ERROR],
+            lastDeliveryOkAt = AlertOutbox.deliveryIn(p).okAt,
+            lastDeliveryFailAt = AlertOutbox.deliveryIn(p).failAt,
+            lastDeliveryError = AlertOutbox.deliveryIn(p).error,
             lastRunError = p[LAST_RUN_ERROR],
             plug = PlugSighting(p[PLUG_REACHED_AT], p[PLUG_ON], p[PLUG_MISSED_SINCE]),
-            queueSize = QueueCodec.decode(p[QUEUE]).size,
+            queueSize = AlertOutbox.queueSizeIn(p),
             alertState = AlertStateCodec.decode(p[ALERT_STATE]),
         )
     }
@@ -77,7 +75,7 @@ class GuardStore(context: Context) {
                     val reading = try { BatteryReader.read(app) } catch (e: Exception) { null }
                     val bodies = SwitchOff.cancelled(active, by, reading?.level ?: 0,
                         reading?.power ?: Power(false, BatteryStatus.Unknown), System.currentTimeMillis()).map(HttpAlerter::body)
-                    p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
+                    AlertOutbox.appendIn(p, bodies)
                 }
                 p.remove(ALERT_STATE)       // default state: no active alerts, both counts 0
             }
@@ -91,36 +89,6 @@ class GuardStore(context: Context) {
 
     suspend fun readAlertState(): AlertState = AlertStateCodec.decode(store.data.first()[ALERT_STATE])
     suspend fun writeAlertState(s: AlertState) { store.edit { it[ALERT_STATE] = AlertStateCodec.encode(s) } }
-
-    suspend fun readQueue(): List<String> = QueueCodec.decode(store.data.first()[QUEUE])
-    suspend fun writeQueue(q: List<String>) { store.edit { it[QUEUE] = QueueCodec.encode(q) } }
-
-    /**
-     * Appends finished bodies to the waiting list in ONE edit, and only while Battery Guard and "Send alerts" are both on
-     * in that same edit, so a run that is still going cannot refill a list that the settings rules have just cleared.
-     * Capped at [DeliveryPlan.MAX_QUEUE] (oldest dropped). Cellular Check's requests pass [guardItems] false: its caller
-     * has checked Cellular Check's own "Send cellular alerts", and Cellular Check runs with Battery Guard off.
-     */
-    suspend fun enqueue(bodies: List<String>, guardItems: Boolean = true) {
-        if (bodies.isEmpty()) return
-        store.edit { p ->
-            // Battery Guard's need it on with its "Send alerts" on, in this same edit; Cellular Check checked its own switch.
-            if (!guardItems || ((p[ENABLED] ?: false) && (p[ALERTS_ENABLED] ?: false))) {
-                p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))
-            }
-        }
-    }
-
-    /** Removes the first entry if it is [sent], in one edit (the list may have been cleared or changed meanwhile). */
-    suspend fun dequeueIfHead(sent: String) {
-        store.edit { p ->
-            val q = QueueCodec.decode(p[QUEUE])
-            val rest = DeliveryPlan.withoutHead(q, sent)
-            if (rest.size != q.size) {
-                if (rest.isEmpty()) p.remove(QUEUE) else p[QUEUE] = QueueCodec.encode(rest)
-            }
-        }
-    }
 
     /** A null level, power or next time removes the stored value. */
     suspend fun recordCheck(atMs: Long, level: Int?, power: Power?, nextAtMs: Long?) {
@@ -159,15 +127,6 @@ class GuardStore(context: Context) {
         }
     }
 
-    /** Only the non-null arguments are written (a success does not erase the last failure and the other way round); the error is replaced with [error], or removed when null. */
-    suspend fun recordDelivery(okAtMs: Long?, failAtMs: Long?, error: String?) {
-        store.edit { p ->
-            if (okAtMs != null) p[LAST_DELIVERY_OK_AT] = okAtMs
-            if (failAtMs != null) p[LAST_DELIVERY_FAIL_AT] = failAtMs
-            putOrRemove(p, LAST_DELIVERY_ERROR, error)
-        }
-    }
-
     suspend fun recordRunError(text: String?) {
         store.edit { putOrRemove(it, LAST_RUN_ERROR, text) }
     }
@@ -180,15 +139,16 @@ class GuardStore(context: Context) {
 
     private fun readSettings(p: Preferences): GuardSettings {
         val d = GuardSettings()
+        val outbox = AlertOutbox.settingsIn(p)
         return GuardSettings(
             enabled = p[ENABLED] ?: d.enabled,
             low = p[LOW] ?: d.low,
             high = p[HIGH] ?: d.high,
             intervalMin = p[CHECK_INTERVAL] ?: d.intervalMin,      // the two old per-state intervals are not carried over
-            alertsEnabled = p[ALERTS_ENABLED] ?: d.alertsEnabled,
-            statusEnabled = p[STATUS_ENABLED] ?: d.statusEnabled,
-            alertAddress = p[ALERT_ADDRESS] ?: d.alertAddress,
-            alertToken = (p[ALERT_TOKEN] ?: d.alertToken).trim(),
+            alertsEnabled = outbox.alertsOn,
+            statusEnabled = outbox.statusOn,
+            alertAddress = outbox.address,
+            alertToken = outbox.token,
         ).coerced()
     }
 
@@ -197,43 +157,42 @@ class GuardStore(context: Context) {
         p[LOW] = s.low
         p[HIGH] = s.high
         p[CHECK_INTERVAL] = s.intervalMin
-        p[ALERTS_ENABLED] = s.alertsEnabled
-        p[STATUS_ENABLED] = s.statusEnabled
-        p[ALERT_ADDRESS] = s.alertAddress
-        p[ALERT_TOKEN] = s.alertToken.trim()      // never logged
+        AlertOutbox.writeSettingsIn(p, AlertOutbox.Settings(s.alertAddress, s.alertToken, s.alertsEnabled, s.statusEnabled))
     }
 
     private fun <T> putOrRemove(p: androidx.datastore.preferences.core.MutablePreferences, key: Preferences.Key<T>, value: T?) {
         if (value == null) p.remove(key) else p[key] = value
     }
 
-    private companion object {
-        val ENABLED = booleanPreferencesKey("enabled")
-        val LOW = intPreferencesKey("low")
-        val HIGH = intPreferencesKey("high")
-        val CHECK_INTERVAL = intPreferencesKey("check_interval")
-        val ALERTS_ENABLED = booleanPreferencesKey("alerts_enabled")
-        val STATUS_ENABLED = booleanPreferencesKey("status_enabled")
-        val ALERT_ADDRESS = stringPreferencesKey("alert_address")
-        val ALERT_TOKEN = stringPreferencesKey("alert_token")
-        val ALERT_STATE = stringPreferencesKey("alert_state")
-        val QUEUE = stringPreferencesKey("queue")
-        val LAST_CHECK_AT = longPreferencesKey("last_check_at")
-        val LAST_LEVEL = intPreferencesKey("last_level")
-        val LAST_PLUGGED = booleanPreferencesKey("last_plugged")
-        val LAST_BATTERY_STATUS = stringPreferencesKey("last_battery_status")
-        val NEXT_CHECK_AT = longPreferencesKey("next_check_at")
-        val LAST_SWITCH_AT = longPreferencesKey("last_switch_at")
-        val LAST_SWITCH_ON = booleanPreferencesKey("last_switch_on")
-        val LAST_SWITCH_LEVEL = intPreferencesKey("last_switch_level")
-        val PLUG_REACHED_AT = longPreferencesKey("plug_reached_at")
-        val PLUG_ON = booleanPreferencesKey("plug_on")
-        val PLUG_MISSED_SINCE = longPreferencesKey("plug_missed_since")
-        val LAST_DELIVERY_OK_AT = longPreferencesKey("last_delivery_ok_at")
-        val LAST_DELIVERY_FAIL_AT = longPreferencesKey("last_delivery_fail_at")
-        val LAST_DELIVERY_ERROR = stringPreferencesKey("last_delivery_error")
-        val LAST_RUN_ERROR = stringPreferencesKey("last_run_error")
-        val ASKED_NOTIFICATIONS = booleanPreferencesKey("asked_notifications")
-        val ASKED_EXEMPTION = booleanPreferencesKey("asked_exemption")
+    companion object {
+        /** Battery Guard's own rule for what may join the waiting list: it is on, with "Send alerts" on. */
+        fun onWithAlertsIn(p: Preferences): Boolean = (p[ENABLED] ?: false) && (p[AlertOutbox.ALERTS_ENABLED] ?: false)
+
+        private val ENABLED = booleanPreferencesKey("enabled")
+        private val LOW = intPreferencesKey("low")
+        private val HIGH = intPreferencesKey("high")
+        private val CHECK_INTERVAL = intPreferencesKey("check_interval")
+        private val ALERT_STATE = stringPreferencesKey("alert_state")
+        private val LAST_CHECK_AT = longPreferencesKey("last_check_at")
+        private val LAST_LEVEL = intPreferencesKey("last_level")
+        private val LAST_PLUGGED = booleanPreferencesKey("last_plugged")
+        private val LAST_BATTERY_STATUS = stringPreferencesKey("last_battery_status")
+        private val NEXT_CHECK_AT = longPreferencesKey("next_check_at")
+        private val LAST_SWITCH_AT = longPreferencesKey("last_switch_at")
+        private val LAST_SWITCH_ON = booleanPreferencesKey("last_switch_on")
+        private val LAST_SWITCH_LEVEL = intPreferencesKey("last_switch_level")
+        private val PLUG_REACHED_AT = longPreferencesKey("plug_reached_at")
+        private val PLUG_ON = booleanPreferencesKey("plug_on")
+        private val PLUG_MISSED_SINCE = longPreferencesKey("plug_missed_since")
+        private val LAST_RUN_ERROR = stringPreferencesKey("last_run_error")
+        private val ASKED_NOTIFICATIONS = booleanPreferencesKey("asked_notifications")
+        private val ASKED_EXEMPTION = booleanPreferencesKey("asked_exemption")
     }
+}
+
+/** Battery Guard's requests: its switches decide what is sent, and they join the waiting list only while it is on with "Send alerts" on. */
+object BatteryGuardSender : Sender {
+    override fun alertsOn(s: AlertOutbox.Settings) = s.alertsOn
+    override fun statusOn(s: AlertOutbox.Settings) = s.statusOn
+    override fun mayQueueIn(p: Preferences) = GuardStore.onWithAlertsIn(p)
 }

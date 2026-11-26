@@ -30,13 +30,13 @@ object AlertChannel {
 
     /** Sends [events] and the status report under the feature's own switches; returns the first push (see [HttpAlerter.deliver]). Never throws except for cancellation. */
     suspend fun deliver(
-        ctx: Context, sender: HttpAlerter.Sender.Feature, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
-    ) = HttpAlerter.deliver(ctx, GuardStore(ctx), events, status, budgetMs, sender)
+        ctx: Context, sender: FeatureSender, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
+    ) = HttpAlerter.deliver(ctx, AlertOutbox(ctx), events, status, budgetMs, sender)
 
     /** Queues a cancelled for [kind] behind the waiting requests and starts the flush job. Throws on a store failure: the caller logs it. */
     suspend fun queueCancelled(ctx: Context, kind: AlertKind, by: CancelledBy, extra: AlertExtra? = null) {
         val e = event(ctx, kind, AlertPhase.Cancelled, System.currentTimeMillis(), extra, cancelledBy = by)
-        GuardStore(ctx).enqueue(listOf(HttpAlerter.body(e)), guardItems = false)
+        AlertOutbox(ctx).enqueue(listOf(HttpAlerter.body(e)), FeatureSender(alertsOn = true, statusOn = false))
         FlushJobService.schedule(ctx)
     }
 }

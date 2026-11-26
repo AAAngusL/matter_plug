@@ -28,7 +28,7 @@ class FlushJobService : JobService() {
         val job = scope.launch {
             var again = false
             try {
-                again = HttpAlerter.flush(GuardStore(app), BUDGET_MS)
+                again = HttpAlerter.flush(AlertOutbox(app), BUDGET_MS)
             } catch (e: CancellationException) {
                 throw e      // onStopJob: Android asked us to stop and reschedules by itself; no jobFinished then
             } catch (e: Exception) {

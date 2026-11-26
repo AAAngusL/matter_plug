@@ -9,6 +9,7 @@ import app.matterplug.cellular.CellularScheduler
 import app.matterplug.cellular.CellularStore
 import app.matterplug.fixedip.IpStore
 import app.matterplug.fixedip.IpWatch
+import app.matterplug.guard.AlertOutbox
 import app.matterplug.guard.CheckScheduler
 import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardStore
@@ -29,7 +30,7 @@ class BootReceiver : BroadcastReceiver() {
         runAsync(context, TAG, "boot handling") { app ->
             val store = GuardStore(app)
             val enabled = store.readSettings().enabled
-            val waiting = store.readQueue().isNotEmpty()
+            val waiting = AlertOutbox(app).readQueue().isNotEmpty()
             Log.i(TAG, "boot: action=$action enabled=$enabled waiting=$waiting")
             if (enabled) CheckScheduler.scheduleIn(app, FIRST_CHECK_MS)
             if (waiting) FlushJobService.schedule(app)

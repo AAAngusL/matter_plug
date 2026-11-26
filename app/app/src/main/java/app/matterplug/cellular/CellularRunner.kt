@@ -20,7 +20,7 @@ import app.matterplug.guard.Delivery
 import app.matterplug.guard.BatteryReader
 import app.matterplug.guard.CheckSchedule
 import app.matterplug.guard.GuardNotifier
-import app.matterplug.guard.HttpAlerter
+import app.matterplug.guard.FeatureSender
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
@@ -55,7 +55,7 @@ object CellularRunner {
     private val mutex = Mutex()
 
     /** What a run sends after the lock is released, under Cellular Check's own switches: an alert step and its status report. */
-    private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val sender: HttpAlerter.Sender.Feature)
+    private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val sender: FeatureSender)
 
     /** Returns the delivery this run made, or null when it had nothing to send (the caller hands it to the console heartbeat when it is due). */
     suspend fun run(ctx: Context): Delivery? {
@@ -130,7 +130,7 @@ object CellularRunner {
         return Outgoing(alert, status, senderOf(settings))
     }
 
-    private fun senderOf(s: CellularSettings) = HttpAlerter.Sender.Feature(s.alertsEnabled, s.statusEnabled)
+    private fun senderOf(s: CellularSettings) = FeatureSender(s.alertsEnabled, s.statusEnabled)
 
     /** cellular_status: the same request shape as Battery Guard's status report, with this run's cellular object. */
     private suspend fun statusReport(ctx: Context, store: CellularStore, intervalMin: Int, now: Long): AlertEvent {

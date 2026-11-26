@@ -14,7 +14,7 @@ import app.matterplug.guard.AlertChannel
 import app.matterplug.guard.BatteryReader
 import app.matterplug.guard.GuardNotifier
 import app.matterplug.guard.GuardStore
-import app.matterplug.guard.HttpAlerter
+import app.matterplug.guard.FeatureSender
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
@@ -29,7 +29,7 @@ import kotlinx.coroutines.sync.withLock
  */
 object IpRunner {
     private const val TAG = "FixedIp"
-    private val SENDER = HttpAlerter.Sender.Feature(alertsOn = true, statusOn = false)
+    private val SENDER = FeatureSender(alertsOn = true, statusOn = false)
     private const val SERVICE_BUDGET_MS = 15_000L
     private val mutex = Mutex()
 

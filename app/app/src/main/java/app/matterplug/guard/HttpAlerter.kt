@@ -104,12 +104,12 @@ object HttpAlerter {
      * The test button: posts an AlertEvent(Test, Test, ...). Works whether or not alerts are on; needs a valid address only.
      * Does not touch the waiting list, the alert state or the delivery line.
      */
-    suspend fun postTest(ctx: Context, store: GuardStore, level: Int, power: Power): PostResult {
-        val settings = store.readSettings()
-        val address = settings.alertAddress
+    suspend fun postTest(outbox: AlertOutbox, level: Int, power: Power): PostResult {
+        val settings = outbox.readSettings()
+        val address = settings.address
         if (!AlertAddress.isValid(address)) return PostResult(null, DeliveryError.BAD_ADDRESS)
         val e = AlertEvent(AlertKind.Test, AlertPhase.Test, level, power, null, System.currentTimeMillis())
-        val r = post(address.trim(), settings.alertToken, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
+        val r = post(address.trim(), settings.token, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
         Log.i(TAG, "test alert host=${AlertAddress.hostOf(address)} code=${r.code} error=${r.error}")
         return r
     }
@@ -122,23 +122,15 @@ object HttpAlerter {
      * 4. list empty: reminders once, then the status report once (never queued)
      * 5. list not empty: schedule the flush job
      */
-    /**
-     * Whose requests a delivery carries (SIGNAL-STRENGTH.md draft 5): which switches decide whether they are sent, and which
-     * part of the waiting list they join. Battery Guard's are read from its settings; a feature passes its own.
-     */
-    sealed interface Sender {
-        data object BatteryGuard : Sender
-        data class Feature(val alertsOn: Boolean, val statusOn: Boolean) : Sender
-    }
 
     /** Returns the first push this call made, or null when it made none: what the console heartbeat (docs/CONSOLE-HEARTBEAT.md) learns from a check. */
     suspend fun deliver(
-        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
+        ctx: Context, outbox: AlertOutbox, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
         sender: Sender,
     ): PostResult? {
         val first = AtomicReference<PostResult?>(null)
         try {
-            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, sender, first)
+            deliverInner(ctx, outbox, events, status, SystemClock.elapsedRealtime() + budgetMs, sender, first)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
@@ -147,36 +139,36 @@ object HttpAlerter {
     }
 
     private suspend fun deliverInner(
-        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, sender: Sender,
+        ctx: Context, outbox: AlertOutbox, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, sender: Sender,
         first: AtomicReference<PostResult?>,
     ) {
-        val settings = store.readSettings()
-        val alertsOn = when (sender) { Sender.BatteryGuard -> settings.alertsEnabled; is Sender.Feature -> sender.alertsOn }
-        val statusOn = when (sender) { Sender.BatteryGuard -> settings.statusEnabled; is Sender.Feature -> sender.statusOn } && status != null
-        val valid = AlertAddress.isValid(settings.alertAddress)
+        val settings = outbox.readSettings()
+        val alertsOn = sender.alertsOn(settings)
+        val statusOn = sender.statusOn(settings) && status != null
+        val valid = AlertAddress.isValid(settings.address)
 
         if (alertsOn) {                                                                  // step 2
             val bodies = DeliveryPlan.toEnqueue(events, true).map { body(it) }
-            if (bodies.isNotEmpty()) store.enqueue(bodies, guardItems = sender == Sender.BatteryGuard)
+            if (bodies.isNotEmpty()) outbox.enqueue(bodies, sender)
         }
-        val waiting = store.readQueue().isNotEmpty()
+        val waiting = outbox.readQueue().isNotEmpty()
         if (DeliveryPlan.nothingToSend(valid, alertsOn || waiting, statusOn)) {          // step 1
             Log.i(TAG, "deliver: nothing to send (address valid=$valid alerts=$alertsOn status=$statusOn)")
             return
         }
-        val address = settings.alertAddress.trim()
+        val address = settings.address.trim()
         val host = AlertAddress.hostOf(address)
 
         // Step 3: every waiting request was queued under its own sender's switch, so the list is sent whoever asks.
-        if (waiting || alertsOn) flushQueue(store, address, settings.alertToken, host, deadline, first)
+        if (waiting || alertsOn) flushQueue(outbox, address, settings.token, host, deadline, first)
 
-        if (store.readQueue().isEmpty()) {                                               // step 4
+        if (outbox.readQueue().isEmpty()) {                                               // step 4
             for (e in DeliveryPlan.extras(events, status, alertsOn, statusOn)) {
                 val t = DeliveryPlan.timeoutFor(deadline - SystemClock.elapsedRealtime())
                 if (t == null) { Log.i(TAG, "deliver: budget used, ${e.phase.wire} skipped"); break }
-                val r = post(address, settings.alertToken, body(e), t)
+                val r = post(address, settings.token, body(e), t)
                 Log.i(TAG, "deliver: ${e.kind.wire}/${e.phase.wire} host=$host code=${r.code} error=${r.error}")
-                record(store, r)
+                record(outbox, r)
                 first.compareAndSet(null, r)
                 if (!r.delivered) break         // the network is likely down: do not spend the budget on the next one
             }
@@ -189,36 +181,36 @@ object HttpAlerter {
      * Steps 1 and 3 only, for the flush job. Returns true when the waiting list is still not empty AND a later try can
      * succeed (a valid address), so the job should be rescheduled. Each request was queued under its own sender's switch.
      */
-    suspend fun flush(store: GuardStore, budgetMs: Long): Boolean {
+    suspend fun flush(outbox: AlertOutbox, budgetMs: Long): Boolean {
         val deadline = SystemClock.elapsedRealtime() + budgetMs
-        val settings = store.readSettings()
-        val address = settings.alertAddress.trim()
+        val settings = outbox.readSettings()
+        val address = settings.address.trim()
         if (!AlertAddress.isValid(address)) {
             Log.i(TAG, "flush: address invalid, nothing to do")
             return false
         }
-        flushQueue(store, address, settings.alertToken, AlertAddress.hostOf(address), deadline)
-        return store.readQueue().isNotEmpty()
+        flushQueue(outbox, address, settings.token, AlertAddress.hostOf(address), deadline)
+        return outbox.readQueue().isNotEmpty()
     }
 
     /** Oldest first; each delivered entry is removed at once; stops at the first failure or when the budget is used. */
     private suspend fun flushQueue(
-        store: GuardStore, address: String, token: String, host: String?, deadline: Long, first: AtomicReference<PostResult?>? = null,
+        outbox: AlertOutbox, address: String, token: String, host: String?, deadline: Long, first: AtomicReference<PostResult?>? = null,
     ) {
         if (!flushLock.tryLock()) { Log.i(TAG, "flush: another flush is running"); return }
         try {
-            var q = store.readQueue()
+            var q = outbox.readQueue()
             while (q.isNotEmpty()) {
                 val t = DeliveryPlan.timeoutFor(deadline - SystemClock.elapsedRealtime())
                 if (t == null) { Log.i(TAG, "flush: budget used, ${q.size} waiting"); return }
                 val head = q.first()
                 val r = post(address, token, head, t)
                 Log.i(TAG, "flush: host=$host code=${r.code} error=${r.error} waiting=${q.size}")
-                record(store, r)
+                record(outbox, r)
                 first?.compareAndSet(null, r)
                 if (!r.delivered) return
-                store.dequeueIfHead(head)
-                q = store.readQueue()
+                outbox.dequeueIfHead(head)
+                q = outbox.readQueue()
             }
         } finally {
             flushLock.unlock()
@@ -226,11 +218,11 @@ object HttpAlerter {
     }
 
     /** recordDelivery for every outcome: success clears the stored error, failure stores its token. */
-    private suspend fun record(store: GuardStore, r: PostResult) {
+    private suspend fun record(outbox: AlertOutbox, r: PostResult) {
         val now = System.currentTimeMillis()
         try {
-            if (r.delivered) store.recordDelivery(now, null, null)
-            else store.recordDelivery(null, now, DeliveryError.forFailure(r))
+            if (r.delivered) outbox.recordDelivery(now, null, null)
+            else outbox.recordDelivery(null, now, DeliveryError.forFailure(r))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "recordDelivery failed", e)

@@ -10,6 +10,7 @@ import app.matterplug.guard.GuardStatus
 import app.matterplug.guard.BatteryReader
 import app.matterplug.guard.logic.BatteryStatus
 import app.matterplug.guard.logic.Power
+import app.matterplug.guard.AlertOutbox
 import app.matterplug.guard.CheckScheduler
 import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardPermissions
@@ -175,7 +176,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
         if (AlertAddress.isValid(text)) {
             flushJob = viewModelScope.launch {
                 delay(ADDRESS_SETTLE_MS)
-                if (store.readSettings().alertAddress == text && store.readQueue().isNotEmpty()) {
+                if (store.readSettings().alertAddress == text && AlertOutbox(getApplication()).readQueue().isNotEmpty()) {
                     guarded("schedule flush job") { FlushJobService.schedule(getApplication<Application>()) }
                 }
             }
@@ -208,7 +209,7 @@ class GuardViewModel(application: Application) : AndroidViewModel(application) {
                 val reading = try { BatteryReader.read(app) } catch (e: Exception) { null }
                 val level = reading?.level ?: status.value.lastLevel ?: 0
                 val power = reading?.power ?: Power(status.value.lastPlugged ?: false, BatteryStatus.Unknown)
-                val result = HttpAlerter.postTest(app, store, level, power)
+                val result = HttpAlerter.postTest(AlertOutbox(app), level, power)
                 _testState.value = TestState.Done(DeliveryPlan.describeTest(result))
             } catch (e: Exception) {
                 if (e is CancellationException) throw e

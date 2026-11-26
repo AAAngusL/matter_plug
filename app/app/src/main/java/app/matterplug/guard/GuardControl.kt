@@ -20,7 +20,7 @@ object GuardControl {
     suspend fun afterSwitch(ctx: Context, store: GuardStore, cleared: List<app.matterplug.guard.logic.AlertKind>) {
         GuardNotifier.cancel(ctx, cleared)
         try {
-            if (store.readQueue().isNotEmpty()) FlushJobService.schedule(ctx)
+            if (AlertOutbox(ctx).readQueue().isNotEmpty()) FlushJobService.schedule(ctx)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e("Guard", "flush job not scheduled", e)
