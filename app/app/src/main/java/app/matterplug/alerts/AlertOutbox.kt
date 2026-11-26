@@ -82,7 +82,7 @@ class AlertOutbox(context: Context) {
         }
 
         /** Adds [events] behind the requests already waiting, inside an edit. */
-        fun appendIn(p: MutablePreferences, events: List<AlertEvent>) = appendBodiesIn(p, events.map(AlertBody::of))
+        fun appendEventsIn(p: MutablePreferences, events: List<AlertEvent>) = appendBodiesIn(p, events.map(AlertBody::of))
 
         internal fun appendBodiesIn(p: MutablePreferences, bodies: List<String>) {
             p[QUEUE] = QueueCodec.encode(DeliveryPlan.appendCapped(QueueCodec.decode(p[QUEUE]), bodies))

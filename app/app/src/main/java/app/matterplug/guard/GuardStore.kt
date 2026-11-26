@@ -51,7 +51,7 @@ class GuardStore(context: Context) {
                     val reading = try { BatteryReader.read(app) } catch (e: Exception) { null }
                     val events = GuardSwitchOff.cancelled(active, by, reading?.level ?: 0,
                         reading?.power ?: Power(false, BatteryStatus.Unknown), System.currentTimeMillis())
-                    AlertOutbox.appendIn(p, events)
+                    AlertOutbox.appendEventsIn(p, events)
                 }
                 GuardRecord.clearAlertsIn(p)
             }

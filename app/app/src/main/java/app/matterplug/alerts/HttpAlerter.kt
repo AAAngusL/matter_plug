@@ -15,7 +15,6 @@ import app.matterplug.battery.Power
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
-import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicReference
 
 /**

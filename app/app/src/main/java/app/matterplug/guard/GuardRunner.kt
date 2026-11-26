@@ -127,7 +127,7 @@ object GuardRunner {
             val events = CheckDecision.alarmEvents(action, reading != null, fault, serviceFailed, plugEvent)
             val quiet = CheckDecision.nothingToDo(settings, record.readAlertState(), !AlertChannel.hasWaiting(ctx), events)
             // A quiet check starts no service, touches no Matter and does no notification work.
-            val delivery = if (quiet) Delivery.Skipped else finish(ctx, settings, reading, events, budgetMs = RECEIVER_DELIVERY_BUDGET_MS)
+            val delivery = if (quiet) Delivery.Skipped else finish(ctx, store, record, settings, reading, events, budgetMs = RECEIVER_DELIVERY_BUDGET_MS)
             if (fault == null && !serviceFailed && nextAt != null) noteError(record, null)
             return delivery
         } catch (e: Exception) {
@@ -166,7 +166,7 @@ object GuardRunner {
             if (fault != null) events += CheckEvent.Degraded(fault)
             // Read AFTER the power wait, so a PowerWait(false) is not followed by a plugged-in state in the same call.
             finalReading = BatteryReader.readOrNull(ctx) ?: reading
-            delivery = finish(ctx, settings, finalReading, events, budgetMs = SERVICE_DELIVERY_BUDGET_MS)
+            delivery = finish(ctx, store, record, settings, finalReading, events, budgetMs = SERVICE_DELIVERY_BUDGET_MS)
             if (fault == null) noteError(record, null)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -196,9 +196,7 @@ object GuardRunner {
      * Alert policy, stored state, notifications (always), then HTTP delivery and the status report within [budgetMs]
      * (5 s from onAlarm, 60 s from the service).
      */
-    private suspend fun finish(ctx: Context, settings: GuardSettings, reading: BatteryReading?, events: List<CheckEvent>, budgetMs: Long): Delivery {
-        val store = GuardStore(ctx)
-        val record = GuardRecord(ctx)
+    private suspend fun finish(ctx: Context, store: GuardStore, record: GuardRecord, settings: GuardSettings, reading: BatteryReading?, events: List<CheckEvent>, budgetMs: Long): Delivery {
         val last = if (reading == null) record.status.first() else null
         val level = reading?.level ?: last?.lastLevel ?: 0
         // Unread battery: the last plugged-in state, but the status is not known now (ALERT-API.md section 3).

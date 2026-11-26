@@ -9,7 +9,6 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.matterplug.alerts.AlertOutbox
-import app.matterplug.alerts.logic.AlertKind
 import app.matterplug.battery.BatteryStatus
 import app.matterplug.battery.Power
 import app.matterplug.data.guardDataStore
