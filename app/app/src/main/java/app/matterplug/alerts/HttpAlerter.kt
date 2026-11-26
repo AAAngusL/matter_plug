@@ -105,11 +105,11 @@ object HttpAlerter {
      * Does not touch the waiting list, the alert state or the delivery line.
      */
     suspend fun postTest(outbox: AlertOutbox, level: Int, power: Power): PostResult {
-        val settings = outbox.readSettings()
-        val address = settings.address
+        val endpoint = outbox.readEndpoint()
+        val address = endpoint.address
         if (!AlertAddress.isValid(address)) return PostResult(null, DeliveryError.BAD_ADDRESS)
         val e = AlertEvent(AlertKind.Test, AlertPhase.Test, level, power, null, System.currentTimeMillis())
-        val r = post(address.trim(), settings.token, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
+        val r = post(address.trim(), endpoint.token, body(e), DeliveryPlan.MAX_TIMEOUT_MS.toInt())
         Log.i(TAG, "test alert host=${AlertAddress.hostOf(address)} code=${r.code} error=${r.error}")
         return r
     }
@@ -142,10 +142,11 @@ object HttpAlerter {
         ctx: Context, outbox: AlertOutbox, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, sender: Sender,
         first: AtomicReference<PostResult?>,
     ) {
-        val settings = outbox.readSettings()
-        val alertsOn = sender.alertsOn(settings)
-        val statusOn = sender.statusOn(settings) && status != null
-        val valid = AlertAddress.isValid(settings.address)
+        val endpoint = outbox.readEndpoint()
+        val switches = sender.switches()
+        val alertsOn = switches.alertsOn
+        val statusOn = switches.statusOn && status != null
+        val valid = AlertAddress.isValid(endpoint.address)
 
         if (alertsOn) {                                                                  // step 2
             val bodies = DeliveryPlan.toEnqueue(events, true).map { body(it) }
@@ -156,17 +157,17 @@ object HttpAlerter {
             Log.i(TAG, "deliver: nothing to send (address valid=$valid alerts=$alertsOn status=$statusOn)")
             return
         }
-        val address = settings.address.trim()
+        val address = endpoint.address.trim()
         val host = AlertAddress.hostOf(address)
 
         // Step 3: every waiting request was queued under its own sender's switch, so the list is sent whoever asks.
-        if (waiting || alertsOn) flushQueue(outbox, address, settings.token, host, deadline, first)
+        if (waiting || alertsOn) flushQueue(outbox, address, endpoint.token, host, deadline, first)
 
         if (outbox.readQueue().isEmpty()) {                                               // step 4
             for (e in DeliveryPlan.extras(events, status, alertsOn, statusOn)) {
                 val t = DeliveryPlan.timeoutFor(deadline - SystemClock.elapsedRealtime())
                 if (t == null) { Log.i(TAG, "deliver: budget used, ${e.phase.wire} skipped"); break }
-                val r = post(address, settings.token, body(e), t)
+                val r = post(address, endpoint.token, body(e), t)
                 Log.i(TAG, "deliver: ${e.kind.wire}/${e.phase.wire} host=$host code=${r.code} error=${r.error}")
                 record(outbox, r)
                 first.compareAndSet(null, r)
@@ -183,13 +184,13 @@ object HttpAlerter {
      */
     suspend fun flush(outbox: AlertOutbox, budgetMs: Long): Boolean {
         val deadline = SystemClock.elapsedRealtime() + budgetMs
-        val settings = outbox.readSettings()
-        val address = settings.address.trim()
+        val endpoint = outbox.readEndpoint()
+        val address = endpoint.address.trim()
         if (!AlertAddress.isValid(address)) {
             Log.i(TAG, "flush: address invalid, nothing to do")
             return false
         }
-        flushQueue(outbox, address, settings.token, AlertAddress.hostOf(address), deadline)
+        flushQueue(outbox, address, endpoint.token, AlertAddress.hostOf(address), deadline)
         return outbox.readQueue().isNotEmpty()
     }
 

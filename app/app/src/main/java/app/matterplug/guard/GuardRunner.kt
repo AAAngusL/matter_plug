@@ -209,7 +209,7 @@ object GuardRunner {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
-        val firstPush = AlertChannel.deliver(ctx, BatteryGuardSender, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
+        val firstPush = AlertChannel.deliver(ctx, BatteryGuardSender(store), result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
         return Delivery(firstPush)      // the caller hands it to the console heartbeat, which Battery Guard's check carries when it is on
     }
 

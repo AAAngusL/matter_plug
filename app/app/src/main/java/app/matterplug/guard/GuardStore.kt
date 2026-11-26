@@ -143,16 +143,13 @@ class GuardStore(context: Context) {
 
     private fun readSettings(p: Preferences): GuardSettings {
         val d = GuardSettings()
-        val outbox = AlertOutbox.settingsIn(p)
         return GuardSettings(
             enabled = p[ENABLED] ?: d.enabled,
             low = p[LOW] ?: d.low,
             high = p[HIGH] ?: d.high,
             intervalMin = p[CHECK_INTERVAL] ?: d.intervalMin,      // the two old per-state intervals are not carried over
-            alertsEnabled = outbox.alertsOn,
-            statusEnabled = outbox.statusOn,
-            alertAddress = outbox.address,
-            alertToken = outbox.token,
+            alertsEnabled = p[ALERTS_ENABLED] ?: d.alertsEnabled,
+            statusEnabled = p[STATUS_ENABLED] ?: d.statusEnabled,
         ).coerced()
     }
 
@@ -161,7 +158,8 @@ class GuardStore(context: Context) {
         p[LOW] = s.low
         p[HIGH] = s.high
         p[CHECK_INTERVAL] = s.intervalMin
-        AlertOutbox.writeSettingsIn(p, AlertOutbox.Settings(s.alertAddress, s.alertToken, s.alertsEnabled, s.statusEnabled))
+        p[ALERTS_ENABLED] = s.alertsEnabled
+        p[STATUS_ENABLED] = s.statusEnabled
     }
 
     private fun <T> putOrRemove(p: androidx.datastore.preferences.core.MutablePreferences, key: Preferences.Key<T>, value: T?) {
@@ -170,12 +168,14 @@ class GuardStore(context: Context) {
 
     companion object {
         /** Battery Guard's own rule for what may join the waiting list: it is on, with "Send alerts" on. */
-        fun onWithAlertsIn(p: Preferences): Boolean = (p[ENABLED] ?: false) && (p[AlertOutbox.ALERTS_ENABLED] ?: false)
+        fun onWithAlertsIn(p: Preferences): Boolean = (p[ENABLED] ?: false) && (p[ALERTS_ENABLED] ?: false)
 
         private val ENABLED = booleanPreferencesKey("enabled")
         private val LOW = intPreferencesKey("low")
         private val HIGH = intPreferencesKey("high")
         private val CHECK_INTERVAL = intPreferencesKey("check_interval")
+        private val ALERTS_ENABLED = booleanPreferencesKey("alerts_enabled")
+        private val STATUS_ENABLED = booleanPreferencesKey("status_enabled")
         private val ALERT_STATE = stringPreferencesKey("alert_state")
         private val LAST_CHECK_AT = longPreferencesKey("last_check_at")
         private val LAST_LEVEL = intPreferencesKey("last_level")
@@ -195,8 +195,7 @@ class GuardStore(context: Context) {
 }
 
 /** Battery Guard's requests: its switches decide what is sent, and they join the waiting list only while it is on with "Send alerts" on. */
-object BatteryGuardSender : Sender {
-    override fun alertsOn(s: AlertOutbox.Settings) = s.alertsOn
-    override fun statusOn(s: AlertOutbox.Settings) = s.statusOn
+class BatteryGuardSender(private val store: GuardStore) : Sender {
+    override suspend fun switches() = store.readSettings().let { Sender.Switches(it.alertsEnabled, it.statusEnabled) }
     override fun mayQueueIn(p: Preferences) = GuardStore.onWithAlertsIn(p)
 }

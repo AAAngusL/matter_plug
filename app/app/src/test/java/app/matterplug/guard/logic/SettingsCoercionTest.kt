@@ -7,7 +7,7 @@ class SettingsCoercionTest {
     private val d = GuardSettings()
 
     @Test fun validValuesAreKept() {
-        val s = GuardSettings(low = 5, high = 100, intervalMin = 60, alertAddress = "x", alertToken = "t")
+        val s = GuardSettings(low = 5, high = 100, intervalMin = 60)
         assertEquals(s, s.coerced())
     }
     @Test fun lowOutOfRangeFallsBackToDefault() {
@@ -29,13 +29,7 @@ class SettingsCoercionTest {
         assertEquals(15, c.intervalMin)
     }
     @Test fun otherFieldsUntouched() {
-        val s = d.copy(enabled = true, alertsEnabled = true, statusEnabled = true, alertAddress = "http://a.b")
+        val s = d.copy(enabled = true, alertsEnabled = true, statusEnabled = true)
         assertEquals(s, s.coerced())
-    }
-
-    @Test fun settingsKeepTheTokenThroughCoercion() {
-        val s = GuardSettings(alertAddress = "https://h/x", alertToken = "tok")
-        assertEquals("tok", s.coerced().alertToken)
-        assertEquals("", GuardSettings().alertToken)
     }
 }

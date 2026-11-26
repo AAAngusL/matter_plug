@@ -13,8 +13,6 @@ class GuardSettingsTest {
         assertEquals(15, s.intervalMin)
         assertFalse(s.alertsEnabled)
         assertFalse(s.statusEnabled)
-        assertEquals("", s.alertAddress)
-        assertEquals("", s.alertToken)
     }
 
     @Test fun lowRanges() {

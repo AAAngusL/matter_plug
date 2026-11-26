@@ -7,8 +7,6 @@ data class GuardSettings(
     val intervalMin: Int = 15,                 // one interval for every check, plugged in or not
     val alertsEnabled: Boolean = false,
     val statusEnabled: Boolean = false,        // status report after every check
-    val alertAddress: String = "",
-    val alertToken: String = "",               // optional; sent as Authorization: Bearer <token>. Never log it.
 ) {
     companion object {
         val INTERVALS = listOf(5, 10, 15, 30, 60)

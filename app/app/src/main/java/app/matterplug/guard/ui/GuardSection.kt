@@ -1,5 +1,6 @@
 package app.matterplug.guard.ui
 
+import app.matterplug.alerts.ui.TestState
 import android.Manifest
 import android.content.ActivityNotFoundException
 import android.text.format.DateFormat
@@ -74,10 +75,10 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val status by viewModel.status.collectAsStateWithLifecycle()
     val hasPlug by viewModel.hasPlug.collectAsStateWithLifecycle()
-    val address by viewModel.addressText.collectAsStateWithLifecycle()
-    val tokenText by viewModel.tokenText.collectAsStateWithLifecycle()
-    val addressError by viewModel.addressError.collectAsStateWithLifecycle()
-    val testState by viewModel.testState.collectAsStateWithLifecycle()
+    val address by viewModel.endpoint.addressText.collectAsStateWithLifecycle()
+    val tokenText by viewModel.endpoint.tokenText.collectAsStateWithLifecycle()
+    val addressError by viewModel.endpoint.addressError.collectAsStateWithLifecycle()
+    val testState by viewModel.endpoint.testState.collectAsStateWithLifecycle()
     val disableState by viewModel.disableState.collectAsStateWithLifecycle()
     val prompt by viewModel.prompt.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -156,7 +157,7 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
         LabeledSwitch(stringResource(R.string.guard_send_status), s.statusEnabled, true, viewModel::setStatusEnabled)
         OutlinedTextField(
             value = address,
-            onValueChange = viewModel::setAlertAddress,
+            onValueChange = viewModel.endpoint::setAddress,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(R.string.guard_alert_address)) },
             placeholder = { Text(stringResource(R.string.guard_alert_address_hint)) },
@@ -170,7 +171,7 @@ fun GuardSection(modifier: Modifier = Modifier, viewModel: GuardViewModel = view
         var tokenShown by remember { mutableStateOf(false) }      // hidden by default; not kept across a restart
         OutlinedTextField(
             value = tokenText,
-            onValueChange = viewModel::setAlertToken,
+            onValueChange = viewModel.endpoint::setToken,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(R.string.guard_alert_token)) },
             singleLine = true,

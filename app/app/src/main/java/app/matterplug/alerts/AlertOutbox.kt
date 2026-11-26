@@ -3,27 +3,35 @@ package app.matterplug.alerts
 import android.content.Context
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.matterplug.data.guardDataStore
 import app.matterplug.alerts.logic.DeliveryPlan
 import app.matterplug.alerts.logic.QueueCodec
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
- * Where the alert requests wait and how the last delivery went: the waiting list, the address and token they go to, the two "send" switches
- * and the delivery line. Lives in the "guard" DataStore file (see [guardDataStore]); the functions ending in `In` work inside an edit
+ * Where the alert requests wait and how the last delivery went: the waiting list, the endpoint they go to and the delivery line. Lives in the "guard" DataStore file (see [guardDataStore]); the functions ending in `In` work inside an edit
  * that [GuardStore] also makes.
  */
 class AlertOutbox(context: Context) {
     private val store = context.applicationContext.guardDataStore
 
-    data class Settings(val address: String, val token: String, val alertsOn: Boolean, val statusOn: Boolean)
+    /** Where requests go: the server address and the optional bearer token (never logged). */
+    data class Endpoint(val address: String, val token: String)
     data class DeliveryLine(val okAt: Long?, val failAt: Long?, val error: String?)
 
-    suspend fun readSettings(): Settings = settingsIn(store.data.first())
+    val endpoint: Flow<Endpoint> = store.data.map { endpointIn(it) }
+
+    suspend fun readEndpoint(): Endpoint = endpointIn(store.data.first())
+
+    /** Applies [transform] to the stored endpoint and writes the result in one edit. */
+    suspend fun updateEndpoint(transform: (Endpoint) -> Endpoint) {
+        store.edit { p -> writeEndpointIn(p, transform(endpointIn(p))) }
+    }
 
     suspend fun readQueue(): List<String> = QueueCodec.decode(store.data.first()[QUEUE])
 
@@ -57,8 +65,6 @@ class AlertOutbox(context: Context) {
     }
 
     companion object {
-        val ALERTS_ENABLED = booleanPreferencesKey("alerts_enabled")
-        private val STATUS_ENABLED = booleanPreferencesKey("status_enabled")
         private val ALERT_ADDRESS = stringPreferencesKey("alert_address")
         private val ALERT_TOKEN = stringPreferencesKey("alert_token")
         private val QUEUE = stringPreferencesKey("queue")
@@ -66,18 +72,11 @@ class AlertOutbox(context: Context) {
         private val LAST_DELIVERY_FAIL_AT = longPreferencesKey("last_delivery_fail_at")
         private val LAST_DELIVERY_ERROR = stringPreferencesKey("last_delivery_error")
 
-        fun settingsIn(p: Preferences) = Settings(
-            address = p[ALERT_ADDRESS] ?: "",
-            token = (p[ALERT_TOKEN] ?: "").trim(),
-            alertsOn = p[ALERTS_ENABLED] ?: false,
-            statusOn = p[STATUS_ENABLED] ?: false,
-        )
+        private fun endpointIn(p: Preferences) = Endpoint(address = p[ALERT_ADDRESS] ?: "", token = (p[ALERT_TOKEN] ?: "").trim())
 
-        fun writeSettingsIn(p: MutablePreferences, s: Settings) {
-            p[ALERTS_ENABLED] = s.alertsOn
-            p[STATUS_ENABLED] = s.statusOn
-            p[ALERT_ADDRESS] = s.address
-            p[ALERT_TOKEN] = s.token.trim()      // never logged
+        private fun writeEndpointIn(p: MutablePreferences, e: Endpoint) {
+            p[ALERT_ADDRESS] = e.address
+            p[ALERT_TOKEN] = e.token.trim()
         }
 
         fun appendIn(p: MutablePreferences, bodies: List<String>) {
