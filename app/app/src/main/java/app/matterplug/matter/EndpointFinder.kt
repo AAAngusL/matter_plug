@@ -25,8 +25,7 @@ object EndpointFinder {
      * Throws if the node cannot be reached. If the wildcard read itself fails, falls back to endpoint 1.
      */
     suspend fun find(context: Context, nodeId: Long): Int? {
-        val pointer = ChipController.connect(context, nodeId)
-        try {
+        return PlugSession.use(context, nodeId, onNotConnected = { throw IllegalStateException("Unable to reach node $nodeId: $it") }) { pointer ->
             val controller = ChipController.get(context)
             // Settled: ChipAttributePath.newInstance(ChipPathId, ChipPathId, ChipPathId) exists at v1.6.1.0.
             // VERIFY: ChipPathId.forWildcard() and ChipPathId.forId(long) factory names in model/ChipPathId.java.
@@ -60,11 +59,10 @@ object EndpointFinder {
             }
             if (found == null || found.isFailure) {
                 Log.w(TAG, "Wildcard read did not work; falling back to endpoint $FALLBACK_ENDPOINT")
-                return FALLBACK_ENDPOINT
+                FALLBACK_ENDPOINT
+            } else {
+                found.getOrNull()
             }
-            return found.getOrNull()
-        } finally {
-            ChipController.release(pointer)
         }
     }
 }
