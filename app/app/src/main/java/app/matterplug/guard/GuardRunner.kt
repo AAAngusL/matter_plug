@@ -1,9 +1,7 @@
 package app.matterplug.guard
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.Log
-import app.matterplug.data.PlugRepository
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.guard.logic.AlertKind
@@ -17,11 +15,8 @@ import app.matterplug.guard.logic.CheckLog
 import app.matterplug.guard.logic.GuardAction
 import app.matterplug.guard.logic.GuardPolicy
 import app.matterplug.guard.logic.GuardSettings
-import app.matterplug.matter.PlugCommander
-import app.matterplug.matter.SwitchResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -78,11 +73,7 @@ object GuardRunner {
 
         var nextAt: Long? = null
         try {
-            val reading = try { BatteryReader.read(ctx) } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w(TAG, "battery read failed", e)
-                null
-            }
+            val reading = BatteryReader.readOrNull(ctx)
             val plugged = reading?.pluggedIn
             val power = reading?.power
             val intervalMin = settings.intervalMin
@@ -154,7 +145,7 @@ object GuardRunner {
         var action = GuardAction.Nothing
         var outcome = "none"
         try {
-            val r: BatteryReading? = PlugStep.safeRead(ctx)       // B5: the service reads for itself
+            val r: BatteryReading? = BatteryReader.readOrNull(ctx)       // B5: the service reads for itself
             reading = r
             // The service is running: proof that it can start (RECOVERY-SIGNALS.md 2.2).
             val events = mutableListOf<CheckEvent>(CheckEvent.ServiceStarted)
@@ -180,7 +171,7 @@ object GuardRunner {
             val fault = degradationReason(ctx, r)
             if (fault != null) events += CheckEvent.Degraded(fault)
             // Read AFTER the power wait, so a PowerWait(false) is not followed by a plugged-in state in the same call (G1 note 8).
-            val finalR: BatteryReading? = PlugStep.safeRead(ctx) ?: r
+            val finalR: BatteryReading? = BatteryReader.readOrNull(ctx) ?: r
             finalReading = finalR
             finish(ctx, settings, finalR, events, budgetMs = 60_000)
             if (fault == null) noteError(store, null)
@@ -220,7 +211,7 @@ object GuardRunner {
             AlertEvent(AlertKind.Status, AlertPhase.Status, level, power, null, System.currentTimeMillis(),
                 nextCheckInMin = settings.intervalMin)
         } else null
-        val firstPush = HttpAlerter.deliver(ctx, store, result.events, status, budgetMs)         // 5.6: never throws, stays inside budgetMs
+        val firstPush = HttpAlerter.deliver(ctx, store, result.events, status, budgetMs, HttpAlerter.Sender.BatteryGuard)         // 5.6: never throws, stays inside budgetMs
         HeartbeatRunner.afterCheck(ctx, firstPush)      // Battery Guard's check carries the console heartbeat when it is on
     }
 
@@ -230,7 +221,7 @@ object GuardRunner {
         before: BatteryReading?, finalReading: BatteryReading?, action: GuardAction, outcome: String,
     ) {
         // The final reading of the run when there is one (taken after the power wait), else read again.
-        val after: BatteryReading? = finalReading ?: PlugStep.safeRead(ctx) ?: before
+        val after: BatteryReading? = finalReading ?: BatteryReader.readOrNull(ctx) ?: before
         val intervalMin = settings.intervalMin
         val nextAt: Long? = try {
             CheckScheduler.scheduleIn(ctx, intervalMin * 60_000L)

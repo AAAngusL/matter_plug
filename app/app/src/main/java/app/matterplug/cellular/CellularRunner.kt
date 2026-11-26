@@ -11,6 +11,7 @@ import app.matterplug.heartbeat.HeartbeatRunner
 import app.matterplug.cellular.logic.CellularAlertPolicy
 import app.matterplug.cellular.logic.CellularLog
 import app.matterplug.cellular.logic.CellularReport
+import app.matterplug.cellular.logic.CellularSettings
 import app.matterplug.cellular.logic.CellularSummary
 import app.matterplug.cellular.logic.CellularVerdict
 import app.matterplug.cellular.logic.Layer
@@ -19,16 +20,14 @@ import app.matterplug.cellular.logic.LoopbackJudge
 import app.matterplug.cellular.logic.LoopbackOutcome
 import app.matterplug.cellular.logic.LoopbackPlan
 import app.matterplug.cellular.logic.LoopbackTrigger
+import app.matterplug.guard.AlertChannel
 import app.matterplug.guard.BatteryReader
-import app.matterplug.guard.FlushJobService
 import app.matterplug.guard.GuardNotifier
 import app.matterplug.guard.GuardStore
 import app.matterplug.guard.HttpAlerter
 import app.matterplug.guard.logic.AlertEvent
 import app.matterplug.guard.logic.AlertKind
 import app.matterplug.guard.logic.AlertPhase
-import app.matterplug.guard.logic.BatteryStatus
-import app.matterplug.guard.logic.Power
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,8 +61,6 @@ class CellularReceiver : BroadcastReceiver() {
  */
 object CellularRunner {
     private const val TAG = "Cellular"
-    /** The battery could not be read: nothing is known about the power. */
-    private val UNREAD_POWER = Power(false, BatteryStatus.Unknown)
     private const val RETRY_MS = 5 * 60_000L
     /** From an alarm receiver, as Battery Guard's checks (its B11); the loopback service can wait longer. */
     private const val RECEIVER_BUDGET_MS = 5_000L
@@ -71,13 +68,12 @@ object CellularRunner {
     private val mutex = Mutex()
 
     /** What a run sends after the lock is released, under Cellular Check's own switches: an alert step and its status report. */
-    private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val switches: HttpAlerter.SenderSwitches)
+    private data class Outgoing(val alert: AlertEvent?, val status: AlertEvent?, val sender: HttpAlerter.Sender.Feature)
 
     suspend fun run(ctx: Context) {
         val out = mutex.withLock { runLocked(ctx) } ?: return
         if (out.alert != null || out.status != null) {
-            val firstPush = HttpAlerter.deliver(ctx, GuardStore(ctx), listOfNotNull(out.alert), status = out.status,
-                budgetMs = RECEIVER_BUDGET_MS, cellular = out.switches)
+            val firstPush = AlertChannel.deliver(ctx, out.sender, listOfNotNull(out.alert), status = out.status, budgetMs = RECEIVER_BUDGET_MS)
             // Battery Guard's own check carries the console heartbeat when it is on (its stored switch, not which receiver fired: Run now
             // and a fresh install fire this one too); this run is a check of its own only when it is off.
             val guardOn = try { GuardStore(ctx).readSettings().enabled } catch (e: Exception) { if (e is CancellationException) throw e; true }
@@ -151,16 +147,14 @@ object CellularRunner {
         val alert = if (LoopbackPlan.reminderWaits(state)) null else alertStep(ctx, store, state.down, now)
         // Cellular Check's own status report, whether Battery Guard is on or off (draft 5): its own switch decides.
         val status = if (settings.statusEnabled) statusReport(ctx, store, intervalMin, now) else null
-        return Outgoing(alert, status, switchesOf(settings))
+        return Outgoing(alert, status, senderOf(settings))
     }
 
-    private fun switchesOf(s: app.matterplug.cellular.logic.CellularSettings) = HttpAlerter.SenderSwitches(s.alertsEnabled, s.statusEnabled)
+    private fun senderOf(s: CellularSettings) = HttpAlerter.Sender.Feature(s.alertsEnabled, s.statusEnabled)
 
     /** cellular_status: the same request shape as Battery Guard's status report, with this run's cellular object. */
     private suspend fun statusReport(ctx: Context, store: CellularStore, intervalMin: Int, now: Long): AlertEvent {
-        val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
-        return AlertEvent(AlertKind.CellularStatus, AlertPhase.Status, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now,
-            nextCheckInMin = intervalMin, extra = summaryOf(store))
+        return AlertChannel.event(ctx, AlertKind.CellularStatus, AlertPhase.Status, now, extra = summaryOf(store), nextCheckInMin = intervalMin)
     }
 
     /**
@@ -170,8 +164,7 @@ object CellularRunner {
     suspend fun finishLoopback(ctx: Context, trigger: LoopbackTrigger, outcome: LoopbackOutcome?) {
         val alert = mutex.withLock { finishLocked(ctx, trigger, outcome) }
         if (alert != null) {
-            HttpAlerter.deliver(ctx, GuardStore(ctx), listOf(alert), status = null, budgetMs = SERVICE_BUDGET_MS,
-                cellular = switchesOf(CellularStore(ctx).readSettings()))
+            AlertChannel.deliver(ctx, senderOf(CellularStore(ctx).readSettings()), listOf(alert), status = null, budgetMs = SERVICE_BUDGET_MS)
         }
         if (CellularStore(ctx).manualRequested()) startSoon(ctx)      // Run now was tapped while this one was waiting
     }
@@ -205,9 +198,7 @@ object CellularRunner {
         store.writeAlert(memo)
         if (phase == null) return null
         val summary = summaryOf(store)
-        val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
-        val event = AlertEvent(AlertKind.CellularDown, phase, battery?.level ?: 0, battery?.power ?: UNREAD_POWER, null, now,
-            extra = summary)
+        val event = AlertChannel.event(ctx, AlertKind.CellularDown, phase, now, extra = summary)
         Log.i(TAG, "alert: kind=${event.kind.wire} phase=${phase.wire} failed_layer=${summary.failedLayer?.wire}")
         GuardNotifier.post(ctx, listOf(event))
         return event
@@ -222,11 +213,7 @@ object CellularRunner {
         try {
             GuardNotifier.cancel(ctx, listOf(AlertKind.CellularDown))
             val by = closed.cancelledBy ?: return
-            val battery = try { BatteryReader.read(ctx) } catch (e: Exception) { null }
-            val e = AlertEvent(AlertKind.CellularDown, AlertPhase.Cancelled, battery?.level ?: 0, battery?.power ?: UNREAD_POWER,
-                null, System.currentTimeMillis(), extra = summaryOf(CellularStore(ctx)), cancelledBy = by)
-            GuardStore(ctx).enqueue(listOf(HttpAlerter.body(e)), guardItems = false)
-            FlushJobService.schedule(ctx)
+            AlertChannel.queueCancelled(ctx, AlertKind.CellularDown, by, extra = summaryOf(CellularStore(ctx)))
             Log.i(TAG, "alert: kind=cellular_down phase=cancelled by=${by.wire}")
         } catch (e: Exception) {
             if (e is CancellationException) throw e

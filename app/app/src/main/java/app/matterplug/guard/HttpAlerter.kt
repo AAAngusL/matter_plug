@@ -123,19 +123,22 @@ object HttpAlerter {
      * 5. list not empty: schedule the flush job
      */
     /**
-     * The switches of the sender whose requests a delivery carries (SIGNAL-STRENGTH.md draft 5). Null means Battery
-     * Guard's own, read from its settings; Cellular Check passes its own.
+     * Whose requests a delivery carries (SIGNAL-STRENGTH.md draft 5): which switches decide whether they are sent, and which
+     * part of the waiting list they join. Battery Guard's are read from its settings; a feature passes its own.
      */
-    data class SenderSwitches(val alertsOn: Boolean, val statusOn: Boolean)
+    sealed interface Sender {
+        data object BatteryGuard : Sender
+        data class Feature(val alertsOn: Boolean, val statusOn: Boolean) : Sender
+    }
 
     /** Returns the first push this call made, or null when it made none: what the console heartbeat (docs/CONSOLE-HEARTBEAT.md) learns from a check. */
     suspend fun deliver(
         ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, budgetMs: Long,
-        cellular: SenderSwitches? = null,
+        sender: Sender,
     ): PostResult? {
         val first = AtomicReference<PostResult?>(null)
         try {
-            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, cellular, first)
+            deliverInner(ctx, store, events, status, SystemClock.elapsedRealtime() + budgetMs, sender, first)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "delivery failed", e)
@@ -144,17 +147,17 @@ object HttpAlerter {
     }
 
     private suspend fun deliverInner(
-        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, cellular: SenderSwitches?,
+        ctx: Context, store: GuardStore, events: List<AlertEvent>, status: AlertEvent?, deadline: Long, sender: Sender,
         first: AtomicReference<PostResult?>,
     ) {
         val settings = store.readSettings()
-        val alertsOn = cellular?.alertsOn ?: settings.alertsEnabled
-        val statusOn = (cellular?.statusOn ?: settings.statusEnabled) && status != null
+        val alertsOn = when (sender) { Sender.BatteryGuard -> settings.alertsEnabled; is Sender.Feature -> sender.alertsOn }
+        val statusOn = when (sender) { Sender.BatteryGuard -> settings.statusEnabled; is Sender.Feature -> sender.statusOn } && status != null
         val valid = AlertAddress.isValid(settings.alertAddress)
 
         if (alertsOn) {                                                                  // step 2
             val bodies = DeliveryPlan.toEnqueue(events, true).map { body(it) }
-            if (bodies.isNotEmpty()) store.enqueue(bodies, guardItems = cellular == null)
+            if (bodies.isNotEmpty()) store.enqueue(bodies, guardItems = sender == Sender.BatteryGuard)
         }
         val waiting = store.readQueue().isNotEmpty()
         if (DeliveryPlan.nothingToSend(valid, alertsOn || waiting, statusOn)) {          // step 1

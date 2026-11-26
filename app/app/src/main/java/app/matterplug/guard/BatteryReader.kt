@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.util.Log
 import app.matterplug.guard.logic.BatteryMath
 import app.matterplug.guard.logic.BatteryStatus
 import app.matterplug.guard.logic.Power
@@ -28,5 +29,13 @@ object BatteryReader {
             BatteryStatus.fromAndroid(i.getIntExtra(BatteryManager.EXTRA_STATUS, -1)),
         )
         return BatteryReading(pct, power)
+    }
+
+    /** [read], with a failure logged and counted as "no reading". The one place that decides an unreadable battery is not an error. */
+    fun readOrNull(context: Context): BatteryReading? = try {
+        read(context)
+    } catch (e: Exception) {
+        Log.w("Guard", "battery read failed", e)
+        null
     }
 }

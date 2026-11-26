@@ -55,14 +55,6 @@ internal object PlugStep {
         }
     }
 
-
-    fun safeRead(ctx: Context): BatteryReading? = try {
-        BatteryReader.read(ctx)
-    } catch (e: Exception) {
-        Log.w(TAG, "battery read failed", e)
-        null
-    }
-
     /**
      * True as soon as the phone reports plugged in, false after [timeoutMs]. Polls every 2 s with delay(), so it can be
      * cancelled; 30 s fits inside the service's 120 s limit (connect 25 + command 10 + read-back 10 + this 30).
@@ -70,7 +62,7 @@ internal object PlugStep {
     private suspend fun waitForPower(ctx: Context, timeoutMs: Long): Boolean {
         val deadline = SystemClock.elapsedRealtime() + timeoutMs
         while (true) {
-            if (safeRead(ctx)?.pluggedIn == true) return true
+            if (BatteryReader.readOrNull(ctx)?.pluggedIn == true) return true
             val left = deadline - SystemClock.elapsedRealtime()
             if (left <= 0) return false
             delay(minOf(POWER_POLL_MS, left))
